@@ -91,7 +91,7 @@
   }
 </script>
 
-<section class="relative h-[90vh] md:h-[95vh] overflow-hidden bg-black">
+<section class="relative h-[70vh] md:h-[85vh] lg:h-[95vh] overflow-hidden bg-black">
   <!-- Background Image with Ken Burns effect -->
   <div class="absolute inset-0">
     {#key currentIndex}
@@ -104,10 +104,10 @@
       </div>
     {/key}
 
-    <!-- Cinematic Overlays -->
-    <div class="absolute inset-0 bg-gradient-to-r from-black via-black/70 to-transparent"></div>
-    <div class="absolute inset-0 bg-gradient-to-t from-black via-black/40 to-transparent"></div>
-    <div class="absolute inset-0 bg-gradient-to-b from-black/60 via-transparent to-transparent h-40"></div>
+    <!-- Cinematic Overlays - stronger on mobile for readability -->
+    <div class="absolute inset-0 bg-gradient-to-r from-black via-black/80 md:via-black/70 to-black/50 md:to-transparent"></div>
+    <div class="absolute inset-0 bg-gradient-to-t from-black via-black/50 md:via-black/40 to-transparent"></div>
+    <div class="absolute inset-0 bg-gradient-to-b from-black/70 md:from-black/60 via-transparent to-transparent h-40"></div>
 
     <!-- Animated particles/grain effect -->
     <div class="absolute inset-0 opacity-[0.03] bg-noise"></div>
@@ -119,19 +119,19 @@
   <!-- Navigation Arrows - Premium style -->
   <button
     on:click={prevSlide}
-    class="absolute left-6 top-1/2 -translate-y-1/2 z-20 w-14 h-14 rounded-full flex items-center justify-center nav-arrow"
+    class="absolute left-2 md:left-6 top-1/2 -translate-y-1/2 z-20 w-10 h-10 md:w-14 md:h-14 rounded-full flex items-center justify-center nav-arrow"
   >
-    <ChevronLeft size={32} class="text-white" />
+    <ChevronLeft size={24} class="text-white md:w-8 md:h-8" />
   </button>
   <button
     on:click={nextSlide}
-    class="absolute right-6 top-1/2 -translate-y-1/2 z-20 w-14 h-14 rounded-full flex items-center justify-center nav-arrow"
+    class="absolute right-2 md:right-6 top-1/2 -translate-y-1/2 z-20 w-10 h-10 md:w-14 md:h-14 rounded-full flex items-center justify-center nav-arrow"
   >
-    <ChevronRight size={32} class="text-white" />
+    <ChevronRight size={24} class="text-white md:w-8 md:h-8" />
   </button>
 
-  <div class="relative h-full max-w-7xl mx-auto px-6 sm:px-8 lg:px-12">
-    <div class="flex h-full items-center pt-20">
+  <div class="relative h-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-12">
+    <div class="flex h-full items-center pt-16 md:pt-20">
       {#if currentItem}
         <div class="flex-1 flex items-center gap-12">
           <!-- Content -->
@@ -150,7 +150,7 @@
             </div>
 
             <!-- Title with golden accent -->
-            <h1 class="text-5xl md:text-6xl lg:text-7xl font-black text-white mb-4 leading-[1.1] tracking-tight">
+            <h1 class="text-2xl sm:text-3xl md:text-5xl lg:text-6xl xl:text-7xl font-black text-white mb-2 md:mb-4 leading-[1.1] tracking-tight">
               {#key currentIndex}
                 <span class="inline-block animate-slideUp">{currentItem.title}</span>
               {/key}
@@ -158,37 +158,37 @@
 
             <!-- Tagline -->
             {#if currentItem.tagline}
-              <p class="text-lg italic text-gray-300 mb-6">"{currentItem.tagline}"</p>
+              <p class="text-sm md:text-lg italic text-gray-300 mb-3 md:mb-6 line-clamp-1">"{currentItem.tagline}"</p>
             {/if}
 
             <!-- Stats Row -->
-            <div class="flex flex-wrap items-center gap-4 mb-6">
+            <div class="flex flex-wrap items-center gap-2 md:gap-4 mb-3 md:mb-6">
               <!-- Rating -->
-              <div class="flex items-center gap-2 px-4 py-2 rounded-xl rating-badge">
-                <Star size={20} fill="#fbbf24" class="text-amber-400" />
-                <span class="text-xl font-black text-white">{currentItem.vote_average.toFixed(1)}</span>
-                <span class="text-sm text-gray-400">/10</span>
+              <div class="flex items-center gap-1 md:gap-2 px-2 md:px-4 py-1 md:py-2 rounded-xl rating-badge">
+                <Star size={16} fill="#fbbf24" class="text-amber-400 md:w-5 md:h-5" />
+                <span class="text-base md:text-xl font-black text-white">{currentItem.vote_average.toFixed(1)}</span>
+                <span class="text-xs md:text-sm text-gray-400">/10</span>
               </div>
 
-              <!-- Vote Count -->
+              <!-- Vote Count - hidden on mobile -->
               {#if currentItem.vote_count}
-                <div class="flex items-center gap-2 text-gray-300">
-                  <Users size={16} />
-                  <span class="text-sm">{formatVoteCount(currentItem.vote_count)} votes</span>
+                <div class="hidden sm:flex items-center gap-2 text-gray-300">
+                  <Users size={14} class="md:w-4 md:h-4" />
+                  <span class="text-xs md:text-sm">{formatVoteCount(currentItem.vote_count)} votes</span>
                 </div>
               {/if}
 
               <!-- Runtime -->
               {#if currentItem.runtime}
-                <div class="flex items-center gap-2 text-gray-300">
-                  <Clock size={16} />
-                  <span class="text-sm">{formatRuntime(currentItem.runtime)}</span>
+                <div class="flex items-center gap-1 md:gap-2 text-gray-300">
+                  <Clock size={14} class="md:w-4 md:h-4" />
+                  <span class="text-xs md:text-sm">{formatRuntime(currentItem.runtime)}</span>
                 </div>
               {/if}
 
-              <!-- Release Date -->
+              <!-- Release Date - hidden on mobile -->
               {#if currentItem.release_date}
-                <div class="flex items-center gap-2 text-gray-300">
+                <div class="hidden md:flex items-center gap-2 text-gray-300">
                   <Calendar size={16} />
                   <span class="text-sm">{formatReleaseDate(currentItem.release_date)}</span>
                 </div>
@@ -197,9 +197,9 @@
 
             <!-- Genres -->
             {#if currentItem.genres && currentItem.genres.length > 0}
-              <div class="flex flex-wrap gap-2 mb-6">
-                {#each currentItem.genres.slice(0, 4) as genre}
-                  <span class="px-4 py-1.5 rounded-full text-sm font-medium genre-tag">
+              <div class="flex flex-wrap gap-1 md:gap-2 mb-3 md:mb-6">
+                {#each currentItem.genres.slice(0, 3) as genre}
+                  <span class="px-2 md:px-4 py-1 md:py-1.5 rounded-full text-xs md:text-sm font-medium genre-tag">
                     {genre.name}
                   </span>
                 {/each}
@@ -207,19 +207,21 @@
             {/if}
 
             <!-- Overview -->
-            <p class="text-gray-300 text-lg mb-8 line-clamp-3 leading-relaxed max-w-xl">
+            <p class="text-gray-300 text-sm md:text-base lg:text-lg mb-4 md:mb-8 line-clamp-2 md:line-clamp-3 leading-relaxed max-w-xl">
               {currentItem.overview || 'No description available.'}
             </p>
 
             <!-- Action Buttons -->
-            <div class="flex flex-wrap gap-4">
+            <div class="flex flex-wrap gap-2 md:gap-4">
               <a href={getHref(currentItem)} class="btn-primary">
-                <Play size={22} fill="white" />
-                <span>Watch Now</span>
+                <Play size={18} fill="white" class="md:w-[22px] md:h-[22px]" />
+                <span class="hidden sm:inline">Watch Now</span>
+                <span class="sm:hidden">Watch</span>
               </a>
               <a href={getHref(currentItem)} class="btn-secondary">
-                <Info size={22} />
-                <span>More Info</span>
+                <Info size={18} class="md:w-[22px] md:h-[22px]" />
+                <span class="hidden sm:inline">More Info</span>
+                <span class="sm:hidden">Info</span>
               </a>
             </div>
           </div>
@@ -244,17 +246,17 @@
       {/if}
     </div>
 
-    <!-- Slide Indicators - Premium vertical style -->
-    <div class="absolute right-8 top-1/2 -translate-y-1/2 flex flex-col gap-3 z-20">
+    <!-- Slide Indicators - Premium vertical style (hidden on small mobile) -->
+    <div class="absolute right-4 md:right-8 top-1/2 -translate-y-1/2 hidden sm:flex flex-col gap-2 md:gap-3 z-20">
       {#each carouselItems as item, index}
         <button
           on:click={() => goToSlide(index)}
           class="group relative"
           aria-label="Go to slide {index + 1}"
         >
-          <div class="w-1 h-8 rounded-full transition-all duration-300 {index === currentIndex ? 'bg-amber-400 h-12' : 'bg-white/30 group-hover:bg-white/50'}"></div>
+          <div class="w-1 h-6 md:h-8 rounded-full transition-all duration-300 {index === currentIndex ? 'bg-amber-400 !h-8 md:!h-12' : 'bg-white/30 group-hover:bg-white/50'}"></div>
           {#if index === currentIndex}
-            <div class="absolute left-4 top-1/2 -translate-y-1/2 whitespace-nowrap text-sm font-medium text-white opacity-0 group-hover:opacity-100 transition-opacity">
+            <div class="absolute left-4 top-1/2 -translate-y-1/2 whitespace-nowrap text-sm font-medium text-white opacity-0 group-hover:opacity-100 transition-opacity hidden lg:block">
               {item.title}
             </div>
           {/if}
@@ -346,13 +348,13 @@
   .btn-primary {
     display: flex;
     align-items: center;
-    gap: 0.75rem;
-    padding: 1rem 2rem;
+    gap: 0.5rem;
+    padding: 0.625rem 1rem;
     background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
     color: white;
     font-weight: 700;
-    font-size: 1rem;
-    border-radius: 0.75rem;
+    font-size: 0.875rem;
+    border-radius: 0.5rem;
     transition: all 0.3s ease;
     box-shadow: 0 4px 20px rgba(220,38,38,0.4);
   }
@@ -364,14 +366,14 @@
   .btn-secondary {
     display: flex;
     align-items: center;
-    gap: 0.75rem;
-    padding: 1rem 2rem;
+    gap: 0.5rem;
+    padding: 0.625rem 1rem;
     background: rgba(255,255,255,0.1);
     border: 1px solid rgba(255,255,255,0.3);
     color: white;
     font-weight: 600;
-    font-size: 1rem;
-    border-radius: 0.75rem;
+    font-size: 0.875rem;
+    border-radius: 0.5rem;
     backdrop-filter: blur(10px);
     transition: all 0.3s ease;
   }
@@ -379,6 +381,15 @@
     background: rgba(255,255,255,0.2);
     border-color: rgba(251,191,36,0.5);
     transform: translateY(-3px);
+  }
+
+  @media (min-width: 768px) {
+    .btn-primary, .btn-secondary {
+      gap: 0.75rem;
+      padding: 1rem 2rem;
+      font-size: 1rem;
+      border-radius: 0.75rem;
+    }
   }
 
   .poster-card {
