@@ -1,0 +1,214 @@
+---
+import AdminLayout from '../../layouts/AdminLayout.astro';
+import StatsCard from '../../components/admin/StatsCard.svelte';
+import DataTable from '../../components/admin/DataTable.svelte';
+import { getDashboardStats } from '../../lib/admin-queries';
+
+const stats = await getDashboardStats();
+
+// Calculate percentages
+const movieDDLPercent = stats.totals.movies > 0
+  ? Math.round((stats.ddlCoverage.moviesWithDDL / stats.totals.movies) * 100)
+  : 0;
+
+const episodeDDLPercent = stats.totals.episodes > 0
+  ? Math.round((stats.ddlCoverage.episodesWithDDL / stats.totals.episodes) * 100)
+  : 0;
+---
+
+<AdminLayout title="Dashboard" activeTab="dashboard">
+  <!-- Overview Stats -->
+  <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+    <StatsCard
+      label="Total Movies"
+      value={stats.totals.movies}
+      icon="film"
+      color="red"
+      subtext={`${stats.ddlCoverage.moviesWithDDL.toLocaleString()} with DDL`}
+    />
+    <StatsCard
+      label="Total Series"
+      value={stats.totals.series}
+      icon="tv"
+      color="blue"
+    />
+    <StatsCard
+      label="Total Episodes"
+      value={stats.totals.episodes}
+      icon="play"
+      color="green"
+      subtext={`${stats.ddlCoverage.episodesWithDDL.toLocaleString()} with DDL`}
+    />
+    <StatsCard
+      label="Download Links"
+      value={stats.totals.downloadLinks}
+      icon="link"
+      color="purple"
+      subtext={`${stats.downloads.totalClicks.toLocaleString()} total clicks`}
+    />
+  </div>
+
+  <!-- DDL Coverage -->
+  <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+    <div class="bg-[#141414] rounded-xl border border-[#2a2a2a] p-6">
+      <h3 class="text-lg font-semibold mb-4">Movie DDL Coverage</h3>
+      <div class="mb-4">
+        <div class="flex justify-between text-sm mb-2">
+          <span class="text-[#a0a0a0]">With Downloads</span>
+          <span class="font-medium">{movieDDLPercent}%</span>
+        </div>
+        <div class="progress-bar">
+          <div class="progress-bar-fill" style={`width: ${movieDDLPercent}%`}></div>
+        </div>
+      </div>
+      <div class="grid grid-cols-2 gap-4 text-sm">
+        <div class="bg-[#0a0a0a] rounded-lg p-3">
+          <p class="text-[#666] mb-1">With DDL</p>
+          <p class="text-xl font-bold text-green-500">{stats.ddlCoverage.moviesWithDDL.toLocaleString()}</p>
+        </div>
+        <div class="bg-[#0a0a0a] rounded-lg p-3">
+          <p class="text-[#666] mb-1">Without DDL</p>
+          <p class="text-xl font-bold text-red-500">{stats.ddlCoverage.moviesWithoutDDL.toLocaleString()}</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="bg-[#141414] rounded-xl border border-[#2a2a2a] p-6">
+      <h3 class="text-lg font-semibold mb-4">Episode DDL Coverage</h3>
+      <div class="mb-4">
+        <div class="flex justify-between text-sm mb-2">
+          <span class="text-[#a0a0a0]">With Downloads</span>
+          <span class="font-medium">{episodeDDLPercent}%</span>
+        </div>
+        <div class="progress-bar">
+          <div class="progress-bar-fill" style={`width: ${episodeDDLPercent}%`}></div>
+        </div>
+      </div>
+      <div class="grid grid-cols-2 gap-4 text-sm">
+        <div class="bg-[#0a0a0a] rounded-lg p-3">
+          <p class="text-[#666] mb-1">With DDL</p>
+          <p class="text-xl font-bold text-green-500">{stats.ddlCoverage.episodesWithDDL.toLocaleString()}</p>
+        </div>
+        <div class="bg-[#0a0a0a] rounded-lg p-3">
+          <p class="text-[#666] mb-1">Without DDL</p>
+          <p class="text-xl font-bold text-red-500">{stats.ddlCoverage.episodesWithoutDDL.toLocaleString()}</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Download Stats -->
+  <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+    <div class="bg-[#141414] rounded-xl border border-[#2a2a2a] p-6">
+      <h3 class="text-lg font-semibold mb-4">Downloads by Quality</h3>
+      <div class="space-y-3">
+        {Object.entries(stats.downloads.byQuality).map(([quality, clicks]) => (
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-2">
+              <span class={`w-3 h-3 rounded-full ${
+                quality === '720p' ? 'bg-green-500' :
+                quality === '1080p' ? 'bg-blue-500' : 'bg-purple-500'
+              }`}></span>
+              <span class="font-medium">{quality}</span>
+            </div>
+            <span class="text-[#a0a0a0]">{clicks.toLocaleString()} clicks</span>
+          </div>
+        ))}
+      </div>
+    </div>
+
+    <div class="bg-[#141414] rounded-xl border border-[#2a2a2a] p-6">
+      <h3 class="text-lg font-semibold mb-4">Downloads by Source</h3>
+      <div class="space-y-3">
+        {Object.entries(stats.downloads.bySource).map(([source, clicks]) => (
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-2">
+              <span class={`w-3 h-3 rounded-full ${
+                source === 'telegram' ? 'bg-blue-400' :
+                source === 'cinematika' ? 'bg-yellow-500' : 'bg-orange-500'
+              }`}></span>
+              <span class="font-medium capitalize">{source}</span>
+            </div>
+            <span class="text-[#a0a0a0]">{clicks.toLocaleString()} clicks</span>
+          </div>
+        ))}
+      </div>
+    </div>
+
+    <div class="bg-[#141414] rounded-xl border border-[#2a2a2a] p-6">
+      <h3 class="text-lg font-semibold mb-4">Downloads by Type</h3>
+      <div class="space-y-3">
+        {Object.entries(stats.downloads.byContentType).map(([type, clicks]) => (
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-2">
+              <span class={`w-3 h-3 rounded-full ${
+                type === 'movie' ? 'bg-red-500' : 'bg-green-500'
+              }`}></span>
+              <span class="font-medium capitalize">{type}s</span>
+            </div>
+            <span class="text-[#a0a0a0]">{clicks.toLocaleString()} clicks</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  </div>
+
+  <!-- Link Counts -->
+  <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-8">
+    <div class="bg-[#141414] rounded-xl border border-[#2a2a2a] p-6">
+      <div class="flex items-center justify-between">
+        <div>
+          <p class="text-sm text-[#666] mb-1">Movie Download Links</p>
+          <p class="text-2xl font-bold">{stats.linkCounts.movieLinks.toLocaleString()}</p>
+        </div>
+        <div class="w-10 h-10 rounded-lg bg-red-500/10 flex items-center justify-center">
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-red-500"><path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z"/></svg>
+        </div>
+      </div>
+    </div>
+    <div class="bg-[#141414] rounded-xl border border-[#2a2a2a] p-6">
+      <div class="flex items-center justify-between">
+        <div>
+          <p class="text-sm text-[#666] mb-1">Episode Download Links</p>
+          <p class="text-2xl font-bold">{stats.linkCounts.episodeLinks.toLocaleString()}</p>
+        </div>
+        <div class="w-10 h-10 rounded-lg bg-green-500/10 flex items-center justify-center">
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-green-500"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Top Content -->
+  <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+    <div class="bg-[#141414] rounded-xl border border-[#2a2a2a] p-6">
+      <h3 class="text-lg font-semibold mb-4">Top 10 Most Viewed Movies</h3>
+      <DataTable
+        client:load
+        columns={['#', 'Title', 'Year', 'Views']}
+        rows={stats.topViewed.movies.map((m: any, i: number) => [
+          i + 1,
+          m.title,
+          m.year || '-',
+          (m.view_count || 0).toLocaleString()
+        ])}
+        emptyMessage="No view data yet"
+      />
+    </div>
+
+    <div class="bg-[#141414] rounded-xl border border-[#2a2a2a] p-6">
+      <h3 class="text-lg font-semibold mb-4">Top 10 Most Viewed Series</h3>
+      <DataTable
+        client:load
+        columns={['#', 'Title', 'Year', 'Views']}
+        rows={stats.topViewed.series.map((s: any, i: number) => [
+          i + 1,
+          s.title,
+          s.year || '-',
+          (s.view_count || 0).toLocaleString()
+        ])}
+        emptyMessage="No view data yet"
+      />
+    </div>
+  </div>
+</AdminLayout>

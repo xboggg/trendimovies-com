@@ -1,0 +1,118 @@
+---
+import AdminLayout from '../../layouts/AdminLayout.astro';
+import { getDownloadStats } from '../../lib/admin-queries';
+import DownloadLinksManager from '../../components/admin/DownloadLinksManager.svelte';
+
+const stats = await getDownloadStats();
+---
+
+<AdminLayout title="Download Analytics" activeTab="downloads">
+  <!-- Overview Stats -->
+  <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+    <div class="bg-[#141414] rounded-xl border border-[#2a2a2a] p-5">
+      <p class="text-sm text-[#666] mb-1">Total Clicks</p>
+      <p class="text-3xl font-bold">{stats.totalClicks.toLocaleString()}</p>
+    </div>
+    <div class="bg-[#141414] rounded-xl border border-[#2a2a2a] p-5">
+      <p class="text-sm text-[#666] mb-1">Total Links</p>
+      <p class="text-3xl font-bold">{stats.totalLinks.toLocaleString()}</p>
+    </div>
+    <div class="bg-[#141414] rounded-xl border border-[#2a2a2a] p-5">
+      <p class="text-sm text-[#666] mb-1">Avg Clicks/Link</p>
+      <p class="text-3xl font-bold">
+        {stats.totalLinks > 0 ? (stats.totalClicks / stats.totalLinks).toFixed(1) : '0'}
+      </p>
+    </div>
+    <div class="bg-[#141414] rounded-xl border border-[#2a2a2a] p-5">
+      <p class="text-sm text-[#666] mb-1">Most Popular</p>
+      <p class="text-3xl font-bold">
+        {Object.entries(stats.byQuality).sort((a, b) => b[1].clicks - a[1].clicks)[0]?.[0] || 'N/A'}
+      </p>
+    </div>
+  </div>
+
+  <!-- Breakdown Cards -->
+  <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+    <!-- By Quality -->
+    <div class="bg-[#141414] rounded-xl border border-[#2a2a2a] p-6">
+      <h3 class="text-lg font-semibold mb-4">By Quality</h3>
+      <div class="space-y-4">
+        {Object.entries(stats.byQuality).map(([quality, data]) => (
+          <div>
+            <div class="flex justify-between text-sm mb-1">
+              <span class="font-medium">{quality}</span>
+              <span class="text-[#666]">{data.count.toLocaleString()} links</span>
+            </div>
+            <div class="flex items-center gap-3">
+              <div class="flex-1 progress-bar">
+                <div
+                  class="progress-bar-fill"
+                  style={`width: ${stats.totalClicks > 0 ? (data.clicks / stats.totalClicks * 100) : 0}%`}
+                ></div>
+              </div>
+              <span class="text-sm font-medium w-20 text-right">{data.clicks.toLocaleString()}</span>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+
+    <!-- By Source -->
+    <div class="bg-[#141414] rounded-xl border border-[#2a2a2a] p-6">
+      <h3 class="text-lg font-semibold mb-4">By Source</h3>
+      <div class="space-y-4">
+        {Object.entries(stats.bySource).map(([source, data]) => (
+          <div>
+            <div class="flex justify-between text-sm mb-1">
+              <span class="font-medium capitalize">{source}</span>
+              <span class="text-[#666]">{data.count.toLocaleString()} links</span>
+            </div>
+            <div class="flex items-center gap-3">
+              <div class="flex-1 progress-bar">
+                <div
+                  class="progress-bar-fill"
+                  style={`width: ${stats.totalClicks > 0 ? (data.clicks / stats.totalClicks * 100) : 0}%; background: ${
+                    source === 'telegram' ? 'linear-gradient(90deg, #3b82f6, #1d4ed8)' :
+                    source === 'cinematika' ? 'linear-gradient(90deg, #f59e0b, #d97706)' :
+                    'linear-gradient(90deg, #f97316, #ea580c)'
+                  }`}
+                ></div>
+              </div>
+              <span class="text-sm font-medium w-20 text-right">{data.clicks.toLocaleString()}</span>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+
+    <!-- By Content Type -->
+    <div class="bg-[#141414] rounded-xl border border-[#2a2a2a] p-6">
+      <h3 class="text-lg font-semibold mb-4">By Content Type</h3>
+      <div class="space-y-4">
+        {Object.entries(stats.byContentType).map(([type, data]) => (
+          <div>
+            <div class="flex justify-between text-sm mb-1">
+              <span class="font-medium capitalize">{type}s</span>
+              <span class="text-[#666]">{data.count.toLocaleString()} links</span>
+            </div>
+            <div class="flex items-center gap-3">
+              <div class="flex-1 progress-bar">
+                <div
+                  class="progress-bar-fill"
+                  style={`width: ${stats.totalClicks > 0 ? (data.clicks / stats.totalClicks * 100) : 0}%; background: ${
+                    type === 'movie' ? 'linear-gradient(90deg, #ef4444, #dc2626)' :
+                    'linear-gradient(90deg, #22c55e, #16a34a)'
+                  }`}
+                ></div>
+              </div>
+              <span class="text-sm font-medium w-20 text-right">{data.clicks.toLocaleString()}</span>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  </div>
+
+  <!-- Download Links Manager -->
+  <DownloadLinksManager client:load />
+</AdminLayout>

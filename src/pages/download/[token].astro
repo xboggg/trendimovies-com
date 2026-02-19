@@ -1,0 +1,173 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import { supabase } from '../../lib/supabase';
+
+const { token } = Astro.params;
+
+// Fetch download token
+const { data: tokenData } = await supabase
+  .from('download_tokens')
+  .select('*, download_links(*)')
+  .eq('token', token)
+  .single();
+
+// Check if token exists and hasn't expired
+const isValid = tokenData && new Date(tokenData.expires_at) > new Date();
+const link = tokenData?.download_links;
+
+// Rewrite Telegram URLs to our streaming proxy
+let downloadUrl = link?.url || '';
+if (downloadUrl.startsWith('http://127.0.0.1:8765') || downloadUrl.includes('/tgstream/stream/')) {
+  const streamId = downloadUrl.split('/').pop();
+  downloadUrl = `/api/stream/${streamId}`;
+}
+
+// Get content info for display
+let contentTitle = 'Download';
+if (isValid && link) {
+  if (tokenData.content_type === 'movie') {
+    const { data: movie } = await supabase
+      .from('movies')
+      .select('title')
+      .eq('id', tokenData.content_id)
+      .single();
+    if (movie) contentTitle = movie.title;
+  } else if (tokenData.content_type === 'episode') {
+    // Fetch episode with season and series info for title display
+    const POSTGREST_URL = import.meta.env.PUBLIC_SUPABASE_URL || 'http://localhost:3001';
+    try {
+      // Get episode
+      const epResp = await fetch(
+        `${POSTGREST_URL}/episodes?id=eq.${tokenData.content_id}&select=name,episode_number,season_id,series_id`,
+        { headers: { 'Accept-Profile': 'public' }, signal: AbortSignal.timeout(5000) }
+      );
+      if (epResp.ok) {
+        const epData = await epResp.json();
+        if (epData.length > 0) {
+          const ep = epData[0];
+          // Get season number
+          const seasonResp = await fetch(
+            `${POSTGREST_URL}/seasons?id=eq.${ep.season_id}&select=season_number`,
+            { headers: { 'Accept-Profile': 'public' }, signal: AbortSignal.timeout(5000) }
+          );
+          const seasonData = seasonResp.ok ? await seasonResp.json() : [];
+          const seasonNum = seasonData.length > 0 ? seasonData[0].season_number : 0;
+          // Get series title
+          const seriesResp = await fetch(
+            `${POSTGREST_URL}/series?id=eq.${ep.series_id}&select=title`,
+            { headers: { 'Accept-Profile': 'public' }, signal: AbortSignal.timeout(5000) }
+          );
+          const seriesData = seriesResp.ok ? await seriesResp.json() : [];
+          const seriesTitle = seriesData.length > 0 ? seriesData[0].title : 'Series';
+
+          const sNum = String(seasonNum).padStart(2, '0');
+          const eNum = String(ep.episode_number).padStart(2, '0');
+          contentTitle = `${seriesTitle} S${sNum}E${eNum}${ep.name ? ` - ${ep.name}` : ''}`;
+        }
+      }
+    } catch (e) {
+      console.error('Error fetching episode info:', e);
+    }
+  }
+}
+
+function getQualityLabel(quality: string): string {
+  switch(quality) {
+    case '2160p': return '4K Ultra HD';
+    case '1080p': return 'Full HD';
+    case '720p': return 'HD';
+    default: return quality;
+  }
+}
+---
+
+<BaseLayout title={`Download ${contentTitle}`}>
+  <div class="min-h-[60vh] flex items-center justify-center px-4">
+    <div class="max-w-md w-full text-center">
+      {!isValid ? (
+        <div class="rounded-lg p-8" style="background-color: var(--bg-card); border: 1px solid var(--border);">
+          <div class="text-4xl mb-4">❌</div>
+          <h1 class="text-xl font-bold mb-2" style="color: var(--text-primary);">Link Expired or Invalid</h1>
+          <p class="mb-4" style="color: var(--text-secondary);">
+            This download link has expired or is invalid. Please go back and try again.
+          </p>
+          <a href="/" class="btn-primary inline-block">
+            Back to Home
+          </a>
+        </div>
+      ) : (
+        <div class="rounded-lg p-8" style="background-color: var(--bg-card); border: 1px solid var(--border);">
+          <div class="text-4xl mb-4">📥</div>
+          <h1 class="text-xl font-bold mb-2" style="color: var(--text-primary);">{contentTitle}</h1>
+          <p class="text-sm mb-1" style="color: var(--text-secondary);">
+            Quality: {getQualityLabel(link.quality)}
+          </p>
+          {link.file_size && (
+            <p class="text-sm mb-4" style="color: var(--text-muted);">
+              Size: {link.file_size}
+            </p>
+          )}
+
+          <!-- Countdown Timer -->
+          <div id="countdown-container" class="mb-6">
+            <p class="text-sm mb-2" style="color: var(--text-secondary);">
+              Your download will start in
+            </p>
+            <div id="countdown" class="text-3xl font-bold" style="color: var(--accent);">
+              5
+            </div>
+          </div>
+
+          <!-- Ad Placeholder -->
+          <div class="mb-6 p-4 rounded" style="background-color: var(--bg-secondary); border: 1px dashed var(--border);">
+            <p class="text-xs" style="color: var(--text-muted);">Advertisement</p>
+            <!-- Insert ad code here -->
+          </div>
+
+          <!-- Download Button (hidden initially) -->
+          <div id="download-btn" style="display: none;">
+            <a
+              href={downloadUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              class="btn-primary inline-flex items-center gap-2 text-lg px-8 py-3"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                <polyline points="7 10 12 15 17 10"></polyline>
+                <line x1="12" y1="15" x2="12" y2="3"></line>
+              </svg>
+              Download Now
+            </a>
+          </div>
+
+          <p class="text-xs mt-4" style="color: var(--text-muted);">
+            If download doesn't start, click the button above.
+          </p>
+        </div>
+      )}
+    </div>
+  </div>
+
+  <script define:vars={{ downloadUrl }}>
+    if (downloadUrl) {
+      let countdown = 5;
+      const countdownEl = document.getElementById('countdown');
+      const countdownContainer = document.getElementById('countdown-container');
+      const downloadBtn = document.getElementById('download-btn');
+
+      const timer = setInterval(() => {
+        countdown--;
+        if (countdownEl) countdownEl.textContent = countdown.toString();
+
+        if (countdown <= 0) {
+          clearInterval(timer);
+          if (countdownContainer) countdownContainer.style.display = 'none';
+          if (downloadBtn) downloadBtn.style.display = 'block';
+          // Auto-start download
+          window.open(downloadUrl, '_blank');
+        }
+      }, 1000);
+    }
+  </script>
+</BaseLayout>

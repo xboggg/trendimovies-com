@@ -1,0 +1,374 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import SeasonTabs from '../../components/SeasonTabs.svelte';
+import ContentRow from '../../components/ContentRow.svelte';
+import { getTVDetails, getSeasonDetails, transformSeriesData } from '../../lib/tmdb';
+import { Star, Clock, Calendar, Globe, Tv, Play } from 'lucide-svelte';
+
+const { id } = Astro.params;
+const tmdbId = parseInt(id || '0');
+
+if (!tmdbId) {
+  return Astro.redirect('/404');
+}
+
+// Fetch TV show from TMDB
+const tmdbData = await getTVDetails(tmdbId);
+if (!tmdbData) {
+  return Astro.redirect('/404');
+}
+
+const series = transformSeriesData(tmdbData);
+
+// Fetch episodes for each season
+const seasonNumbers = (tmdbData.seasons || [])
+  .filter((s: any) => s.season_number > 0) // Skip specials (season 0)
+  .map((s: any) => s.season_number);
+
+const seasonDataPromises = seasonNumbers.map((num: number) => getSeasonDetails(tmdbId, num));
+const seasonDataResults = await Promise.all(seasonDataPromises);
+
+const episodesBySeason: Record<number, any[]> = {};
+seasonDataResults.forEach((seasonData: any) => {
+  if (seasonData && seasonData.episodes) {
+    episodesBySeason[seasonData.season_number] = seasonData.episodes.map((ep: any) => ({
+      id: ep.id,
+      episode_number: ep.episode_number,
+      name: ep.name,
+      overview: ep.overview,
+      still_path: ep.still_path,
+      air_date: ep.air_date,
+      runtime: ep.runtime,
+      vote_average: ep.vote_average,
+      has_downloads: false
+    }));
+  }
+});
+
+// Check PostgreSQL for episode downloads
+let downloadsByEpisode: Record<number, any[]> = {};
+const POSTGREST_URL = import.meta.env.PUBLIC_SUPABASE_URL || 'http://localhost:3001';
+
+try {
+  // Find this series in PostgreSQL by TMDB ID
+  const seriesResp = await fetch(
+    `${POSTGREST_URL}/series?tmdb_id=eq.${tmdbId}&select=id`,
+    { headers: { 'Accept-Profile': 'public' }, signal: AbortSignal.timeout(5000) }
+  );
+
+  if (seriesResp.ok) {
+    const seriesData = await seriesResp.json();
+    if (seriesData.length > 0) {
+      const dbSeriesId = seriesData[0].id;
+
+      // Load DB episodes for this series (to map season/episode numbers to DB IDs)
+      const epResp = await fetch(
+        `${POSTGREST_URL}/episodes?series_id=eq.${dbSeriesId}&select=id,season_id,episode_number`,
+        { headers: { 'Accept-Profile': 'public' }, signal: AbortSignal.timeout(10000) }
+      );
+
+      if (epResp.ok) {
+        const dbEpisodes = await epResp.json();
+
+        // Load seasons to map season_id -> season_number
+        const seasonsResp = await fetch(
+          `${POSTGREST_URL}/seasons?series_id=eq.${dbSeriesId}&select=id,season_number`,
+          { headers: { 'Accept-Profile': 'public' }, signal: AbortSignal.timeout(5000) }
+        );
+        const dbSeasons = seasonsResp.ok ? await seasonsResp.json() : [];
+        const seasonIdToNum: Record<number, number> = {};
+        for (const s of dbSeasons) seasonIdToNum[s.id] = s.season_number;
+
+        // Build (season_number, episode_number) -> db_episode_id lookup
+        const epLookup: Record<string, number> = {};
+        for (const ep of dbEpisodes) {
+          const sNum = seasonIdToNum[ep.season_id];
+          if (sNum) epLookup[`${sNum}-${ep.episode_number}`] = ep.id;
+        }
+
+        // Fetch download links
+        const dbEpIds = dbEpisodes.map((ep: any) => ep.id);
+        if (dbEpIds.length > 0) {
+          const dlResp = await fetch(
+            `${POSTGREST_URL}/download_links?content_type=eq.episode&is_active=eq.true&content_id=in.(${dbEpIds.join(',')})`,
+            { headers: { 'Accept-Profile': 'public' }, signal: AbortSignal.timeout(10000) }
+          );
+          if (dlResp.ok) {
+            const dlData = await dlResp.json();
+            // Build downloadsByEpisode keyed by DB episode ID
+            const dlByDbId: Record<number, any[]> = {};
+            for (const link of dlData) {
+              if (!dlByDbId[link.content_id]) dlByDbId[link.content_id] = [];
+              dlByDbId[link.content_id].push(link);
+            }
+
+            // Map TMDB episode IDs to DB episode IDs and update episodesBySeason
+            for (const [seasonNumStr, episodes] of Object.entries(episodesBySeason)) {
+              for (const ep of episodes as any[]) {
+                const dbEpId = epLookup[`${seasonNumStr}-${ep.episode_number}`];
+                if (dbEpId) {
+                  // Replace the TMDB episode ID with the DB ID for download matching
+                  ep.id = dbEpId;
+                  if (dlByDbId[dbEpId] && dlByDbId[dbEpId].length > 0) {
+                    ep.has_downloads = true;
+                    downloadsByEpisode[dbEpId] = dlByDbId[dbEpId];
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+} catch (e) {
+  console.error('Error checking episode downloads:', e);
+}
+
+// Transform seasons for SeasonTabs component
+const seasons = (tmdbData.seasons || [])
+  .filter((s: any) => s.season_number > 0)
+  .map((s: any) => ({
+    id: s.id,
+    season_number: s.season_number,
+    name: s.name,
+    overview: s.overview,
+    poster_path: s.poster_path,
+    episode_count: s.episode_count
+  }));
+
+// Helper functions
+function getPosterUrl(path: string | null): string {
+  if (!path) return '/images/no-poster.svg';
+  return `https://image.tmdb.org/t/p/w500${path}`;
+}
+
+function getBackdropUrl(path: string | null): string {
+  if (!path) return '/images/no-backdrop.svg';
+  return `https://image.tmdb.org/t/p/w1280${path}`;
+}
+
+function getProfileUrl(path: string | null): string {
+  if (!path) return '/images/no-profile.svg';
+  return `https://image.tmdb.org/t/p/w185${path}`;
+}
+
+function formatDate(dateStr: string | null): string {
+  if (!dateStr) return 'N/A';
+  return new Date(dateStr).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+}
+
+const LANGUAGES: Record<string, string> = {
+  en: 'English', es: 'Spanish', fr: 'French', de: 'German', it: 'Italian',
+  pt: 'Portuguese', ru: 'Russian', ja: 'Japanese', ko: 'Korean', zh: 'Chinese',
+  hi: 'Hindi', ar: 'Arabic', tr: 'Turkish', th: 'Thai'
+};
+
+function getLanguageName(code: string): string {
+  return LANGUAGES[code] || code.toUpperCase();
+}
+
+// Get creators
+const creators = (series.crew_data || []).filter((c: any) => c.job === 'Creator' || c.job === 'Executive Producer').slice(0, 3);
+
+// Transform similar shows for ContentRow
+const similar = (tmdbData.similar?.results || []).slice(0, 12).map((s: any) => ({
+  id: s.id,
+  tmdb_id: s.id,
+  title: s.name,
+  poster_path: s.poster_path,
+  vote_average: s.vote_average,
+  year: s.first_air_date ? new Date(s.first_air_date).getFullYear() : null,
+  type: 'series' as const
+}));
+---
+
+<BaseLayout
+  title={series.title}
+  description={series.overview || `Watch ${series.title} online for free in HD quality.`}
+  image={getBackdropUrl(series.backdrop_path)}
+  type="video.tv_show"
+>
+  <!-- Backdrop Header -->
+  <section class="relative">
+    <div class="absolute inset-0 h-[500px]">
+      <img
+        src={getBackdropUrl(series.backdrop_path)}
+        alt={series.title}
+        class="w-full h-full object-cover"
+      />
+      <div class="absolute inset-0 bg-gradient-to-t from-black via-black/80 to-transparent"></div>
+    </div>
+
+    <div class="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8 pb-12">
+      <div class="flex flex-col md:flex-row gap-8">
+        <div class="flex-shrink-0 w-64 mx-auto md:mx-0">
+          <img
+            src={getPosterUrl(series.poster_path)}
+            alt={series.title}
+            class="w-full rounded-lg shadow-2xl"
+          />
+        </div>
+
+        <div class="flex-1">
+          <h1 class="text-3xl md:text-4xl lg:text-5xl font-bold mb-4 text-white">
+            {series.title}
+            {series.year && <span class="text-2xl font-normal text-gray-300"> ({series.year})</span>}
+          </h1>
+
+          {series.tagline && (
+            <p class="text-lg italic mb-4 text-gray-300">
+              "{series.tagline}"
+            </p>
+          )}
+
+          <div class="flex flex-wrap items-center gap-4 mb-6 text-gray-300">
+            <div class="flex items-center gap-1">
+              <Star size={18} class="text-yellow-400" fill="currentColor" />
+              <span class="font-semibold text-white">{series.vote_average.toFixed(1)}</span>
+              <span class="text-sm">({series.vote_count} votes)</span>
+            </div>
+            <div class="flex items-center gap-1">
+              <Tv size={18} />
+              <span>{series.number_of_seasons} Season{series.number_of_seasons > 1 ? 's' : ''}</span>
+            </div>
+            {series.first_air_date && (
+              <div class="flex items-center gap-1">
+                <Calendar size={18} />
+                <span>{formatDate(series.first_air_date)}</span>
+              </div>
+            )}
+            <div class="flex items-center gap-1">
+              <Globe size={18} />
+              <span>{getLanguageName(series.original_language)}</span>
+            </div>
+          </div>
+
+          {series.genres && series.genres.length > 0 && (
+            <div class="flex flex-wrap gap-2 mb-6">
+              {series.genres.map((genre: any) => (
+                <span
+                  class="px-4 py-1.5 rounded-full text-sm font-medium bg-white/10 border border-white/20 text-gray-200"
+                >
+                  {genre.name}
+                </span>
+              ))}
+            </div>
+          )}
+
+          <div class="mb-6">
+            <h3 class="font-semibold mb-2 text-white">Synopsis</h3>
+            <p class="leading-relaxed text-gray-300">
+              {series.overview || 'No synopsis available.'}
+            </p>
+          </div>
+
+          <div class="grid grid-cols-2 gap-4">
+            {creators.length > 0 && (
+              <div>
+                <h4 class="text-sm font-semibold text-gray-400">Creator</h4>
+                <p class="text-white">{creators.map((c: any) => c.name).join(', ')}</p>
+              </div>
+            )}
+            {series.networks && series.networks.length > 0 && (
+              <div>
+                <h4 class="text-sm font-semibold text-gray-400">Network</h4>
+                <p class="text-white">{series.networks.map((n: any) => n.name).join(', ')}</p>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Episodes -->
+  <section class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <h2 class="text-2xl font-bold mb-6 flex items-center gap-2" style="color: var(--text-primary);">
+      <Play size={24} />
+      Episodes
+    </h2>
+    <SeasonTabs
+      client:load
+      seriesId={series.tmdb_id}
+      tmdbId={series.tmdb_id}
+      imdbId={series.imdb_id}
+      {seasons}
+      {episodesBySeason}
+      {downloadsByEpisode}
+    />
+  </section>
+
+  <!-- Cast -->
+  {series.cast_data && series.cast_data.length > 0 && (
+    <section class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <h2 class="text-2xl font-bold mb-4" style="color: var(--text-primary);">Cast</h2>
+      <div class="flex gap-4 overflow-x-auto hide-scrollbar pb-4">
+        {series.cast_data.slice(0, 12).map((actor: any) => (
+          <a href={`/person/${actor.id}`} class="flex-shrink-0 w-32 text-center group">
+            <img
+              src={getProfileUrl(actor.profile_path)}
+              alt={actor.name}
+              class="w-24 h-24 rounded-full mx-auto object-cover mb-2 transition-transform group-hover:scale-105"
+            />
+            <p class="font-medium text-sm line-clamp-1 group-hover:underline" style="color: var(--text-primary);">{actor.name}</p>
+            <p class="text-xs line-clamp-1" style="color: var(--text-secondary);">{actor.character}</p>
+          </a>
+        ))}
+      </div>
+    </section>
+  )}
+
+  <!-- Trailer -->
+  {series.trailer_key && (
+    <section class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <h2 class="text-2xl font-bold mb-4" style="color: var(--text-primary);">Trailer</h2>
+      <div class="video-container rounded-lg overflow-hidden">
+        <iframe
+          src={`https://www.youtube.com/embed/${series.trailer_key}`}
+          allowfullscreen
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+          title="Trailer"
+        ></iframe>
+      </div>
+    </section>
+  )}
+
+  <!-- Details -->
+  <section class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <h2 class="text-2xl font-bold mb-4" style="color: var(--text-primary);">Details</h2>
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 p-6 rounded-lg" style="background-color: var(--bg-card);">
+      <div>
+        <h4 class="text-sm font-semibold" style="color: var(--text-muted);">Original Title</h4>
+        <p style="color: var(--text-primary);">{series.original_title || series.title}</p>
+      </div>
+      <div>
+        <h4 class="text-sm font-semibold" style="color: var(--text-muted);">Status</h4>
+        <p style="color: var(--text-primary);">{series.status}</p>
+      </div>
+      <div>
+        <h4 class="text-sm font-semibold" style="color: var(--text-muted);">Seasons</h4>
+        <p style="color: var(--text-primary);">{series.number_of_seasons}</p>
+      </div>
+      <div>
+        <h4 class="text-sm font-semibold" style="color: var(--text-muted);">Episodes</h4>
+        <p style="color: var(--text-primary);">{series.number_of_episodes}</p>
+      </div>
+      {series.production_companies && series.production_companies.length > 0 && (
+        <div class="col-span-2">
+          <h4 class="text-sm font-semibold" style="color: var(--text-muted);">Production</h4>
+          <p style="color: var(--text-primary);">{series.production_companies.slice(0, 3).map((c: any) => c.name).join(', ')}</p>
+        </div>
+      )}
+    </div>
+  </section>
+
+  <!-- Similar Shows -->
+  {similar.length > 0 && (
+    <ContentRow
+      client:visible
+      title="You May Also Like"
+      items={similar}
+    />
+  )}
+</BaseLayout>

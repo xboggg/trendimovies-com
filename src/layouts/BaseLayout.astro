@@ -1,0 +1,98 @@
+---
+import '../styles/global.css';
+import Header from '../components/Header.svelte';
+import Footer from '../components/Footer.astro';
+
+interface Props {
+  title: string;
+  description?: string;
+  image?: string;
+  type?: 'website' | 'video.movie' | 'video.tv_show';
+  noIndex?: boolean;
+}
+
+const {
+  title,
+  description = 'Stream and download movies & TV series for free. High quality 720p and 1080p downloads available.',
+  image = '/images/og-default.jpg',
+  type = 'website',
+  noIndex = false
+} = Astro.props;
+
+const canonicalUrl = new URL(Astro.url.pathname, Astro.site || 'https://trendimovies.com');
+---
+
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content={description} />
+  {noIndex && <meta name="robots" content="noindex, nofollow" />}
+
+  <title>{title} | TrendiMovies</title>
+
+  <link rel="canonical" href={canonicalUrl} />
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <link rel="apple-touch-icon" href="/icons/icon-192.png" />
+  <link rel="manifest" href="/manifest.json" />
+
+  <meta name="theme-color" content="#e50914" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+
+  <!-- Open Graph -->
+  <meta property="og:type" content={type} />
+  <meta property="og:title" content={title} />
+  <meta property="og:description" content={description} />
+  <meta property="og:image" content={image} />
+  <meta property="og:url" content={canonicalUrl} />
+  <meta property="og:site_name" content="TrendiMovies" />
+
+  <!-- Twitter -->
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content={title} />
+  <meta name="twitter:description" content={description} />
+  <meta name="twitter:image" content={image} />
+
+  <!-- Preconnect to external resources -->
+  <link rel="preconnect" href="https://image.tmdb.org" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+
+  <!-- Font -->
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+
+  <!-- Theme script (prevent flash) -->
+  <script is:inline>
+    (function() {
+      const theme = localStorage.getItem('theme');
+      if (theme === 'light') {
+        document.documentElement.classList.remove('dark');
+      } else if (theme === 'dark' || !theme) {
+        document.documentElement.classList.add('dark');
+      } else if (window.matchMedia('(prefers-color-scheme: light)').matches) {
+        document.documentElement.classList.remove('dark');
+      }
+    })();
+  </script>
+</head>
+<body class="min-h-screen flex flex-col">
+  <Header client:load />
+
+  <main class="flex-1">
+    <slot />
+  </main>
+
+  <Footer />
+
+  <!-- Service Worker Registration -->
+  <script is:inline>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/sw.js').catch(() => {});
+      });
+    }
+  </script>
+</body>
+</html>

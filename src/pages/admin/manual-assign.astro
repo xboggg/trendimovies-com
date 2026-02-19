@@ -1,0 +1,28 @@
+---
+import AdminLayout from '../../layouts/AdminLayout.astro';
+import AssignmentForm from '../../components/admin/AssignmentForm.svelte';
+---
+
+<AdminLayout title="Manual Link Assignment" activeTab="manual-assign">
+  <div class="space-y-6">
+    <p class="text-gray-400">
+      Manually assign download links to movies and episodes from Telegram, Cinematika, or torrent sources.
+    </p>
+
+    <!-- Instructions -->
+    <div class="bg-blue-500/10 border border-blue-500/30 rounded-xl p-4">
+      <h3 class="font-semibold text-blue-400 mb-2">How to use:</h3>
+      <ol class="text-sm text-blue-300/80 space-y-1 list-decimal list-inside">
+        <li>Select the source type (Telegram, Cinematika, or Torrent)</li>
+        <li>Choose the quality (720p, 1080p, 2160p, or HDRip)</li>
+        <li>Search for and select a file from Telegram, or enter a direct URL</li>
+        <li>Search TMDB and select the movie or TV series</li>
+        <li>For TV series, select the season and episode</li>
+        <li>Click "Assign Download Link" to create the link</li>
+      </ol>
+    </div>
+
+    <!-- Assignment Form -->
+    <AssignmentForm client:load />
+  </div>
+</AdminLayout>

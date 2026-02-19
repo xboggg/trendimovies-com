@@ -1,0 +1,285 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import SeasonTabs from '../../components/SeasonTabs.svelte';
+import ContentRow from '../../components/ContentRow.svelte';
+import { supabase, getPosterUrl, getBackdropUrl, getProfileUrl, formatRuntime, formatDate, getLanguageName } from '../../lib/supabase';
+import { Star, Clock, Calendar, Globe, Tv } from 'lucide-svelte';
+
+const { slug } = Astro.params;
+
+// Fetch series by slug
+const { data: series, error } = await supabase
+  .from('series')
+  .select('*')
+  .eq('slug', slug)
+  .single();
+
+if (error || !series) {
+  return Astro.redirect('/404');
+}
+
+// Fetch seasons
+const { data: seasons } = await supabase
+  .from('seasons')
+  .select('*')
+  .eq('series_id', series.id)
+  .order('season_number', { ascending: true });
+
+// Fetch all episodes for this series
+const { data: allEpisodes } = await supabase
+  .from('episodes')
+  .select('*')
+  .eq('series_id', series.id)
+  .order('episode_number', { ascending: true });
+
+// Fetch episode download links for this series
+const episodeIds = (allEpisodes || []).map((ep: any) => ep.id);
+let downloadsByEpisode: Record<number, any[]> = {};
+
+if (episodeIds.length > 0) {
+  const POSTGREST_URL = import.meta.env.PUBLIC_SUPABASE_URL || 'http://localhost:3001';
+  try {
+    const dlResp = await fetch(
+      `${POSTGREST_URL}/download_links?content_type=eq.episode&is_active=eq.true&content_id=in.(${episodeIds.join(',')})`,
+      { headers: { 'Accept-Profile': 'public' }, signal: AbortSignal.timeout(10000) }
+    );
+    if (dlResp.ok) {
+      const dlData = await dlResp.json();
+      for (const link of dlData) {
+        if (!downloadsByEpisode[link.content_id]) downloadsByEpisode[link.content_id] = [];
+        downloadsByEpisode[link.content_id].push(link);
+      }
+    }
+  } catch (e) {
+    console.error('Error fetching episode downloads:', e);
+  }
+}
+
+// Fetch similar series
+const { data: similarSeries } = await supabase
+  .from('series')
+  .select('id, title, slug, poster_path, vote_average, year')
+  .neq('id', series.id)
+  .order('popularity', { ascending: false })
+  .limit(12);
+
+// Increment view count
+await supabase
+  .from('series')
+  .update({ view_count: (series.view_count || 0) + 1 })
+  .eq('id', series.id);
+
+// Transform similar series
+const similar = (similarSeries || []).map(s => ({ ...s, type: 'series' as const }));
+
+// Get creators
+const creators = (series.crew_data || []).filter((c: any) =>
+  ['Creator', 'Executive Producer', 'Showrunner'].includes(c.job)
+);
+
+// Group episodes by season
+const episodesBySeason: Record<number, any[]> = {};
+(allEpisodes || []).forEach(ep => {
+  const seasonNum = seasons?.find(s => s.id === ep.season_id)?.season_number || 1;
+  if (!episodesBySeason[seasonNum]) {
+    episodesBySeason[seasonNum] = [];
+  }
+  episodesBySeason[seasonNum].push(ep);
+});
+
+// Average episode runtime
+const avgRuntime = series.episode_run_time && series.episode_run_time.length > 0
+  ? Math.round(series.episode_run_time.reduce((a: number, b: number) => a + b, 0) / series.episode_run_time.length)
+  : null;
+---
+
+<BaseLayout
+  title={series.title}
+  description={series.overview || `Watch ${series.title} online for free in HD quality.`}
+  image={getBackdropUrl(series.backdrop_path)}
+  type="video.tv_show"
+>
+  <!-- Backdrop Header -->
+  <section class="relative">
+    <!-- Background -->
+    <div class="absolute inset-0 h-[300px] md:h-[500px]">
+      <img
+        src={getBackdropUrl(series.backdrop_path)}
+        alt={series.title}
+        class="w-full h-full object-cover"
+      />
+      <div class="absolute inset-0 bg-gradient-to-t from-[var(--bg-primary)] via-[var(--bg-primary)]/80 to-transparent"></div>
+    </div>
+
+    <!-- Content -->
+    <div class="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8 pb-8 md:pb-12">
+      <div class="flex flex-col md:flex-row gap-5 md:gap-8">
+        <!-- Poster -->
+        <div class="flex-shrink-0 w-48 md:w-64 mx-auto md:mx-0">
+          <img
+            src={getPosterUrl(series.poster_path)}
+            alt={series.title}
+            class="w-full rounded-lg shadow-2xl"
+          />
+        </div>
+
+        <!-- Info -->
+        <div class="flex-1">
+          <h1 class="text-2xl md:text-4xl lg:text-5xl font-bold mb-2 md:mb-4" style="color: var(--text-primary);">
+            {series.title}
+            {series.year && <span class="text-xl md:text-2xl font-normal" style="color: var(--text-secondary);"> ({series.year})</span>}
+          </h1>
+
+          {series.tagline && (
+            <p class="text-base md:text-lg italic mb-3 md:mb-4" style="color: var(--text-secondary);">
+              "{series.tagline}"
+            </p>
+          )}
+
+          <!-- Meta Info -->
+          <div class="flex flex-wrap items-center gap-3 md:gap-4 mb-4 md:mb-6 text-sm" style="color: var(--text-secondary);">
+            <div class="flex items-center gap-1">
+              <Star size={16} class="text-yellow-400" fill="currentColor" />
+              <span class="font-semibold" style="color: var(--text-primary);">{series.vote_average.toFixed(1)}</span>
+              <span class="text-xs md:text-sm">({series.vote_count} votes)</span>
+            </div>
+            <div class="flex items-center gap-1">
+              <Tv size={16} />
+              <span>{series.number_of_seasons} Season{series.number_of_seasons > 1 ? 's' : ''}</span>
+            </div>
+            <div class="flex items-center gap-1">
+              <span>{series.number_of_episodes} Episodes</span>
+            </div>
+            {avgRuntime && (
+              <div class="flex items-center gap-1">
+                <Clock size={16} />
+                <span>~{avgRuntime} min/ep</span>
+              </div>
+            )}
+            <div class="flex items-center gap-1">
+              <Globe size={16} />
+              <span>{getLanguageName(series.original_language)}</span>
+            </div>
+          </div>
+
+          <!-- Status Badge -->
+          <div class="mb-4">
+            <span class={`badge ${series.status === 'Ended' ? 'bg-gray-500' : 'bg-green-500'} text-white`}>
+              {series.status}
+            </span>
+            {series.first_air_date && series.last_air_date && (
+              <span class="ml-2 text-sm" style="color: var(--text-secondary);">
+                {new Date(series.first_air_date).getFullYear()} - {series.status === 'Ended' ? new Date(series.last_air_date).getFullYear() : 'Present'}
+              </span>
+            )}
+          </div>
+
+          <!-- Genres -->
+          {series.genres && series.genres.length > 0 && (
+            <div class="flex flex-wrap gap-2 mb-4 md:mb-6">
+              {series.genres.map((genre: any) => (
+                <a
+                  href={`/genre/${genre.name.toLowerCase().replace(/\s+/g, '-')}`}
+                  class="genre-chip"
+                >
+                  {genre.name}
+                </a>
+              ))}
+            </div>
+          )}
+
+          <!-- Networks -->
+          {series.networks && series.networks.length > 0 && (
+            <div class="flex items-center gap-3 mb-4 md:mb-6">
+              <span class="text-sm" style="color: var(--text-secondary);">Network:</span>
+              <div class="flex gap-2">
+                {series.networks.slice(0, 3).map((network: any) => (
+                  <img
+                    src={`https://image.tmdb.org/t/p/w92${network.logo_path}`}
+                    alt={network.name}
+                    title={network.name}
+                    class="h-6 object-contain bg-white rounded px-2"
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+
+          <!-- Overview -->
+          <div class="mb-4 md:mb-6">
+            <h3 class="font-semibold mb-1.5 md:mb-2" style="color: var(--text-primary);">Synopsis</h3>
+            <p class="leading-relaxed text-sm md:text-base" style="color: var(--text-primary); opacity: 0.85;">
+              {series.overview || 'No synopsis available.'}
+            </p>
+          </div>
+
+          <!-- Creators -->
+          {creators.length > 0 && (
+            <div>
+              <h4 class="text-sm font-semibold" style="color: var(--text-muted);">Created by</h4>
+              <p style="color: var(--text-primary);">{creators.map((c: any) => c.name).join(', ')}</p>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Seasons & Episodes Section -->
+  <section class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <h2 class="text-2xl font-bold mb-4" style="color: var(--text-primary);">Seasons & Episodes</h2>
+    <SeasonTabs
+      client:load
+      seriesId={series.id}
+      tmdbId={series.tmdb_id}
+      imdbId={series.imdb_id}
+      seasons={seasons || []}
+      episodesBySeason={episodesBySeason}
+      {downloadsByEpisode}
+    />
+  </section>
+
+  <!-- Cast Section -->
+  {series.cast_data && series.cast_data.length > 0 && (
+    <section class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <h2 class="text-2xl font-bold mb-4" style="color: var(--text-primary);">Cast</h2>
+      <div class="flex gap-4 overflow-x-auto hide-scrollbar pb-4">
+        {series.cast_data.slice(0, 12).map((actor: any) => (
+          <div class="flex-shrink-0 w-32 text-center">
+            <img
+              src={getProfileUrl(actor.profile_path)}
+              alt={actor.name}
+              class="w-24 h-24 rounded-full mx-auto object-cover mb-2"
+            />
+            <p class="font-medium text-sm line-clamp-1" style="color: var(--text-primary);">{actor.name}</p>
+            <p class="text-xs line-clamp-1" style="color: var(--text-secondary);">{actor.character}</p>
+          </div>
+        ))}
+      </div>
+    </section>
+  )}
+
+  <!-- Trailer Section -->
+  {series.trailer_key && (
+    <section class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <h2 class="text-2xl font-bold mb-4" style="color: var(--text-primary);">Trailer</h2>
+      <div class="video-container rounded-lg overflow-hidden">
+        <iframe
+          src={`https://www.youtube.com/embed/${series.trailer_key}`}
+          allowfullscreen
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+          title="Trailer"
+        ></iframe>
+      </div>
+    </section>
+  )}
+
+  <!-- Similar Series -->
+  {similar.length > 0 && (
+    <ContentRow
+      client:visible
+      title="Similar Series"
+      items={similar}
+    />
+  )}
+</BaseLayout>

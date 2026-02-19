@@ -1,0 +1,193 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import MovieCard from '../components/MovieCard.svelte';
+import ContentRow from '../components/ContentRow.svelte';
+import { discoverTV, getTVGenres } from '../lib/tmdb';
+
+// Get query params
+const page = parseInt(Astro.url.searchParams.get('page') || '1');
+const sort = Astro.url.searchParams.get('sort') || 'popularity.desc';
+const genre = Astro.url.searchParams.get('genre') || '';
+const year = Astro.url.searchParams.get('year') || '';
+
+// Map sort options to TMDB sort_by values
+const sortMap: Record<string, string> = {
+  'latest': 'first_air_date.desc',
+  'popular': 'popularity.desc',
+  'rating': 'vote_average.desc',
+  'title': 'name.asc'
+};
+
+const sortBy = sortMap[sort] || 'popularity.desc';
+
+// Build TMDB params
+const baseParams: Record<string, string> = {
+  sort_by: sortBy,
+  'vote_count.gte': '10'
+};
+
+if (genre) {
+  baseParams.with_genres = genre;
+}
+
+if (year) {
+  baseParams.first_air_date_year = year;
+}
+
+// Fetch 2 pages to get 30+ series
+const tmdbPage1 = (page - 1) * 2 + 1;
+const tmdbPage2 = tmdbPage1 + 1;
+
+const [response1, response2] = await Promise.all([
+  discoverTV({ ...baseParams, page: tmdbPage1.toString() }),
+  discoverTV({ ...baseParams, page: tmdbPage2.toString() })
+]);
+
+const allSeries = [...(response1.results || []), ...(response2.results || [])];
+const series = allSeries.slice(0, 30);
+const totalPages = Math.min(Math.ceil((response1.total_pages || 1) / 2), 250);
+
+// Fetch ongoing series (status: Returning Series, airing this year)
+const ongoingResponse = await discoverTV({
+  sort_by: 'popularity.desc',
+  'first_air_date.lte': new Date().toISOString().split('T')[0],
+  'air_date.gte': new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // Last 30 days
+  with_status: '0', // Returning Series
+  'vote_count.gte': '50'
+});
+const ongoingSeries = (ongoingResponse.results || []).slice(0, 12);
+
+// Fetch genre list from TMDB
+const genres = await getTVGenres();
+
+// Years for filter - go back to 1940
+const currentYear = new Date().getFullYear();
+const years = Array.from({ length: currentYear - 1940 + 1 }, (_, i) => currentYear - i);
+
+function transformToItem(show: any) {
+  return {
+    id: show.id,
+    tmdb_id: show.id,
+    title: show.name,
+    poster_path: show.poster_path,
+    vote_average: show.vote_average,
+    year: show.first_air_date ? new Date(show.first_air_date).getFullYear() : null,
+    type: 'series' as const
+  };
+}
+---
+
+<BaseLayout title="TV Series" description="Browse all TV series available for streaming">
+  <!-- Ongoing Series Section (only on first page without filters) -->
+  {page === 1 && !genre && !year && ongoingSeries.length > 0 && (
+    <ContentRow
+      client:visible
+      title="Ongoing Series"
+      items={ongoingSeries.map(transformToItem)}
+      seeAllLink="/series/ongoing"
+    />
+  )}
+
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <div class="flex flex-col md:flex-row md:items-center md:justify-between mb-8">
+      <h1 class="text-3xl font-bold mb-4 md:mb-0" style="color: var(--text-primary);">TV Series</h1>
+
+      <!-- Filters -->
+      <div class="flex flex-wrap gap-3">
+        <select
+          id="sort-select"
+          class="px-3 py-2 rounded-lg text-sm"
+          style="background-color: var(--bg-card); color: var(--text-primary); border: 1px solid var(--border);"
+        >
+          <option value="popular" selected={sort === 'popular' || sort === 'popularity.desc'}>Popular</option>
+          <option value="latest" selected={sort === 'latest'}>Latest</option>
+          <option value="rating" selected={sort === 'rating'}>Top Rated</option>
+          <option value="title" selected={sort === 'title'}>A-Z</option>
+        </select>
+
+        <select
+          id="genre-select"
+          class="px-3 py-2 rounded-lg text-sm"
+          style="background-color: var(--bg-card); color: var(--text-primary); border: 1px solid var(--border);"
+        >
+          <option value="">All Genres</option>
+          {genres.map(g => (
+            <option value={g.id} selected={genre === g.id.toString()}>{g.name}</option>
+          ))}
+        </select>
+
+        <select
+          id="year-select"
+          class="px-3 py-2 rounded-lg text-sm"
+          style="background-color: var(--bg-card); color: var(--text-primary); border: 1px solid var(--border);"
+        >
+          <option value="">All Years</option>
+          {years.map(y => (
+            <option value={y} selected={year === y.toString()}>{y}</option>
+          ))}
+        </select>
+      </div>
+    </div>
+
+    <!-- Series Grid -->
+    {series.length > 0 ? (
+      <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 lg:grid-cols-6 gap-4">
+        {series.map(show => (
+          <MovieCard client:visible item={transformToItem(show)} />
+        ))}
+      </div>
+    ) : (
+      <div class="text-center py-16">
+        <p style="color: var(--text-secondary);">No series found</p>
+      </div>
+    )}
+
+    <!-- Pagination -->
+    {totalPages > 1 && (
+      <div class="flex justify-center mt-8 gap-2">
+        {page > 1 && (
+          <a
+            href={`/series?page=${page - 1}&sort=${sort}&genre=${genre}&year=${year}`}
+            class="px-4 py-2 rounded-lg"
+            style="background-color: var(--bg-card); color: var(--text-primary); border: 1px solid var(--border);"
+          >
+            Previous
+          </a>
+        )}
+
+        <span class="px-4 py-2" style="color: var(--text-secondary);">
+          Page {page} of {totalPages}
+        </span>
+
+        {page < totalPages && (
+          <a
+            href={`/series?page=${page + 1}&sort=${sort}&genre=${genre}&year=${year}`}
+            class="px-4 py-2 rounded-lg"
+            style="background-color: var(--bg-card); color: var(--text-primary); border: 1px solid var(--border);"
+          >
+            Next
+          </a>
+        )}
+      </div>
+    )}
+  </div>
+
+  <script>
+    function updateUrl() {
+      const sort = (document.getElementById('sort-select') as HTMLSelectElement).value;
+      const genre = (document.getElementById('genre-select') as HTMLSelectElement).value;
+      const year = (document.getElementById('year-select') as HTMLSelectElement).value;
+
+      const params = new URLSearchParams();
+      if (sort && sort !== 'popular') params.set('sort', sort);
+      if (genre) params.set('genre', genre);
+      if (year) params.set('year', year);
+
+      window.location.href = '/series' + (params.toString() ? '?' + params.toString() : '');
+    }
+
+    document.getElementById('sort-select')?.addEventListener('change', updateUrl);
+    document.getElementById('genre-select')?.addEventListener('change', updateUrl);
+    document.getElementById('year-select')?.addEventListener('change', updateUrl);
+  </script>
+</BaseLayout>

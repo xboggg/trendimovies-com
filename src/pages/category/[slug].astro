@@ -1,0 +1,269 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import MovieCard from '../../components/MovieCard.svelte';
+import { discoverMovies, discoverTV } from '../../lib/tmdb';
+
+const { slug } = Astro.params;
+const page = parseInt(Astro.url.searchParams.get('page') || '1');
+const sort = Astro.url.searchParams.get('sort') || 'popular';
+const year = Astro.url.searchParams.get('year') || '';
+
+// Map sort options
+const sortMap: Record<string, string> = {
+  'latest': 'primary_release_date.desc',
+  'popular': 'popularity.desc',
+  'rating': 'vote_average.desc'
+};
+const tvSortMap: Record<string, string> = {
+  'latest': 'first_air_date.desc',
+  'popular': 'popularity.desc',
+  'rating': 'vote_average.desc'
+};
+
+const sortBy = sortMap[sort] || 'popularity.desc';
+const tvSortBy = tvSortMap[sort] || 'popularity.desc';
+
+// Years for filter
+const currentYear = new Date().getFullYear();
+const years = Array.from({ length: currentYear - 1940 + 1 }, (_, i) => currentYear - i);
+
+// Category configurations using TMDB discover API parameters
+const categoryConfig: Record<string, {
+  title: string;
+  description: string;
+  type: 'movie' | 'tv' | 'both';
+  params: Record<string, string>;
+}> = {
+  'anime': {
+    title: 'Anime',
+    description: 'Browse Japanese animated movies and series',
+    type: 'both',
+    params: {
+      with_genres: '16', // Animation
+      with_original_language: 'ja'
+    }
+  },
+  'korean-movies': {
+    title: 'Korean Movies',
+    description: 'Browse popular Korean movies',
+    type: 'movie',
+    params: {
+      with_original_language: 'ko'
+    }
+  },
+  'korean-series': {
+    title: 'Korean Series',
+    description: 'Browse popular Korean TV series (K-Drama)',
+    type: 'tv',
+    params: {
+      with_original_language: 'ko'
+    }
+  },
+  'bollywood': {
+    title: 'Bollywood',
+    description: 'Browse Indian Hindi movies',
+    type: 'movie',
+    params: {
+      with_original_language: 'hi'
+    }
+  },
+  'marvel': {
+    title: 'Marvel',
+    description: 'Browse Marvel Cinematic Universe movies and shows',
+    type: 'both',
+    params: {
+      with_companies: '420' // Marvel Studios
+    }
+  },
+  'dc': {
+    title: 'DC',
+    description: 'Browse DC Comics movies and shows',
+    type: 'both',
+    params: {
+      with_companies: '429' // DC Entertainment
+    }
+  }
+};
+
+const config = categoryConfig[slug || ''];
+
+if (!config) {
+  return Astro.redirect('/movies');
+}
+
+// Build params with sorting
+const movieParams = { ...config.params, sort_by: sortBy };
+const tvParams = { ...config.params, sort_by: tvSortBy };
+
+if (year) {
+  movieParams.primary_release_year = year;
+  tvParams.first_air_date_year = year;
+}
+
+// Fetch content based on category type
+let movies: any[] = [];
+let series: any[] = [];
+let totalPages = 1;
+
+const tmdbPage1 = (page - 1) * 2 + 1;
+const tmdbPage2 = tmdbPage1 + 1;
+
+if (config.type === 'movie' || config.type === 'both') {
+  const [resp1, resp2] = await Promise.all([
+    discoverMovies({ ...movieParams, page: tmdbPage1.toString() }),
+    discoverMovies({ ...movieParams, page: tmdbPage2.toString() })
+  ]);
+  movies = [...(resp1.results || []), ...(resp2.results || [])].slice(0, 30);
+  totalPages = Math.max(totalPages, Math.ceil((resp1.total_pages || 1) / 2));
+}
+
+if (config.type === 'tv' || config.type === 'both') {
+  const [resp1, resp2] = await Promise.all([
+    discoverTV({ ...tvParams, page: tmdbPage1.toString() }),
+    discoverTV({ ...tvParams, page: tmdbPage2.toString() })
+  ]);
+  series = [...(resp1.results || []), ...(resp2.results || [])].slice(0, 30);
+  totalPages = Math.max(totalPages, Math.ceil((resp1.total_pages || 1) / 2));
+}
+
+totalPages = Math.min(totalPages, 250);
+
+function transformMovie(movie: any) {
+  return {
+    id: movie.id,
+    tmdb_id: movie.id,
+    title: movie.title,
+    poster_path: movie.poster_path,
+    vote_average: movie.vote_average,
+    year: movie.release_date ? new Date(movie.release_date).getFullYear() : null,
+    type: 'movie' as const
+  };
+}
+
+function transformSeries(show: any) {
+  return {
+    id: show.id,
+    tmdb_id: show.id,
+    title: show.name,
+    poster_path: show.poster_path,
+    vote_average: show.vote_average,
+    year: show.first_air_date ? new Date(show.first_air_date).getFullYear() : null,
+    type: 'series' as const
+  };
+}
+---
+
+<BaseLayout title={config.title} description={config.description}>
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <div class="flex flex-col md:flex-row md:items-center md:justify-between mb-8">
+      <div class="mb-4 md:mb-0">
+        <h1 class="text-3xl font-bold" style="color: var(--text-primary);">{config.title}</h1>
+        <p style="color: var(--text-secondary);">{config.description}</p>
+      </div>
+
+      <!-- Filters -->
+      <div class="flex flex-wrap gap-3">
+        <select
+          id="sort-select"
+          class="px-3 py-2 rounded-lg text-sm"
+          style="background-color: var(--bg-card); color: var(--text-primary); border: 1px solid var(--border);"
+        >
+          <option value="popular" selected={sort === 'popular'}>Popular</option>
+          <option value="latest" selected={sort === 'latest'}>Latest</option>
+          <option value="rating" selected={sort === 'rating'}>Top Rated</option>
+        </select>
+
+        <select
+          id="year-select"
+          class="px-3 py-2 rounded-lg text-sm"
+          style="background-color: var(--bg-card); color: var(--text-primary); border: 1px solid var(--border);"
+        >
+          <option value="">All Years</option>
+          {years.map(y => (
+            <option value={y} selected={year === y.toString()}>{y}</option>
+          ))}
+        </select>
+      </div>
+    </div>
+
+    <!-- Movies Section -->
+    {movies.length > 0 && (
+      <section class="mb-12">
+        {config.type === 'both' && (
+          <h2 class="text-2xl font-semibold mb-6" style="color: var(--text-primary);">Movies</h2>
+        )}
+        <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 lg:grid-cols-6 gap-4">
+          {movies.map(movie => (
+            <MovieCard client:visible item={transformMovie(movie)} />
+          ))}
+        </div>
+      </section>
+    )}
+
+    <!-- Series Section -->
+    {series.length > 0 && (
+      <section class="mb-12">
+        {config.type === 'both' && (
+          <h2 class="text-2xl font-semibold mb-6" style="color: var(--text-primary);">Series</h2>
+        )}
+        <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 lg:grid-cols-6 gap-4">
+          {series.map(show => (
+            <MovieCard client:visible item={transformSeries(show)} />
+          ))}
+        </div>
+      </section>
+    )}
+
+    <!-- No Results -->
+    {movies.length === 0 && series.length === 0 && (
+      <div class="text-center py-16">
+        <p style="color: var(--text-secondary);">No content found in this category</p>
+      </div>
+    )}
+
+    <!-- Pagination -->
+    {totalPages > 1 && (
+      <div class="flex justify-center mt-8 gap-2">
+        {page > 1 && (
+          <a
+            href={`/category/${slug}?page=${page - 1}&sort=${sort}&year=${year}`}
+            class="px-4 py-2 rounded-lg"
+            style="background-color: var(--bg-card); color: var(--text-primary); border: 1px solid var(--border);"
+          >
+            Previous
+          </a>
+        )}
+
+        <span class="px-4 py-2" style="color: var(--text-secondary);">
+          Page {page} of {totalPages}
+        </span>
+
+        {page < totalPages && (
+          <a
+            href={`/category/${slug}?page=${page + 1}&sort=${sort}&year=${year}`}
+            class="px-4 py-2 rounded-lg"
+            style="background-color: var(--bg-card); color: var(--text-primary); border: 1px solid var(--border);"
+          >
+            Next
+          </a>
+        )}
+      </div>
+    )}
+  </div>
+
+  <script define:vars={{ slug }}>
+    function updateUrl() {
+      const sort = document.getElementById('sort-select').value;
+      const year = document.getElementById('year-select').value;
+
+      const params = new URLSearchParams();
+      if (sort && sort !== 'popular') params.set('sort', sort);
+      if (year) params.set('year', year);
+
+      window.location.href = '/category/' + slug + (params.toString() ? '?' + params.toString() : '');
+    }
+
+    document.getElementById('sort-select')?.addEventListener('change', updateUrl);
+    document.getElementById('year-select')?.addEventListener('change', updateUrl);
+  </script>
+</BaseLayout>

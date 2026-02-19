@@ -1,0 +1,299 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import VideoPlayer from '../../components/VideoPlayer.svelte';
+import DownloadSection from '../../components/DownloadSection.svelte';
+import ContentRow from '../../components/ContentRow.svelte';
+import { getMovieDetails, transformMovieData } from '../../lib/tmdb';
+import { supabase } from '../../lib/supabase';
+import { Star, Clock, Calendar, Globe, Play } from 'lucide-svelte';
+
+const { id } = Astro.params;
+const tmdbId = parseInt(id || '0');
+
+if (!tmdbId) {
+  return Astro.redirect('/404');
+}
+
+// Fetch movie from TMDB
+const tmdbData = await getMovieDetails(tmdbId);
+if (!tmdbData) {
+  return Astro.redirect('/404');
+}
+
+const movie = transformMovieData(tmdbData);
+
+// Fetch download links from Supabase using TMDB ID
+const { data: rawLinks } = await supabase
+  .from('download_links')
+  .select('*')
+  .eq('content_type', 'movie')
+  .eq('content_id', tmdbId)
+  .eq('is_active', true);
+
+const downloadLinks = (rawLinks || []).map((link: any) => ({
+  id: link.id,
+  quality: link.quality,
+  file_size: link.file_size,
+  url: `/download/generate?link_id=${link.id}&type=movie&id=${tmdbId}`,
+  type: link.source === 'torrent' ? 'torrent' as const : 'ddl' as const,
+  variant: link.variant || undefined,
+  source: link.source === 'telegram' ? 1 : link.source === 'cinematika' ? 2 : undefined,
+}));
+
+// Helper functions
+function getPosterUrl(path: string | null): string {
+  if (!path) return '/images/no-poster.svg';
+  return `https://image.tmdb.org/t/p/w500${path}`;
+}
+
+function getBackdropUrl(path: string | null): string {
+  if (!path) return '/images/no-backdrop.svg';
+  return `https://image.tmdb.org/t/p/w1280${path}`;
+}
+
+function getProfileUrl(path: string | null): string {
+  if (!path) return '/images/no-profile.svg';
+  return `https://image.tmdb.org/t/p/w185${path}`;
+}
+
+function formatRuntime(minutes: number | null): string {
+  if (!minutes) return 'N/A';
+  const hours = Math.floor(minutes / 60);
+  const mins = minutes % 60;
+  return hours > 0 ? `${hours}h ${mins}m` : `${mins}m`;
+}
+
+function formatDate(dateStr: string | null): string {
+  if (!dateStr) return 'N/A';
+  return new Date(dateStr).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+}
+
+function formatMoney(amount: number | null): string {
+  if (!amount) return 'N/A';
+  return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(amount);
+}
+
+const LANGUAGES: Record<string, string> = {
+  en: 'English', es: 'Spanish', fr: 'French', de: 'German', it: 'Italian',
+  pt: 'Portuguese', ru: 'Russian', ja: 'Japanese', ko: 'Korean', zh: 'Chinese',
+  hi: 'Hindi', ar: 'Arabic', tr: 'Turkish', th: 'Thai'
+};
+
+function getLanguageName(code: string): string {
+  return LANGUAGES[code] || code.toUpperCase();
+}
+
+// Get directors and writers
+const directors = (movie.crew_data || []).filter((c: any) => c.job === 'Director');
+const writers = (movie.crew_data || []).filter((c: any) => ['Writer', 'Screenplay'].includes(c.job));
+
+// Transform similar movies for ContentRow
+const similar = (tmdbData.similar?.results || []).slice(0, 12).map((m: any) => ({
+  id: m.id,
+  tmdb_id: m.id,
+  title: m.title,
+  poster_path: m.poster_path,
+  vote_average: m.vote_average,
+  year: m.release_date ? new Date(m.release_date).getFullYear() : null,
+  type: 'movie' as const
+}));
+---
+
+<BaseLayout
+  title={movie.title}
+  description={movie.overview || `Watch ${movie.title} online for free in HD quality.`}
+  image={getBackdropUrl(movie.backdrop_path)}
+  type="video.movie"
+>
+  <!-- Backdrop Header -->
+  <section class="relative">
+    <div class="absolute inset-0 h-[300px] md:h-[500px]">
+      <img
+        src={getBackdropUrl(movie.backdrop_path)}
+        alt={movie.title}
+        class="w-full h-full object-cover"
+      />
+      <div class="absolute inset-0 bg-gradient-to-t from-[var(--bg-primary)] via-[var(--bg-primary)]/80 to-transparent"></div>
+    </div>
+
+    <div class="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8 pb-8 md:pb-12">
+      <div class="flex flex-col md:flex-row gap-5 md:gap-8">
+        <div class="flex-shrink-0 w-48 md:w-64 mx-auto md:mx-0">
+          <img
+            src={getPosterUrl(movie.poster_path)}
+            alt={movie.title}
+            class="w-full rounded-lg shadow-2xl"
+          />
+        </div>
+
+        <div class="flex-1">
+          <h1 class="text-2xl md:text-4xl lg:text-5xl font-bold mb-2 md:mb-4" style="color: var(--text-primary);">
+            {movie.title}
+            {movie.year && <span class="text-xl md:text-2xl font-normal" style="color: var(--text-secondary);"> ({movie.year})</span>}
+          </h1>
+
+          {movie.tagline && (
+            <p class="text-base md:text-lg italic mb-3 md:mb-4" style="color: var(--text-secondary);">
+              "{movie.tagline}"
+            </p>
+          )}
+
+          <div class="flex flex-wrap items-center gap-3 md:gap-4 mb-4 md:mb-6 text-sm" style="color: var(--text-secondary);">
+            <div class="flex items-center gap-1">
+              <Star size={16} class="text-yellow-400" fill="currentColor" />
+              <span class="font-semibold" style="color: var(--text-primary);">{movie.vote_average.toFixed(1)}</span>
+              <span class="text-xs md:text-sm">({movie.vote_count} votes)</span>
+            </div>
+            {movie.runtime && (
+              <div class="flex items-center gap-1">
+                <Clock size={16} />
+                <span>{formatRuntime(movie.runtime)}</span>
+              </div>
+            )}
+            {movie.release_date && (
+              <div class="flex items-center gap-1">
+                <Calendar size={16} />
+                <span>{formatDate(movie.release_date)}</span>
+              </div>
+            )}
+            <div class="flex items-center gap-1">
+              <Globe size={16} />
+              <span>{getLanguageName(movie.original_language)}</span>
+            </div>
+          </div>
+
+          {movie.genres && movie.genres.length > 0 && (
+            <div class="flex flex-wrap gap-2 mb-4 md:mb-6">
+              {movie.genres.map((genre: any) => (
+                <a
+                  href={`/genre/${genre.name.toLowerCase().replace(/\s+/g, '-')}`}
+                  class="genre-chip"
+                >
+                  {genre.name}
+                </a>
+              ))}
+            </div>
+          )}
+
+          <div class="mb-4 md:mb-6">
+            <h3 class="font-semibold mb-1.5 md:mb-2" style="color: var(--text-primary);">Synopsis</h3>
+            <p class="leading-relaxed text-sm md:text-base" style="color: var(--text-primary); opacity: 0.85;">
+              {movie.overview || 'No synopsis available.'}
+            </p>
+          </div>
+
+          <div class="grid grid-cols-2 gap-3 md:gap-4">
+            {directors.length > 0 && (
+              <div>
+                <h4 class="text-sm font-semibold" style="color: var(--text-muted);">Director</h4>
+                <p style="color: var(--text-primary);">{directors.map((d: any) => d.name).join(', ')}</p>
+              </div>
+            )}
+            {writers.length > 0 && (
+              <div>
+                <h4 class="text-sm font-semibold" style="color: var(--text-muted);">Writers</h4>
+                <p style="color: var(--text-primary);">{writers.slice(0, 3).map((w: any) => w.name).join(', ')}</p>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Video Player -->
+  <section class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <h2 class="text-2xl font-bold mb-4 flex items-center gap-2" style="color: var(--text-primary);">
+      <Play size={24} />
+      Watch Now
+    </h2>
+    <VideoPlayer
+      client:load
+      tmdbId={movie.tmdb_id}
+      imdbId={movie.imdb_id}
+      type="movie"
+    />
+  </section>
+
+  <!-- Downloads Section -->
+  <section class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <DownloadSection
+      client:load
+      title={movie.title}
+      links={downloadLinks}
+    />
+  </section>
+
+  <!-- Cast -->
+  {movie.cast_data && movie.cast_data.length > 0 && (
+    <section class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <h2 class="text-2xl font-bold mb-4" style="color: var(--text-primary);">Cast</h2>
+      <div class="flex gap-4 overflow-x-auto hide-scrollbar pb-4">
+        {movie.cast_data.slice(0, 12).map((actor: any) => (
+          <a href={`/person/${actor.id}`} class="flex-shrink-0 w-32 text-center group">
+            <img
+              src={getProfileUrl(actor.profile_path)}
+              alt={actor.name}
+              class="w-24 h-24 rounded-full mx-auto object-cover mb-2 transition-transform group-hover:scale-105"
+            />
+            <p class="font-medium text-sm line-clamp-1 group-hover:underline" style="color: var(--text-primary);">{actor.name}</p>
+            <p class="text-xs line-clamp-1" style="color: var(--text-secondary);">{actor.character}</p>
+          </a>
+        ))}
+      </div>
+    </section>
+  )}
+
+  <!-- Trailer -->
+  {movie.trailer_key && (
+    <section class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <h2 class="text-2xl font-bold mb-4" style="color: var(--text-primary);">Trailer</h2>
+      <div class="video-container rounded-lg overflow-hidden">
+        <iframe
+          src={`https://www.youtube.com/embed/${movie.trailer_key}`}
+          allowfullscreen
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+          title="Trailer"
+        ></iframe>
+      </div>
+    </section>
+  )}
+
+  <!-- Details -->
+  <section class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <h2 class="text-2xl font-bold mb-4" style="color: var(--text-primary);">Details</h2>
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 p-6 rounded-lg" style="background-color: var(--bg-card);">
+      <div>
+        <h4 class="text-sm font-semibold" style="color: var(--text-muted);">Original Title</h4>
+        <p style="color: var(--text-primary);">{movie.original_title || movie.title}</p>
+      </div>
+      <div>
+        <h4 class="text-sm font-semibold" style="color: var(--text-muted);">Status</h4>
+        <p style="color: var(--text-primary);">{movie.status}</p>
+      </div>
+      <div>
+        <h4 class="text-sm font-semibold" style="color: var(--text-muted);">Budget</h4>
+        <p style="color: var(--text-primary);">{formatMoney(movie.budget)}</p>
+      </div>
+      <div>
+        <h4 class="text-sm font-semibold" style="color: var(--text-muted);">Revenue</h4>
+        <p style="color: var(--text-primary);">{formatMoney(movie.revenue)}</p>
+      </div>
+      {movie.production_companies && movie.production_companies.length > 0 && (
+        <div class="col-span-2">
+          <h4 class="text-sm font-semibold" style="color: var(--text-muted);">Production</h4>
+          <p style="color: var(--text-primary);">{movie.production_companies.slice(0, 3).map((c: any) => c.name).join(', ')}</p>
+        </div>
+      )}
+    </div>
+  </section>
+
+  <!-- Similar Movies -->
+  {similar.length > 0 && (
+    <ContentRow
+      client:visible
+      title="You May Also Like"
+      items={similar}
+    />
+  )}
+</BaseLayout>

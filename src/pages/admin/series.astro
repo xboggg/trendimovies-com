@@ -1,0 +1,8 @@
+---
+import AdminLayout from '../../layouts/AdminLayout.astro';
+import ContentTable from '../../components/admin/ContentTable.svelte';
+---
+
+<AdminLayout title="Series" activeTab="series">
+  <ContentTable client:load type="series" />
+</AdminLayout>

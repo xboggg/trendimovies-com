@@ -1,0 +1,198 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import MovieCard from '../../components/MovieCard.svelte';
+import { discoverMovies } from '../../lib/tmdb';
+
+const { slug } = Astro.params;
+
+// Genre mapping
+const genreMap: Record<string, { id: number; name: string }> = {
+  'action': { id: 28, name: 'Action' },
+  'adventure': { id: 12, name: 'Adventure' },
+  'animation': { id: 16, name: 'Animation' },
+  'comedy': { id: 35, name: 'Comedy' },
+  'crime': { id: 80, name: 'Crime' },
+  'documentary': { id: 99, name: 'Documentary' },
+  'drama': { id: 18, name: 'Drama' },
+  'family': { id: 10751, name: 'Family' },
+  'fantasy': { id: 14, name: 'Fantasy' },
+  'history': { id: 36, name: 'History' },
+  'horror': { id: 27, name: 'Horror' },
+  'music': { id: 10402, name: 'Music' },
+  'mystery': { id: 9648, name: 'Mystery' },
+  'romance': { id: 10749, name: 'Romance' },
+  'science-fiction': { id: 878, name: 'Science Fiction' },
+  'sci-fi': { id: 878, name: 'Science Fiction' },
+  'thriller': { id: 53, name: 'Thriller' },
+  'war': { id: 10752, name: 'War' },
+  'western': { id: 37, name: 'Western' }
+};
+
+const genre = genreMap[slug?.toLowerCase() || ''];
+
+if (!genre) {
+  return Astro.redirect('/movies');
+}
+
+// Get query params
+const page = parseInt(Astro.url.searchParams.get('page') || '1');
+const sort = Astro.url.searchParams.get('sort') || 'popularity.desc';
+const year = Astro.url.searchParams.get('year') || '';
+
+// Map sort options to TMDB sort_by values
+const sortMap: Record<string, string> = {
+  'latest': 'primary_release_date.desc',
+  'popular': 'popularity.desc',
+  'rating': 'vote_average.desc',
+  'title': 'title.asc'
+};
+
+const sortBy = sortMap[sort] || 'popularity.desc';
+
+// Build TMDB params
+const baseParams: Record<string, string> = {
+  with_genres: genre.id.toString(),
+  sort_by: sortBy,
+  'vote_count.gte': '10'
+};
+
+if (year) {
+  baseParams.primary_release_year = year;
+}
+
+// Fetch 2 pages to get 30+ movies
+const tmdbPage1 = (page - 1) * 2 + 1;
+const tmdbPage2 = tmdbPage1 + 1;
+
+const [response1, response2] = await Promise.all([
+  discoverMovies({ ...baseParams, page: tmdbPage1.toString() }),
+  discoverMovies({ ...baseParams, page: tmdbPage2.toString() })
+]);
+
+const allMovies = [...(response1.results || []), ...(response2.results || [])];
+const movies = allMovies.slice(0, 30);
+const totalPages = Math.min(Math.ceil((response1.total_pages || 1) / 2), 250);
+
+// Years for filter
+const currentYear = new Date().getFullYear();
+const years = Array.from({ length: currentYear - 1940 + 1 }, (_, i) => currentYear - i);
+
+function transformToItem(movie: any) {
+  return {
+    id: movie.id,
+    tmdb_id: movie.id,
+    title: movie.title,
+    poster_path: movie.poster_path,
+    vote_average: movie.vote_average,
+    year: movie.release_date ? new Date(movie.release_date).getFullYear() : null,
+    type: 'movie' as const
+  };
+}
+---
+
+<BaseLayout title={`${genre.name} Movies`} description={`Browse ${genre.name} movies available for streaming`}>
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <div class="flex flex-col md:flex-row md:items-center md:justify-between mb-8">
+      <h1 class="text-3xl font-bold mb-4 md:mb-0" style="color: var(--text-primary);">{genre.name} Movies</h1>
+
+      <!-- Filters -->
+      <div class="flex flex-wrap gap-3">
+        <select
+          id="sort-select"
+          class="px-3 py-2 rounded-lg text-sm"
+          style="background-color: var(--bg-card); color: var(--text-primary); border: 1px solid var(--border);"
+        >
+          <option value="popular" selected={sort === 'popular' || sort === 'popularity.desc'}>Popular</option>
+          <option value="latest" selected={sort === 'latest'}>Latest</option>
+          <option value="rating" selected={sort === 'rating'}>Top Rated</option>
+          <option value="title" selected={sort === 'title'}>A-Z</option>
+        </select>
+
+        <select
+          id="year-select"
+          class="px-3 py-2 rounded-lg text-sm"
+          style="background-color: var(--bg-card); color: var(--text-primary); border: 1px solid var(--border);"
+        >
+          <option value="">All Years</option>
+          {years.map(y => (
+            <option value={y} selected={year === y.toString()}>{y}</option>
+          ))}
+        </select>
+      </div>
+    </div>
+
+    <!-- Movie Grid -->
+    {movies.length > 0 ? (
+      <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 lg:grid-cols-6 gap-4">
+        {movies.map(movie => (
+          <MovieCard client:visible item={transformToItem(movie)} />
+        ))}
+      </div>
+    ) : (
+      <div class="text-center py-16">
+        <p style="color: var(--text-secondary);">No {genre.name.toLowerCase()} movies found</p>
+      </div>
+    )}
+
+    <!-- Pagination -->
+    {totalPages > 1 && (
+      <div class="flex justify-center mt-8 gap-2">
+        {page > 1 && (
+          <a
+            href={`/genre/${slug}?page=${page - 1}&sort=${sort}&year=${year}`}
+            class="px-4 py-2 rounded-lg"
+            style="background-color: var(--bg-card); color: var(--text-primary); border: 1px solid var(--border);"
+          >
+            Previous
+          </a>
+        )}
+
+        <span class="px-4 py-2" style="color: var(--text-secondary);">
+          Page {page} of {totalPages}
+        </span>
+
+        {page < totalPages && (
+          <a
+            href={`/genre/${slug}?page=${page + 1}&sort=${sort}&year=${year}`}
+            class="px-4 py-2 rounded-lg"
+            style="background-color: var(--bg-card); color: var(--text-primary); border: 1px solid var(--border);"
+          >
+            Next
+          </a>
+        )}
+      </div>
+    )}
+
+    <!-- Other Genres -->
+    <div class="mt-12">
+      <h2 class="text-xl font-semibold mb-4" style="color: var(--text-primary);">Browse by Genre</h2>
+      <div class="flex flex-wrap gap-2">
+        {Object.entries(genreMap).filter(([key]) => !['sci-fi'].includes(key)).map(([genreSlug, g]) => (
+          <a
+            href={`/genre/${genreSlug}`}
+            class={`px-4 py-2 rounded-full text-sm transition-colors ${genreSlug === slug ? 'bg-[var(--accent)] text-white' : ''}`}
+            style={genreSlug !== slug ? "background-color: var(--bg-card); color: var(--text-primary); border: 1px solid var(--border);" : ""}
+          >
+            {g.name}
+          </a>
+        ))}
+      </div>
+    </div>
+  </div>
+
+  <script define:vars={{ slug }}>
+    function updateUrl() {
+      const sort = document.getElementById('sort-select').value;
+      const year = document.getElementById('year-select').value;
+
+      const params = new URLSearchParams();
+      if (sort && sort !== 'popular') params.set('sort', sort);
+      if (year) params.set('year', year);
+
+      window.location.href = '/genre/' + slug + (params.toString() ? '?' + params.toString() : '');
+    }
+
+    document.getElementById('sort-select')?.addEventListener('change', updateUrl);
+    document.getElementById('year-select')?.addEventListener('change', updateUrl);
+  </script>
+</BaseLayout>

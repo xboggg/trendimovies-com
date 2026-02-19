@@ -1,0 +1,198 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import ContentRow from '../../components/ContentRow.svelte';
+import { supabase, getProfileUrl, getPosterUrl } from '../../lib/supabase';
+
+const { id } = Astro.params;
+const TMDB_API_KEY = import.meta.env.TMDB_API_KEY;
+
+// Fetch person details from TMDB
+let person = null;
+let credits = null;
+
+try {
+  const personRes = await fetch(
+    `https://api.themoviedb.org/3/person/${id}?api_key=${TMDB_API_KEY}&append_to_response=movie_credits,tv_credits`
+  );
+
+  if (personRes.ok) {
+    person = await personRes.json();
+
+    // Combine and sort credits by popularity
+    const movieCredits = (person.movie_credits?.cast || []).map((m: any) => ({
+      ...m,
+      media_type: 'movie',
+      type: 'movie' as const,
+      slug: generateSlug(m.title, m.release_date ? new Date(m.release_date).getFullYear() : null),
+      year: m.release_date ? new Date(m.release_date).getFullYear() : null
+    }));
+
+    const tvCredits = (person.tv_credits?.cast || []).map((t: any) => ({
+      ...t,
+      title: t.name,
+      media_type: 'tv',
+      type: 'series' as const,
+      slug: generateSlug(t.name, t.first_air_date ? new Date(t.first_air_date).getFullYear() : null),
+      year: t.first_air_date ? new Date(t.first_air_date).getFullYear() : null
+    }));
+
+    credits = [...movieCredits, ...tvCredits]
+      .sort((a, b) => (b.popularity || 0) - (a.popularity || 0))
+      .slice(0, 20);
+  }
+} catch (err) {
+  console.error('Error fetching person:', err);
+}
+
+function generateSlug(title: string | undefined, year: number | null): string {
+  if (!title) return '';
+  let slug = title
+    .toLowerCase()
+    .replace(/[^a-z0-9\s-]/g, '')
+    .replace(/\s+/g, '-')
+    .replace(/-+/g, '-')
+    .substring(0, 100);
+  if (year) slug += `-${year}`;
+  return slug;
+}
+
+function formatDate(dateStr: string | null): string {
+  if (!dateStr) return 'Unknown';
+  return new Date(dateStr).toLocaleDateString('en-US', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric'
+  });
+}
+
+function calculateAge(birthday: string | null, deathday: string | null): number | null {
+  if (!birthday) return null;
+  const birth = new Date(birthday);
+  const end = deathday ? new Date(deathday) : new Date();
+  let age = end.getFullYear() - birth.getFullYear();
+  const m = end.getMonth() - birth.getMonth();
+  if (m < 0 || (m === 0 && end.getDate() < birth.getDate())) {
+    age--;
+  }
+  return age;
+}
+
+if (!person) {
+  return Astro.redirect('/404');
+}
+
+const age = calculateAge(person.birthday, person.deathday);
+---
+
+<BaseLayout
+  title={person.name}
+  description={person.biography?.slice(0, 200) || `Learn about ${person.name}'s filmography and biography.`}
+  image={getProfileUrl(person.profile_path, 'h632')}
+>
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <div class="flex flex-col md:flex-row gap-8">
+      <!-- Profile Image -->
+      <div class="flex-shrink-0 w-64 mx-auto md:mx-0">
+        <img
+          src={getProfileUrl(person.profile_path, 'h632')}
+          alt={person.name}
+          class="w-full rounded-lg shadow-xl"
+        />
+      </div>
+
+      <!-- Bio Info -->
+      <div class="flex-1">
+        <h1 class="text-3xl md:text-4xl font-bold mb-4" style="color: var(--text-primary);">
+          {person.name}
+        </h1>
+
+        <!-- Quick Info -->
+        <div class="grid grid-cols-2 gap-4 mb-6 p-4 rounded-lg" style="background-color: var(--bg-card);">
+          {person.known_for_department && (
+            <div>
+              <h4 class="text-sm font-semibold" style="color: var(--text-muted);">Known For</h4>
+              <p style="color: var(--text-primary);">{person.known_for_department}</p>
+            </div>
+          )}
+          {person.birthday && (
+            <div>
+              <h4 class="text-sm font-semibold" style="color: var(--text-muted);">Born</h4>
+              <p style="color: var(--text-primary);">
+                {formatDate(person.birthday)}
+                {age !== null && !person.deathday && <span class="text-sm" style="color: var(--text-secondary);"> ({age} years old)</span>}
+              </p>
+            </div>
+          )}
+          {person.deathday && (
+            <div>
+              <h4 class="text-sm font-semibold" style="color: var(--text-muted);">Died</h4>
+              <p style="color: var(--text-primary);">
+                {formatDate(person.deathday)}
+                {age !== null && <span class="text-sm" style="color: var(--text-secondary);"> (aged {age})</span>}
+              </p>
+            </div>
+          )}
+          {person.place_of_birth && (
+            <div>
+              <h4 class="text-sm font-semibold" style="color: var(--text-muted);">Birthplace</h4>
+              <p style="color: var(--text-primary);">{person.place_of_birth}</p>
+            </div>
+          )}
+        </div>
+
+        <!-- Biography -->
+        {person.biography && (
+          <div class="mb-6">
+            <h3 class="font-semibold mb-2" style="color: var(--text-primary);">Biography</h3>
+            <p class="leading-relaxed whitespace-pre-line" style="color: var(--text-secondary);">
+              {person.biography.length > 1000
+                ? person.biography.slice(0, 1000) + '...'
+                : person.biography}
+            </p>
+          </div>
+        )}
+
+        <!-- External Links -->
+        <div class="flex gap-4">
+          {person.imdb_id && (
+            <a
+              href={`https://www.imdb.com/name/${person.imdb_id}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              class="px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+              style="background-color: #f5c518; color: #000;"
+            >
+              View on IMDb
+            </a>
+          )}
+          <a
+            href={`https://www.themoviedb.org/person/${person.id}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            class="px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+            style="background-color: #01b4e4; color: #fff;"
+          >
+            View on TMDB
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Filmography -->
+  {credits && credits.length > 0 && (
+    <ContentRow
+      client:visible
+      title={`${person.name}'s Filmography`}
+      items={credits.map((c: any) => ({
+        id: c.id,
+        title: c.title,
+        slug: c.slug,
+        poster_path: c.poster_path,
+        vote_average: c.vote_average || 0,
+        year: c.year,
+        type: c.type
+      }))}
+    />
+  )}
+</BaseLayout>

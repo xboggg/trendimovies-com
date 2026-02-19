@@ -1,0 +1,86 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import DownloadSection from '../components/DownloadSection.svelte';
+
+// Demo links following the rules:
+// DDL: 2 rows - Row 1 (720p + 1080p), Row 2 (720p + 1080p) - sources hidden
+// Torrent: 3 buttons on one row - 720p WEBRip, 1080p WEBRip, 1080p WEB-DL
+const demoLinks = [
+  // DDL Row 1 (source 1 - e.g. Telegram, hidden from user)
+  { id: 1, quality: '720p', file_size: '1.2 GB', url: 'https://proof.ovh.net/files/100Mb.dat', type: 'ddl', source: 1 },
+  { id: 2, quality: '1080p', file_size: '2.8 GB', url: 'https://proof.ovh.net/files/100Mb.dat', type: 'ddl', source: 1 },
+  // DDL Row 2 (source 2 - e.g. Cinematika, hidden from user)
+  { id: 3, quality: '720p', file_size: '1.2 GB', url: 'https://proof.ovh.net/files/100Mb.dat', type: 'ddl', source: 2 },
+  { id: 4, quality: '1080p', file_size: '2.8 GB', url: 'https://proof.ovh.net/files/100Mb.dat', type: 'ddl', source: 2 },
+
+  // Torrent Downloads (3 on one row)
+  { id: 5, quality: '720p', file_size: '1.1 GB', url: 'magnet:?xt=urn:btih:example1', type: 'torrent', variant: 'webrip' },
+  { id: 6, quality: '1080p', file_size: '2.5 GB', url: 'magnet:?xt=urn:btih:example2', type: 'torrent', variant: 'webrip' },
+  { id: 7, quality: '1080p', file_size: '3.8 GB', url: 'magnet:?xt=urn:btih:example3', type: 'torrent', variant: 'webdl' },
+];
+
+const ddlOnlyLinks = [
+  { id: 1, quality: '720p', file_size: '1.2 GB', url: 'https://proof.ovh.net/files/100Mb.dat', type: 'ddl', source: 1 },
+  { id: 2, quality: '1080p', file_size: '2.8 GB', url: 'https://proof.ovh.net/files/100Mb.dat', type: 'ddl', source: 1 },
+  { id: 3, quality: '720p', file_size: '1.2 GB', url: 'https://proof.ovh.net/files/100Mb.dat', type: 'ddl', source: 2 },
+  { id: 4, quality: '1080p', file_size: '2.8 GB', url: 'https://proof.ovh.net/files/100Mb.dat', type: 'ddl', source: 2 },
+];
+
+const torrentOnlyLinks = [
+  { id: 5, quality: '720p', file_size: '1.1 GB', url: 'magnet:?xt=urn:btih:example1', type: 'torrent', variant: 'webrip' },
+  { id: 6, quality: '1080p', file_size: '2.5 GB', url: 'magnet:?xt=urn:btih:example2', type: 'torrent', variant: 'webrip' },
+];
+
+const emptyLinks: any[] = [];
+---
+
+<BaseLayout title="Download Section Demo" description="Preview of the download section design">
+  <div class="max-w-4xl mx-auto px-4 py-12 space-y-12">
+    <div class="text-center mb-12">
+      <h1 class="text-4xl font-bold mb-4" style="color: var(--text-primary);">Download Section Preview</h1>
+      <p style="color: var(--text-secondary);">
+        Clean download interface - DDL and Torrent sections
+      </p>
+    </div>
+
+    <!-- Full Example (DDL + Torrent) -->
+    <div>
+      <h2 class="text-2xl font-semibold mb-4" style="color: var(--text-primary);">Full Download Options</h2>
+      <DownloadSection
+        client:load
+        title="Moana 2"
+        links={demoLinks}
+      />
+    </div>
+
+    <!-- DDL Only -->
+    <div>
+      <h2 class="text-2xl font-semibold mb-4" style="color: var(--text-primary);">DDL Only</h2>
+      <DownloadSection
+        client:load
+        title="Movie Name"
+        links={ddlOnlyLinks}
+      />
+    </div>
+
+    <!-- Torrent Only -->
+    <div>
+      <h2 class="text-2xl font-semibold mb-4" style="color: var(--text-primary);">Torrent Only</h2>
+      <DownloadSection
+        client:load
+        title=""
+        links={torrentOnlyLinks}
+      />
+    </div>
+
+    <!-- Empty State -->
+    <div>
+      <h2 class="text-2xl font-semibold mb-4" style="color: var(--text-primary);">No Downloads Yet</h2>
+      <DownloadSection
+        client:load
+        title=""
+        links={emptyLinks}
+      />
+    </div>
+  </div>
+</BaseLayout>

@@ -1,0 +1,108 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import MovieCard from '../../components/MovieCard.svelte';
+import { discoverMovies } from '../../lib/tmdb';
+
+// Get query params
+const page = parseInt(Astro.url.searchParams.get('page') || '1');
+
+// Calculate date range for upcoming movies
+const today = new Date();
+const tomorrow = new Date(today);
+tomorrow.setDate(tomorrow.getDate() + 1);
+const tomorrowStr = tomorrow.toISOString().split('T')[0];
+const sixMonthsLater = new Date(today);
+sixMonthsLater.setMonth(sixMonthsLater.getMonth() + 6);
+const futureStr = sixMonthsLater.toISOString().split('T')[0];
+
+// Fetch upcoming movies with future release dates
+const tmdbPage1 = (page - 1) * 2 + 1;
+const tmdbPage2 = tmdbPage1 + 1;
+
+const [response1, response2] = await Promise.all([
+  discoverMovies({
+    'primary_release_date.gte': tomorrowStr,
+    'primary_release_date.lte': futureStr,
+    sort_by: 'popularity.desc',
+    page: tmdbPage1.toString()
+  }),
+  discoverMovies({
+    'primary_release_date.gte': tomorrowStr,
+    'primary_release_date.lte': futureStr,
+    sort_by: 'popularity.desc',
+    page: tmdbPage2.toString()
+  })
+]);
+
+const allMovies = [...(response1.results || []), ...(response2.results || [])].filter((m: any) => m.poster_path);
+const movies = allMovies.slice(0, 30);
+const totalPages = Math.min(Math.ceil((response1.total_pages || 1) / 2), 250);
+
+function transformToItem(movie: any) {
+  return {
+    id: movie.id,
+    tmdb_id: movie.id,
+    title: movie.title,
+    poster_path: movie.poster_path,
+    vote_average: movie.vote_average,
+    year: movie.release_date ? new Date(movie.release_date).getFullYear() : null,
+    release_date: movie.release_date,
+    type: 'movie' as const
+  };
+}
+
+function formatReleaseDate(dateStr: string): string {
+  return new Date(dateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+}
+---
+
+<BaseLayout title="Coming Soon" description="Browse upcoming movies coming to theaters">
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <div class="mb-8">
+      <h1 class="text-3xl font-bold mb-2" style="color: var(--text-primary);">Coming Soon</h1>
+      <p style="color: var(--text-secondary);">Upcoming movies releasing in theaters</p>
+    </div>
+
+    <!-- Movie Grid -->
+    {movies.length > 0 ? (
+      <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 lg:grid-cols-6 gap-4">
+        {movies.map(movie => (
+          <MovieCard client:visible item={transformToItem(movie)} />
+        ))}
+      </div>
+    ) : (
+      <div class="text-center py-16">
+        <p style="color: var(--text-secondary);">No upcoming movies found</p>
+      </div>
+    )}
+
+    <!-- Pagination -->
+    {totalPages > 1 && (
+      <div class="flex justify-center mt-8 gap-2">
+        {page > 1 && (
+          <a
+            href={`/movies/upcoming?page=${page - 1}`}
+            class="px-4 py-2 rounded-lg"
+            style="background-color: var(--bg-card); color: var(--text-primary); border: 1px solid var(--border);"
+          >
+            Previous
+          </a>
+        )}
+
+        <span class="px-4 py-2" style="color: var(--text-secondary);">
+          Page {page} of {totalPages}
+        </span>
+
+        {page < totalPages && (
+          <a
+            href={`/movies/upcoming?page=${page + 1}`}
+            class="px-4 py-2 rounded-lg"
+            style="background-color: var(--bg-card); color: var(--text-primary); border: 1px solid var(--border);"
+          >
+            Next
+          </a>
+        )}
+      </div>
+    )}
+  </div>
+</BaseLayout>
