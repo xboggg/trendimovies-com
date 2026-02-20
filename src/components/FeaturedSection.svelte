@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { onMount, onDestroy } from 'svelte';
   import { ChevronLeft, ChevronRight, Star, Trophy, TrendingUp, Calendar, Film } from 'lucide-svelte';
 
   interface Movie {
@@ -29,6 +30,7 @@
 
   let oscarIndex = 0;
   let activeTab: 'top2026' | 'top2024_25' | 'top2020_23' | 'boxoffice' | 'franchise' = 'top2026';
+  let autoScrollInterval: ReturnType<typeof setInterval>;
 
   $: currentTabMovies = activeTab === 'top2026' ? top2026
     : activeTab === 'top2024_25' ? top2024_25
@@ -48,12 +50,27 @@
   }
 
   function nextOscar() {
-    oscarIndex = (oscarIndex + 1) % Math.max(1, oscarMovies.length - 4);
+    const maxIndex = Math.max(0, oscarMovies.length - 5);
+    oscarIndex = oscarIndex >= maxIndex ? 0 : oscarIndex + 1;
   }
 
   function prevOscar() {
-    oscarIndex = oscarIndex === 0 ? Math.max(0, oscarMovies.length - 5) : oscarIndex - 1;
+    const maxIndex = Math.max(0, oscarMovies.length - 5);
+    oscarIndex = oscarIndex === 0 ? maxIndex : oscarIndex - 1;
   }
+
+  // Auto-scroll every 4 seconds
+  onMount(() => {
+    autoScrollInterval = setInterval(() => {
+      nextOscar();
+    }, 4000);
+  });
+
+  onDestroy(() => {
+    if (autoScrollInterval) {
+      clearInterval(autoScrollInterval);
+    }
+  });
 
   $: visibleOscars = oscarMovies.slice(oscarIndex, oscarIndex + 5);
 </script>
@@ -228,7 +245,7 @@
         {:else if activeTab === 'franchise'}
           <!-- Franchise placeholder -->
           <div class="grid grid-cols-2 gap-3">
-            {#each ['Marvel Cinematic Universe', 'DC Universe', 'Star Wars', 'Harry Potter', 'Fast & Furious', 'Jurassic World', 'James Bond 007', 'Transformers'] as franchise}
+            {#each ['Marvel Cinematic Universe', 'DC Universe', 'Star Wars', 'Harry Potter', 'Fast & Furious', 'Jurassic World', 'James Bond 007', 'Transformers', 'Mission: Impossible', 'The Matrix'] as franchise}
               <a
                 href="/franchises"
                 class="p-3 rounded-lg transition-colors hover:bg-[var(--bg-hover)] text-center"
