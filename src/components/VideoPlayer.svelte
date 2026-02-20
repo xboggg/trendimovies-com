@@ -172,8 +172,10 @@
         bind:this={iframeRef}
         src={currentUrl}
         allowfullscreen
+        scrolling="no"
         allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
         title="Video Player"
+        style="overflow: hidden;"
         on:load={handleIframeLoad}
         on:error={handleIframeError}
       ></iframe>
@@ -188,7 +190,10 @@
 
   <!-- Controls Bar -->
   <div class="flex items-center justify-between px-3 py-2 text-xs" style="color: var(--text-muted); background-color: var(--bg-secondary);">
-    <p>If the current server doesn't work, try switching to another server above.</p>
+    <div>
+      <p>If the current server doesn't work, try switching to another server above.</p>
+      <p class="hidden sm:block mt-1">Press <kbd class="px-1.5 py-0.5 rounded bg-[#333] text-[#ccc] font-mono text-[10px]">T</kbd> for theater mode, <kbd class="px-1.5 py-0.5 rounded bg-[#333] text-[#ccc] font-mono text-[10px]">F</kbd> for fullscreen</p>
+    </div>
     <div class="flex items-center gap-2">
       <button
         on:click={() => isTheaterMode = !isTheaterMode}
