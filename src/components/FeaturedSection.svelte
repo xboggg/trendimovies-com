@@ -28,7 +28,7 @@
   export let top2020_23: Movie[] = [];
   export let boxOffice: BoxOfficeEntry[] = [];
 
-  let activeTab: 'top2026' | 'top2024_25' | 'top2020_23' | 'boxoffice' | 'franchise' = 'top2026';
+  let activeTab: 'top2026' | 'top2024_25' | 'top2020_23' | 'boxoffice' | 'franchise' = 'boxoffice';
   let carouselContainer: HTMLDivElement;
   let scrollContainer: HTMLDivElement;
   let isPaused = false;
@@ -187,6 +187,15 @@
       <!-- Tab Navigation -->
       <div class="flex flex-wrap gap-1 mb-4 pb-3" style="border-bottom: 1px solid var(--border);">
         <button
+          on:click={() => activeTab = 'boxoffice'}
+          class="px-3 py-1.5 rounded-lg text-xs font-medium transition-all"
+          class:bg-amber-500={activeTab === 'boxoffice'}
+          class:text-black={activeTab === 'boxoffice'}
+          style={activeTab !== 'boxoffice' ? 'color: var(--text-secondary); background-color: var(--bg-hover);' : ''}
+        >
+          Box Office
+        </button>
+        <button
           on:click={() => activeTab = 'top2026'}
           class="px-3 py-1.5 rounded-lg text-xs font-medium transition-all"
           class:bg-amber-500={activeTab === 'top2026'}
@@ -212,15 +221,6 @@
           style={activeTab !== 'top2020_23' ? 'color: var(--text-secondary); background-color: var(--bg-hover);' : ''}
         >
           2020-23
-        </button>
-        <button
-          on:click={() => activeTab = 'boxoffice'}
-          class="px-3 py-1.5 rounded-lg text-xs font-medium transition-all"
-          class:bg-amber-500={activeTab === 'boxoffice'}
-          class:text-black={activeTab === 'boxoffice'}
-          style={activeTab !== 'boxoffice' ? 'color: var(--text-secondary); background-color: var(--bg-hover);' : ''}
-        >
-          Box Office
         </button>
         <button
           on:click={() => activeTab = 'franchise'}
