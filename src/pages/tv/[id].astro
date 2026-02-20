@@ -181,9 +181,7 @@ const similar = (tmdbData.similar?.results || []).slice(0, 12).map((s: any) => (
   year: s.first_air_date ? new Date(s.first_air_date).getFullYear() : null,
   type: 'series' as const
 }));
----
 
----
 // Build enhanced OG description for WhatsApp/social sharing
 const ogYear = series.year ? `(${series.year})` : '';
 const ogRating = series.vote_average ? `⭐ ${series.vote_average.toFixed(1)}` : '';

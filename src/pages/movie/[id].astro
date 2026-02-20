@@ -93,9 +93,7 @@ const similar = (tmdbData.similar?.results || []).slice(0, 12).map((m: any) => (
   year: m.release_date ? new Date(m.release_date).getFullYear() : null,
   type: 'movie' as const
 }));
----
 
----
 // Build enhanced OG description for WhatsApp/social sharing
 const ogYear = movie.year ? `(${movie.year})` : '';
 const ogRating = movie.vote_average ? `⭐ ${movie.vote_average.toFixed(1)}` : '';
@@ -104,7 +102,7 @@ const ogGenres = movie.genres?.length > 0
   : '';
 const ogSynopsis = movie.overview || `Watch ${movie.title} online for free in HD quality.`;
 
-// Format: "**Title** (Year) ⭐ Rating\n_Genres_\n\nSynopsis"
+// Format: "Rating\nGenres\n\nSynopsis"
 const ogDescription = [
   ogRating,
   ogGenres,
