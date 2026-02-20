@@ -186,6 +186,16 @@ const comedyItems = (comedyMovies?.results || []).slice(0, 15).map(transformMovi
     trending={heroItems}
   />
 
+  <!-- Trending Movies -->
+  {trendingItems.length > 0 && (
+    <ContentRow
+      client:load
+      title="Trending This Week"
+      items={trendingItems}
+      seeAllLink="/trending"
+    />
+  )}
+
   <!-- Latest Additions (from our database - movies with downloads) -->
   {latestAdditionItems.length > 0 && (
     <ContentRow
@@ -215,16 +225,6 @@ const comedyItems = (comedyMovies?.results || []).slice(0, 15).map(transformMovi
       title="Coming Soon"
       items={upcomingItems}
       seeAllLink="/movies/upcoming"
-    />
-  )}
-
-  <!-- Trending Movies -->
-  {trendingItems.length > 0 && (
-    <ContentRow
-      client:visible
-      title="Trending This Week"
-      items={trendingItems}
-      seeAllLink="/trending"
     />
   )}
 
