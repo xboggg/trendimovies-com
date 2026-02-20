@@ -183,10 +183,35 @@ const similar = (tmdbData.similar?.results || []).slice(0, 12).map((s: any) => (
 }));
 ---
 
+---
+// Build enhanced OG description for WhatsApp/social sharing
+const ogYear = series.year ? `(${series.year})` : '';
+const ogRating = series.vote_average ? `⭐ ${series.vote_average.toFixed(1)}` : '';
+const ogGenres = series.genres?.length > 0
+  ? series.genres.map((g: any) => g.name).join(', ')
+  : '';
+const ogSynopsis = series.overview || `Watch ${series.title} online for free in HD quality.`;
+
+// Format: "Rating\nGenres\n\nSynopsis"
+const ogDescription = [
+  ogRating,
+  ogGenres,
+  '',
+  ogSynopsis
+].filter(Boolean).join('\n');
+
+// Use poster for OG image (better for WhatsApp preview)
+const ogImage = series.poster_path
+  ? `https://image.tmdb.org/t/p/w780${series.poster_path}`
+  : '/images/og-default.jpg';
+
+const ogTitle = `${series.title} ${ogYear}`.trim();
+---
+
 <BaseLayout
-  title={series.title}
-  description={series.overview || `Watch ${series.title} online for free in HD quality.`}
-  image={getBackdropUrl(series.backdrop_path)}
+  title={ogTitle}
+  description={ogDescription}
+  image={ogImage}
   type="video.tv_show"
 >
   <!-- Backdrop Header -->
