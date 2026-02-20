@@ -1,7 +1,7 @@
 import type { APIRoute } from 'astro';
 import { requireAuth } from '../../../../lib/admin-auth';
+import { TMDB_API_KEY } from '../../../../lib/env';
 
-const TMDB_API_KEY = process.env.TMDB_API_KEY || import.meta.env.TMDB_API_KEY;
 const TMDB_BASE_URL = 'https://api.themoviedb.org/3';
 
 export const GET: APIRoute = async ({ request, url }) => {

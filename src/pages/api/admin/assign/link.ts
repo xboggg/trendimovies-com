@@ -1,9 +1,9 @@
 import type { APIRoute } from 'astro';
 import { requireAuth } from '../../../../lib/admin-auth';
+import { TMDB_API_KEY } from '../../../../lib/env';
 
 const POSTGREST_URL = import.meta.env.PUBLIC_SUPABASE_URL || 'http://localhost:3001';
 const TGSTREAM_BASE = 'https://trendimovies.com/tgstream/stream';
-const TMDB_API_KEY = process.env.TMDB_API_KEY || import.meta.env.TMDB_API_KEY;
 const TMDB_BASE_URL = 'https://api.themoviedb.org/3';
 
 // Allowed values for validation
