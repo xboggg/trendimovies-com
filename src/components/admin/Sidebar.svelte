@@ -24,13 +24,9 @@
     { id: 'assign', label: 'Manual Assign', href: '/admin/manual-assign', icon: Link2 },
   ];
 
-  async function logout() {
-    // Clear cookie on client side (multiple paths to be thorough)
-    document.cookie = 'admin_session=; Path=/; Max-Age=0';
-    document.cookie = 'admin_session=; Path=/admin; Max-Age=0';
-    // Also call API to clear server-side
-    await fetch('/api/admin/logout', { method: 'POST', credentials: 'include' });
-    window.location.href = '/admin/login';
+  function logout() {
+    // Navigate to server-side logout page (handles HttpOnly cookie clearing)
+    window.location.href = '/admin/logout';
   }
 </script>
 

@@ -1,0 +1,12 @@
+---
+import { clearSessionCookie } from '../../lib/admin-auth';
+
+// Clear the session cookie and redirect to login
+return new Response(null, {
+  status: 302,
+  headers: {
+    'Location': '/admin/login',
+    'Set-Cookie': clearSessionCookie()
+  }
+});
+---
