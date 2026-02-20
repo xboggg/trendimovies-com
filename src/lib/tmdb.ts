@@ -53,10 +53,16 @@ export async function getTopRatedMovies(): Promise<any[]> {
   return data.results;
 }
 
-export async function getMovieDetails(tmdbId: number): Promise<any> {
-  return fetchFromTMDB(`/movie/${tmdbId}`, {
-    append_to_response: 'credits,videos,keywords,watch/providers,similar'
-  });
+export async function getMovieDetails(tmdbId: number): Promise<any | null> {
+  try {
+    return await fetchFromTMDB(`/movie/${tmdbId}`, {
+      append_to_response: 'credits,videos,keywords,watch/providers,similar'
+    });
+  } catch (error) {
+    // Return null for 404 errors so page can redirect properly
+    console.error(`Failed to fetch movie ${tmdbId}:`, error);
+    return null;
+  }
 }
 
 export async function searchMovies(query: string, page: number = 1): Promise<TMDBResponse<any>> {
@@ -88,10 +94,16 @@ export async function getOnTheAirTVPaginated(page: number = 1): Promise<TMDBResp
   return fetchFromTMDB<TMDBResponse<any>>('/tv/on_the_air', { page: page.toString() });
 }
 
-export async function getTVDetails(tmdbId: number): Promise<any> {
-  return fetchFromTMDB(`/tv/${tmdbId}`, {
-    append_to_response: 'credits,videos,keywords,watch/providers,similar'
-  });
+export async function getTVDetails(tmdbId: number): Promise<any | null> {
+  try {
+    return await fetchFromTMDB(`/tv/${tmdbId}`, {
+      append_to_response: 'credits,videos,keywords,watch/providers,similar'
+    });
+  } catch (error) {
+    // Return null for 404 errors so page can redirect properly
+    console.error(`Failed to fetch TV series ${tmdbId}:`, error);
+    return null;
+  }
 }
 
 export async function getSeasonDetails(tmdbId: number, seasonNumber: number): Promise<any> {
