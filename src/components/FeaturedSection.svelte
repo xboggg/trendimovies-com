@@ -65,33 +65,34 @@
       <!-- Golden accent gradient -->
       <div class="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-amber-400 via-yellow-500 to-amber-400 z-10"></div>
 
-      <!-- Featured Movie Image -->
+      <!-- Featured Movie Image - Extended height -->
       {#if featuredOscar}
-        <a href={`/movie/${featuredOscar.id}`} class="block relative h-40 overflow-hidden group">
+        <a href={`/movie/${featuredOscar.id}`} class="block relative h-64 overflow-hidden group">
           <img
             src={getBackdropUrl(featuredOscar.backdrop_path || featuredOscar.poster_path)}
             alt={featuredOscar.title}
             class="w-full h-full object-cover transition-transform group-hover:scale-105"
           />
-          <div class="absolute inset-0 bg-gradient-to-t from-black via-black/60 to-transparent"></div>
-          <div class="absolute bottom-3 left-4 right-4">
-            <div class="flex items-center gap-2 mb-1">
-              <span class="px-2 py-0.5 rounded text-xs font-bold bg-amber-500 text-black">16 Nominations</span>
+          <div class="absolute inset-0 bg-gradient-to-t from-black via-black/50 to-transparent"></div>
+          <div class="absolute bottom-4 left-4 right-4">
+            <div class="flex items-center gap-2 mb-2">
+              <span class="px-2 py-1 rounded text-xs font-bold bg-amber-500 text-black">16 Nominations</span>
               <span class="flex items-center gap-1 text-amber-400 text-sm">
-                <Star size={12} fill="currentColor" />
+                <Star size={14} fill="currentColor" />
                 {featuredOscar.vote_average.toFixed(1)}
               </span>
             </div>
-            <h3 class="text-xl font-bold text-white">{featuredOscar.title}</h3>
+            <h3 class="text-2xl font-bold text-white">{featuredOscar.title}</h3>
           </div>
         </a>
       {/if}
 
+      <!-- Carousel Section Below -->
       <div class="p-4">
         <div class="flex items-center justify-between mb-3">
           <div class="flex items-center gap-2">
-            <Trophy size={20} class="text-amber-400" />
-            <h2 class="text-base font-bold" style="color: var(--text-primary);">2026 Oscar Nominations</h2>
+            <Trophy size={18} class="text-amber-400" />
+            <h2 class="text-sm font-bold" style="color: var(--text-primary);">2026 Oscar Nominations</h2>
           </div>
           <a href="/oscars-2026" class="text-xs font-medium text-amber-400 hover:text-amber-300 transition-colors">
             View All →
