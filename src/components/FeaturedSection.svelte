@@ -67,7 +67,7 @@
 
       <!-- Featured Movie Image - Extended height -->
       {#if featuredOscar}
-        <a href={`/movie/${featuredOscar.id}`} class="block relative h-64 overflow-hidden group">
+        <a href={`/movie/${featuredOscar.id}`} class="block relative h-80 overflow-hidden group">
           <img
             src={getBackdropUrl(featuredOscar.backdrop_path || featuredOscar.poster_path)}
             alt={featuredOscar.title}

@@ -8,8 +8,7 @@
   let isDark = true;
   let searchQuery = '';
   let showGenreDropdown = false;
-  let showKdramaDropdown = false;
-  let showComicsDropdown = false;
+  let showDiscoveryDropdown = false;
   let currentPath = '';
 
   // Live search autocomplete
@@ -124,12 +123,8 @@
     return currentPath.startsWith('/genre');
   }
 
-  function isKdramaActive(): boolean {
-    return currentPath === '/category/korean-movies' || currentPath === '/category/korean-series';
-  }
-
-  function isComicsActive(): boolean {
-    return currentPath === '/category/marvel' || currentPath === '/category/dc';
+  function isDiscoveryActive(): boolean {
+    return currentPath.startsWith('/category/');
   }
 </script>
 
@@ -153,10 +148,6 @@
         <a href="/" class="nav-link" class:nav-link-active={isActive('/')}>
           Home
         </a>
-        <a href="/movies" class="nav-link flex items-center gap-1.5" class:nav-link-active={isActive('/movies')}>
-          <Film size={16} />
-          <span>Movies</span>
-        </a>
         <a href="/series" class="nav-link flex items-center gap-1.5" class:nav-link-active={isActive('/series')}>
           <Tv size={16} />
           <span>Series</span>
@@ -165,7 +156,7 @@
         <!-- Genres Dropdown -->
         <div class="relative" on:mouseenter={() => showGenreDropdown = true} on:mouseleave={() => showGenreDropdown = false}>
           <button class="nav-link flex items-center gap-1" class:nav-link-active={isGenreActive()}>
-            <span>Genres</span>
+            <span>Genre</span>
             <ChevronDown size={14} class="transition-transform {showGenreDropdown ? 'rotate-180' : ''}" />
           </button>
           {#if showGenreDropdown}
@@ -181,38 +172,19 @@
           {/if}
         </div>
 
-        <!-- Anime -->
-        <a href="/category/anime" class="nav-link" class:nav-link-active={isActive('/category/anime')}>
-          Anime
-        </a>
-
-        <!-- K-Drama Dropdown -->
-        <div class="relative" on:mouseenter={() => showKdramaDropdown = true} on:mouseleave={() => showKdramaDropdown = false}>
-          <button class="nav-link flex items-center gap-1" class:nav-link-active={isKdramaActive()}>
-            <span>K-Drama</span>
-            <ChevronDown size={14} class="transition-transform {showKdramaDropdown ? 'rotate-180' : ''}" />
+        <!-- Discovery Dropdown -->
+        <div class="relative" on:mouseenter={() => showDiscoveryDropdown = true} on:mouseleave={() => showDiscoveryDropdown = false}>
+          <button class="nav-link flex items-center gap-1" class:nav-link-active={isDiscoveryActive()}>
+            <span>Discovery</span>
+            <ChevronDown size={14} class="transition-transform {showDiscoveryDropdown ? 'rotate-180' : ''}" />
           </button>
-          {#if showKdramaDropdown}
-            <div class="dropdown-menu w-48">
-              <a href="/category/korean-movies" class="dropdown-item">Korean Movies</a>
-              <a href="/category/korean-series" class="dropdown-item">Korean Series</a>
-            </div>
-          {/if}
-        </div>
-
-        <!-- Bollywood -->
-        <a href="/category/bollywood" class="nav-link" class:nav-link-active={isActive('/category/bollywood')}>
-          Bollywood
-        </a>
-
-        <!-- Comics Dropdown -->
-        <div class="relative" on:mouseenter={() => showComicsDropdown = true} on:mouseleave={() => showComicsDropdown = false}>
-          <button class="nav-link flex items-center gap-1" class:nav-link-active={isComicsActive()}>
-            <span>Comics</span>
-            <ChevronDown size={14} class="transition-transform {showComicsDropdown ? 'rotate-180' : ''}" />
-          </button>
-          {#if showComicsDropdown}
-            <div class="dropdown-menu w-48">
+          {#if showDiscoveryDropdown}
+            <div class="dropdown-menu w-52">
+              <a href="/category/anime" class="dropdown-item">Anime</a>
+              <a href="/category/korean-movies" class="dropdown-item">K-Drama Movies</a>
+              <a href="/category/korean-series" class="dropdown-item">K-Drama Series</a>
+              <a href="/category/bollywood" class="dropdown-item">Bollywood</a>
+              <div class="my-1 border-t" style="border-color: var(--border);"></div>
               <a href="/category/marvel" class="dropdown-item flex items-center gap-2">
                 <span class="w-2 h-2 rounded-full bg-red-500"></span>
                 Marvel
@@ -386,31 +358,29 @@
           <a href="/" class="mobile-nav-item" class:mobile-nav-active={isActive('/')}>
             <span>Home</span>
           </a>
-          <a href="/movies" class="mobile-nav-item" class:mobile-nav-active={isActive('/movies')}>
-            <Film size={16} />
-            <span>Movies</span>
-          </a>
           <a href="/series" class="mobile-nav-item" class:mobile-nav-active={isActive('/series')}>
             <Tv size={16} />
             <span>Series</span>
           </a>
-          <a href="/category/anime" class="mobile-nav-item" class:mobile-nav-active={isActive('/category/anime')}>
-            <span>Anime</span>
-          </a>
         </div>
 
-        <!-- Categories -->
+        <!-- Genre -->
         <div class="mb-4">
-          <p class="text-xs font-semibold uppercase tracking-wider mb-2 category-label">K-Drama</p>
-          <div class="grid grid-cols-2 gap-2">
-            <a href="/category/korean-movies" class="mobile-nav-item-sm">Korean Movies</a>
-            <a href="/category/korean-series" class="mobile-nav-item-sm">Korean Series</a>
+          <p class="text-xs font-semibold uppercase tracking-wider mb-2 category-label">Genre</p>
+          <div class="grid grid-cols-5 gap-2">
+            {#each genres as genre}
+              <a href="/genre/{genre.slug}" class="mobile-nav-item-sm">{genre.name}</a>
+            {/each}
           </div>
         </div>
 
+        <!-- Discovery -->
         <div class="mb-4">
-          <p class="text-xs font-semibold uppercase tracking-wider mb-2 category-label">More</p>
+          <p class="text-xs font-semibold uppercase tracking-wider mb-2 category-label">Discovery</p>
           <div class="grid grid-cols-3 gap-2">
+            <a href="/category/anime" class="mobile-nav-item-sm">Anime</a>
+            <a href="/category/korean-movies" class="mobile-nav-item-sm">K-Drama Movies</a>
+            <a href="/category/korean-series" class="mobile-nav-item-sm">K-Drama Series</a>
             <a href="/category/bollywood" class="mobile-nav-item-sm">Bollywood</a>
             <a href="/category/marvel" class="mobile-nav-item-sm">Marvel</a>
             <a href="/category/dc" class="mobile-nav-item-sm">DC</a>
