@@ -188,8 +188,7 @@
 
   <!-- Controls Bar -->
   <div class="flex items-center justify-between px-3 py-2 text-xs" style="color: var(--text-muted); background-color: var(--bg-secondary);">
-    <p class="hidden sm:block">Press <kbd class="px-1.5 py-0.5 rounded bg-[#333] text-[#ccc] font-mono">T</kbd> for theater mode, <kbd class="px-1.5 py-0.5 rounded bg-[#333] text-[#ccc] font-mono">F</kbd> for fullscreen</p>
-    <p class="sm:hidden">Tap buttons for controls</p>
+    <p>If the current server doesn't work, try switching to another server above.</p>
     <div class="flex items-center gap-2">
       <button
         on:click={() => isTheaterMode = !isTheaterMode}
@@ -218,7 +217,12 @@
     box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
   }
 
-  kbd {
-    font-size: 0.7rem;
+  /* Fix scrollbar issue */
+  :global(.video-container) {
+    overflow: hidden !important;
+  }
+
+  :global(.video-container iframe) {
+    overflow: hidden;
   }
 </style>
