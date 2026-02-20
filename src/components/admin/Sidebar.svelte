@@ -25,7 +25,7 @@
   ];
 
   async function logout() {
-    await fetch('/api/admin/logout', { method: 'POST' });
+    await fetch('/api/admin/logout', { method: 'POST', credentials: 'include' });
     window.location.href = '/admin/login';
   }
 </script>
