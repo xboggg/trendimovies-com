@@ -84,7 +84,7 @@
 
     <button
       on:click={logout}
-      class="flex items-center gap-3 w-full px-3 py-2.5 rounded-lg text-red-500 hover:bg-red-500/10 transition-colors mt-1"
+      class="flex items-center gap-3 w-full px-3 py-2.5 rounded-lg text-red-500 hover:bg-red-500/10 transition-colors mt-1 cursor-pointer"
     >
       <LogOut size={20} />
       <span class="font-medium">Logout</span>
