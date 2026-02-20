@@ -14,9 +14,7 @@ const { title, activeTab = 'dashboard', showHeader = true } = Astro.props;
 
 // Auth check - redirect to login if no valid session
 const session = getSessionFromCookies(Astro.request.headers.get('cookie'));
-if (!session) {
-  return Astro.redirect('/admin/login');
-}
+const isAuthenticated = !!session;
 ---
 
 <!DOCTYPE html>
@@ -64,18 +62,29 @@ if (!session) {
   </style>
 </head>
 <body class="admin-scrollbar">
-  <Sidebar client:load activeTab={activeTab} />
+  {isAuthenticated ? (
+    <>
+      <Sidebar client:load activeTab={activeTab} />
 
-  <main class="admin-main">
-    {showHeader && (
-      <header class="admin-header">
-        <h1>{title}</h1>
-      </header>
-    )}
+      <main class="admin-main">
+        {showHeader && (
+          <header class="admin-header">
+            <h1>{title}</h1>
+          </header>
+        )}
 
-    <div class="admin-content">
-      <slot />
+        <div class="admin-content">
+          <slot />
+        </div>
+      </main>
+    </>
+  ) : (
+    <script is:inline>
+      window.location.href = '/admin/login';
+    </script>
+    <div style="display:flex;align-items:center;justify-content:center;height:100vh;color:#666;">
+      Redirecting to login...
     </div>
-  </main>
+  )}
 </body>
 </html>
