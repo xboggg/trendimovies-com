@@ -148,6 +148,10 @@
         <a href="/" class="nav-link" class:nav-link-active={isActive('/')}>
           Home
         </a>
+        <a href="/movies" class="nav-link flex items-center gap-1.5" class:nav-link-active={isActive('/movies')}>
+          <Film size={16} />
+          <span>Movies</span>
+        </a>
         <a href="/series" class="nav-link flex items-center gap-1.5" class:nav-link-active={isActive('/series')}>
           <Tv size={16} />
           <span>Series</span>
@@ -354,9 +358,13 @@
         </div>
 
         <!-- Navigation Grid -->
-        <div class="grid grid-cols-2 gap-2 mb-4">
+        <div class="grid grid-cols-3 gap-2 mb-4">
           <a href="/" class="mobile-nav-item" class:mobile-nav-active={isActive('/')}>
             <span>Home</span>
+          </a>
+          <a href="/movies" class="mobile-nav-item" class:mobile-nav-active={isActive('/movies')}>
+            <Film size={16} />
+            <span>Movies</span>
           </a>
           <a href="/series" class="mobile-nav-item" class:mobile-nav-active={isActive('/series')}>
             <Tv size={16} />
