@@ -137,11 +137,11 @@ export async function verifyPassword(password: string): Promise<boolean> {
 }
 
 export function createSessionCookie(token: string): string {
-  return `admin_session=${token}; Path=/admin; HttpOnly; SameSite=Strict; Max-Age=86400`;
+  return `admin_session=${token}; Path=/; HttpOnly; SameSite=Strict; Max-Age=86400`;
 }
 
 export function clearSessionCookie(): string {
-  return 'admin_session=; Path=/admin; HttpOnly; SameSite=Strict; Max-Age=0';
+  return 'admin_session=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0';
 }
 
 // Helper for API routes: returns 401 Response if not authenticated, null if authenticated
