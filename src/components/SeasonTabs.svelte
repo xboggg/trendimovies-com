@@ -46,6 +46,7 @@
   let activeSeason = seasons.length > 0 ? seasons[0].season_number : 1;
   let playingEpisode: { season: number; episode: number } | null = null;
   let expandedDownloads: number | null = null;
+  let playerContainer: HTMLDivElement;
 
   $: currentEpisodes = episodesBySeason[activeSeason] || [];
 
@@ -64,6 +65,12 @@
 
   function playEpisode(seasonNum: number, episodeNum: number) {
     playingEpisode = { season: seasonNum, episode: episodeNum };
+    // Scroll to player after it renders
+    setTimeout(() => {
+      if (playerContainer) {
+        playerContainer.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    }, 100);
   }
 
   function closePlayer() {
@@ -122,7 +129,7 @@
 
   <!-- Video Player (when playing) -->
   {#if playingEpisode}
-    <div class="mb-6">
+    <div class="mb-6" bind:this={playerContainer}>
       <div class="flex items-center justify-between mb-2">
         <h3 class="font-semibold" style="color: var(--text-primary);">
           Now Playing: S{String(playingEpisode.season).padStart(2, '0')}E{String(playingEpisode.episode).padStart(2, '0')}

@@ -1,0 +1,184 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import { fetchFromTMDB, searchMovies } from '../lib/tmdb';
+
+const POSTGREST_URL = import.meta.env.PUBLIC_SUPABASE_URL || 'http://localhost:3001';
+
+// TMDB Collection IDs for popular franchises
+const franchiseCollections: Record<string, { name: string; collectionId: number; color: string }> = {
+  'mcu': { name: 'Marvel Cinematic Universe', collectionId: 529892, color: '#e23636' },
+  'dceu': { name: 'DC Extended Universe', collectionId: 209131, color: '#0476F2' },
+  'star-wars': { name: 'Star Wars', collectionId: 10, color: '#FFE81F' },
+  'harry-potter': { name: 'Harry Potter', collectionId: 1241, color: '#946B2D' },
+  'fast-furious': { name: 'Fast & Furious', collectionId: 9485, color: '#FF6B00' },
+  'jurassic': { name: 'Jurassic Park / World', collectionId: 328, color: '#228B22' },
+  'james-bond': { name: 'James Bond 007', collectionId: 645, color: '#000000' },
+  'mission-impossible': { name: 'Mission: Impossible', collectionId: 87359, color: '#C41E3A' },
+  'transformers': { name: 'Transformers', collectionId: 8650, color: '#1E90FF' },
+  'spider-man': { name: 'Spider-Man', collectionId: 531241, color: '#E62429' },
+  'x-men': { name: 'X-Men', collectionId: 748, color: '#FFD700' },
+  'planet-apes': { name: 'Planet of the Apes', collectionId: 1709, color: '#8B4513' },
+  'lord-of-rings': { name: 'The Lord of the Rings', collectionId: 119, color: '#C9B037' },
+  'pirates': { name: 'Pirates of the Caribbean', collectionId: 295, color: '#8B0000' },
+  'john-wick': { name: 'John Wick', collectionId: 404609, color: '#1a1a1a' },
+  'conjuring': { name: 'The Conjuring Universe', collectionId: 313086, color: '#4A0E0E' },
+  'minions': { name: 'Despicable Me / Minions', collectionId: 86066, color: '#FFD700' },
+  'toy-story': { name: 'Toy Story', collectionId: 10194, color: '#1E90FF' },
+  'avatar': { name: 'Avatar', collectionId: 87096, color: '#00CED1' },
+  'shrek': { name: 'Shrek', collectionId: 2150, color: '#228B22' },
+};
+
+// Fetch collection details from TMDB
+async function getCollectionDetails(collectionId: number) {
+  try {
+    return await fetchFromTMDB(`/collection/${collectionId}`);
+  } catch (e) {
+    console.error(`Failed to fetch collection ${collectionId}:`, e);
+    return null;
+  }
+}
+
+// Fetch all collections in parallel
+const collectionPromises = Object.entries(franchiseCollections).map(async ([slug, info]) => {
+  const data = await getCollectionDetails(info.collectionId);
+  if (!data) return null;
+
+  return {
+    slug,
+    name: info.name,
+    color: info.color,
+    backdrop_path: data.backdrop_path,
+    poster_path: data.poster_path,
+    overview: data.overview,
+    movies: (data.parts || []).sort((a: any, b: any) => {
+      const dateA = a.release_date ? new Date(a.release_date).getTime() : 0;
+      const dateB = b.release_date ? new Date(b.release_date).getTime() : 0;
+      return dateA - dateB;
+    }),
+    totalMovies: data.parts?.length || 0
+  };
+});
+
+const collectionsData = await Promise.all(collectionPromises);
+const franchises = collectionsData.filter((f): f is NonNullable<typeof f> => f !== null);
+
+// Sort by total movies
+franchises.sort((a, b) => b.totalMovies - a.totalMovies);
+
+function getPosterUrl(path: string | null): string {
+  if (!path) return '/images/no-poster.svg';
+  return `https://image.tmdb.org/t/p/w342${path}`;
+}
+
+function getBackdropUrl(path: string | null): string {
+  if (!path) return '/images/no-backdrop.svg';
+  return `https://image.tmdb.org/t/p/w1280${path}`;
+}
+---
+
+<BaseLayout
+  title="Movie Franchises - Complete Collections"
+  description="Explore complete movie franchise collections including Marvel, DC, Star Wars, Harry Potter, and more."
+>
+  <!-- Header -->
+  <section class="relative py-12 overflow-hidden">
+    <div class="absolute inset-0 bg-gradient-to-br from-purple-900/30 via-transparent to-blue-900/30"></div>
+    <div class="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="text-center">
+        <h1 class="text-3xl md:text-5xl font-black mb-4" style="color: var(--text-primary);">
+          <span class="text-purple-500">🎬</span> Movie Franchises
+        </h1>
+        <p class="text-lg" style="color: var(--text-secondary);">
+          Explore complete movie collections and franchise universes
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- Franchises Grid -->
+  <section class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <div class="space-y-12">
+      {franchises.map((franchise) => (
+        <div
+          class="rounded-2xl overflow-hidden"
+          style="background-color: var(--bg-card); border: 1px solid var(--border);"
+        >
+          <!-- Franchise Header -->
+          <div class="relative h-48 md:h-64">
+            <img
+              src={getBackdropUrl(franchise.backdrop_path)}
+              alt={franchise.name}
+              class="w-full h-full object-cover"
+            />
+            <div class="absolute inset-0 bg-gradient-to-t from-black via-black/60 to-transparent"></div>
+            <div class="absolute inset-0" style={`background: linear-gradient(135deg, ${franchise.color}33, transparent);`}></div>
+
+            <div class="absolute bottom-0 left-0 right-0 p-6">
+              <div class="flex items-end justify-between">
+                <div>
+                  <h2 class="text-2xl md:text-3xl font-black text-white mb-2">
+                    {franchise.name}
+                  </h2>
+                  <p class="text-sm text-gray-300">
+                    {franchise.totalMovies} Movies
+                  </p>
+                </div>
+                <div
+                  class="px-4 py-2 rounded-full text-sm font-bold"
+                  style={`background-color: ${franchise.color}; color: ${franchise.color === '#FFE81F' || franchise.color === '#FFD700' ? '#000' : '#fff'};`}
+                >
+                  Collection
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Movies Grid -->
+          <div class="p-6">
+            <div class="flex gap-3 overflow-x-auto hide-scrollbar pb-2">
+              {franchise.movies.slice(0, 12).map((movie: any) => (
+                <a
+                  href={`/movie/${movie.id}`}
+                  class="flex-shrink-0 w-28 group"
+                >
+                  <div class="relative aspect-[2/3] rounded-lg overflow-hidden mb-2">
+                    <img
+                      src={getPosterUrl(movie.poster_path)}
+                      alt={movie.title}
+                      class="w-full h-full object-cover transition-transform group-hover:scale-110"
+                    />
+                    <div class="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                      <span class="text-white text-xs font-medium">View</span>
+                    </div>
+                  </div>
+                  <p class="text-xs font-medium line-clamp-2" style="color: var(--text-primary);">
+                    {movie.title}
+                  </p>
+                  <p class="text-xs" style="color: var(--text-muted);">
+                    {movie.release_date ? new Date(movie.release_date).getFullYear() : 'TBA'}
+                  </p>
+                </a>
+              ))}
+            </div>
+
+            {franchise.totalMovies > 12 && (
+              <p class="text-center mt-4 text-sm" style="color: var(--text-muted);">
+                + {franchise.totalMovies - 12} more movies in this franchise
+              </p>
+            )}
+          </div>
+        </div>
+      ))}
+    </div>
+  </section>
+</BaseLayout>
+
+<style>
+  .hide-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .hide-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+</style>

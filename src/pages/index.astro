@@ -2,7 +2,8 @@
 import BaseLayout from '../layouts/BaseLayout.astro';
 import HeroCarousel from '../components/HeroCarousel.svelte';
 import ContentRow from '../components/ContentRow.svelte';
-import { getTrendingMovies, getNowPlayingMovies, getPopularMovies, getTopRatedMovies, getTrendingTV, getPopularTV, getOnTheAirTV, discoverMovies, getMovieDetails, getMovieGenres, getTVDetails } from '../lib/tmdb';
+import FeaturedSection from '../components/FeaturedSection.svelte';
+import { getTrendingMovies, getNowPlayingMovies, getPopularMovies, getTopRatedMovies, getTrendingTV, getPopularTV, getOnTheAirTV, discoverMovies, getMovieDetails, getMovieGenres, getTVDetails, searchMovies } from '../lib/tmdb';
 
 const POSTGREST_URL = import.meta.env.PUBLIC_SUPABASE_URL || 'http://localhost:3001';
 
@@ -176,6 +177,80 @@ const onTheAirItems = onTheAirFiltered.map((t: any, index: number) => {
 });
 const actionItems = (actionMovies?.results || []).slice(0, 15).map(transformMovie);
 const comedyItems = (comedyMovies?.results || []).slice(0, 15).map(transformMovie);
+
+// Oscar 2026 nominees - search TMDB for each
+const oscarTitles = [
+  'Sinners', 'One Battle After Another', 'Bugonia', 'F1', 'Frankenstein',
+  'Hamnet', 'Marty Supreme', 'The Secret Agent', 'Sentimental Value', 'Train Dreams'
+];
+
+async function searchOscarMovie(title: string) {
+  try {
+    const result = await searchMovies(title, 1);
+    if (result.results && result.results.length > 0) {
+      const movie = result.results.find((m: any) => {
+        const year = m.release_date ? new Date(m.release_date).getFullYear() : 0;
+        return year >= 2024 && year <= 2026;
+      }) || result.results[0];
+      return transformMovie(movie);
+    }
+  } catch (e) {
+    console.error(`Failed to search Oscar movie ${title}:`, e);
+  }
+  return null;
+}
+
+const oscarResults = await Promise.all(oscarTitles.map(searchOscarMovie));
+const oscarMovies = oscarResults.filter((m): m is NonNullable<typeof m> => m !== null);
+
+// Top movies by year ranges
+const [top2026Data, top2024_25Data, top2020_23Data] = await Promise.all([
+  discoverMovies({
+    'primary_release_date.gte': '2026-01-01',
+    'primary_release_date.lte': '2026-12-31',
+    sort_by: 'vote_average.desc',
+    'vote_count.gte': '50'
+  }),
+  discoverMovies({
+    'primary_release_date.gte': '2024-01-01',
+    'primary_release_date.lte': '2025-12-31',
+    sort_by: 'vote_average.desc',
+    'vote_count.gte': '200'
+  }),
+  discoverMovies({
+    'primary_release_date.gte': '2020-01-01',
+    'primary_release_date.lte': '2023-12-31',
+    sort_by: 'vote_average.desc',
+    'vote_count.gte': '500'
+  })
+]);
+
+const top2026 = (top2026Data?.results || []).slice(0, 10).map(transformMovie);
+const top2024_25 = (top2024_25Data?.results || []).slice(0, 10).map(transformMovie);
+const top2020_23 = (top2020_23Data?.results || []).slice(0, 10).map(transformMovie);
+
+// Box office data (hardcoded for now, will be automated later)
+const boxOfficeData = [
+  { rank: 1, title: 'Wuthering Heights', weekend_gross: '$34.8M', total_gross: '$40.0M', tmdb_id: 0, poster_path: null },
+  { rank: 2, title: 'GOAT', weekend_gross: '$26.0M', total_gross: '$32.0M', tmdb_id: 0, poster_path: null },
+  { rank: 3, title: 'Crime 101', weekend_gross: '$15.4M', total_gross: '$17.7M', tmdb_id: 0, poster_path: null },
+  { rank: 4, title: 'Send Help', weekend_gross: '$8.9M', total_gross: '$49.6M', tmdb_id: 0, poster_path: null },
+  { rank: 5, title: 'Solo Mio', weekend_gross: '$6.8M', total_gross: '$18.5M', tmdb_id: 0, poster_path: null },
+  { rank: 6, title: 'Zootopia 2', weekend_gross: '$3.7M', total_gross: '$420.6M', tmdb_id: 0, poster_path: null },
+  { rank: 7, title: 'Avatar: Fire and Ash', weekend_gross: '$3.3M', total_gross: '$396.5M', tmdb_id: 0, poster_path: null },
+];
+
+// Search TMDB for box office movies to get posters
+const boxOfficeWithPosters = await Promise.all(boxOfficeData.map(async (entry) => {
+  try {
+    const result = await searchMovies(entry.title, 1);
+    if (result.results && result.results.length > 0) {
+      const movie = result.results[0];
+      return { ...entry, tmdb_id: movie.id, poster_path: movie.poster_path };
+    }
+  } catch (e) {}
+  return entry;
+}));
 ---
 
 <BaseLayout title="Watch Movies & TV Series Online Free">
@@ -195,6 +270,16 @@ const comedyItems = (comedyMovies?.results || []).slice(0, 15).map(transformMovi
       seeAllLink="/trending"
     />
   )}
+
+  <!-- Featured Section: Oscar + Tabs -->
+  <FeaturedSection
+    client:load
+    oscarMovies={oscarMovies}
+    top2026={top2026}
+    top2024_25={top2024_25}
+    top2020_23={top2020_23}
+    boxOffice={boxOfficeWithPosters}
+  />
 
   <!-- Latest Additions (from our database - movies with downloads) -->
   {latestAdditionItems.length > 0 && (
