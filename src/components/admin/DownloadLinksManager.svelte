@@ -17,6 +17,7 @@
   let searchQuery = '';
   let contentType: 'all' | 'movie' | 'episode' = 'all';
   let source: 'all' | 'telegram' | 'cinematika' | 'torrent' = 'all';
+  let yearFilter = '';
   let links: DownloadLink[] = [];
   let loading = false;
   let deleting: number | null = null;
@@ -25,6 +26,10 @@
   let total = 0;
   let page = 1;
   const limit = 50;
+
+  // Generate year options (current year down to 1950)
+  const currentYear = new Date().getFullYear();
+  const years = Array.from({ length: currentYear - 1949 }, (_, i) => currentYear - i);
 
   async function searchLinks() {
     loading = true;
@@ -37,6 +42,7 @@
       if (searchQuery) params.append('search', searchQuery);
       if (contentType !== 'all') params.append('content_type', contentType);
       if (source !== 'all') params.append('source', source);
+      if (yearFilter) params.append('year', yearFilter);
 
       const res = await fetch(`/api/admin/downloads?${params}`);
       const data = await res.json();
@@ -108,6 +114,19 @@
             on:keydown={(e) => e.key === 'Enter' && searchLinks()}
           />
         </div>
+      </div>
+
+      <div>
+        <label class="block text-sm text-[#888] mb-1">Year</label>
+        <select
+          bind:value={yearFilter}
+          class="bg-[#0a0a0a] border border-[#333] rounded-lg px-4 py-2 text-white focus:border-[#e50914] focus:outline-none"
+        >
+          <option value="">All Years</option>
+          {#each years as year}
+            <option value={year.toString()}>{year}</option>
+          {/each}
+        </select>
       </div>
 
       <div>
