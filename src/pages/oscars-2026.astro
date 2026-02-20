@@ -2,29 +2,230 @@
 import BaseLayout from '../layouts/BaseLayout.astro';
 import { searchMovies, getMovieDetails } from '../lib/tmdb';
 
-// 2026 Oscar Nominated Films
-const oscarNominees = [
-  // Best Picture
-  { title: 'Sinners', nominations: 16, categories: ['Best Picture', 'Best Director', 'Best Actor'] },
-  { title: 'One Battle After Another', nominations: 13, categories: ['Best Picture', 'Best Director'] },
-  { title: 'Bugonia', nominations: 0, categories: ['Best Picture'] },
-  { title: 'F1', nominations: 0, categories: ['Best Picture'] },
-  { title: 'Frankenstein', nominations: 0, categories: ['Best Picture'] },
-  { title: 'Hamnet', nominations: 0, categories: ['Best Picture'] },
-  { title: 'Marty Supreme', nominations: 0, categories: ['Best Picture'] },
-  { title: 'The Secret Agent', nominations: 0, categories: ['Best Picture'] },
-  { title: 'Sentimental Value', nominations: 0, categories: ['Best Picture'] },
-  { title: 'Train Dreams', nominations: 0, categories: ['Best Picture'] },
-  // Other nominated films
-  { title: 'Avatar: Fire and Ash', nominations: 0, categories: ['Visual Effects', 'Sound'] },
-  { title: 'Blue Moon', nominations: 0, categories: ['Best Actress'] },
-  { title: 'Elio', nominations: 0, categories: ['Animated Feature'] },
-  { title: 'Jurassic World Rebirth', nominations: 0, categories: ['Visual Effects'] },
-  { title: 'Kokuho', nominations: 0, categories: ['International Feature'] },
-  { title: 'The Ugly Stepsister', nominations: 0, categories: ['Animated Feature'] },
-  { title: 'Zootopia 2', nominations: 0, categories: ['Animated Feature'] },
-  { title: 'The Smashing Machine', nominations: 0, categories: ['Best Actor'] },
-  { title: 'Weapons', nominations: 0, categories: ['Original Screenplay'] },
+// Complete 2026 Oscar Categories and Nominees
+const oscarCategories = [
+  {
+    name: 'Best Picture',
+    nominees: [
+      { title: 'Sinners', note: '16 nominations' },
+      { title: 'One Battle After Another', note: '13 nominations' },
+      { title: 'Bugonia' },
+      { title: 'F1' },
+      { title: 'Frankenstein' },
+      { title: 'Hamnet' },
+      { title: 'Marty Supreme' },
+      { title: 'The Secret Agent' },
+      { title: 'Sentimental Value' },
+      { title: 'Train Dreams' }
+    ]
+  },
+  {
+    name: 'Best Director',
+    nominees: [
+      { person: 'Ryan Coogler', title: 'Sinners' },
+      { person: 'Paul Thomas Anderson', title: 'One Battle After Another' },
+      { person: 'Josh Safdie', title: 'Marty Supreme' },
+      { person: 'Joachim Trier', title: 'Sentimental Value' },
+      { person: 'Chloé Zhao', title: 'Hamnet' }
+    ]
+  },
+  {
+    name: 'Best Actor',
+    nominees: [
+      { person: 'Michael B. Jordan', title: 'Sinners' },
+      { person: 'Leonardo DiCaprio', title: 'One Battle After Another' },
+      { person: 'Timothée Chalamet', title: 'Marty Supreme' },
+      { person: 'Ethan Hawke', title: 'Blue Moon' },
+      { person: 'Wagner Moura', title: 'The Secret Agent' }
+    ]
+  },
+  {
+    name: 'Best Actress',
+    nominees: [
+      { person: 'Emma Stone', title: 'Bugonia' },
+      { person: 'Jessie Buckley', title: 'Hamnet' },
+      { person: 'Renate Reinsve', title: 'Sentimental Value' },
+      { person: 'Rose Byrne', title: 'If I Had Legs I\'d Kick You' },
+      { person: 'Kate Hudson', title: 'Song Sung Blue' }
+    ]
+  },
+  {
+    name: 'Best Supporting Actor',
+    nominees: [
+      { person: 'Delroy Lindo', title: 'Sinners' },
+      { person: 'Benicio Del Toro', title: 'One Battle After Another' },
+      { person: 'Sean Penn', title: 'One Battle After Another' },
+      { person: 'Jacob Elordi', title: 'Frankenstein' },
+      { person: 'Stellan Skarsgård', title: 'Sentimental Value' }
+    ]
+  },
+  {
+    name: 'Best Supporting Actress',
+    nominees: [
+      { person: 'Wunmi Mosaku', title: 'Sinners' },
+      { person: 'Elle Fanning', title: 'Sentimental Value' },
+      { person: 'Inga Ibsdotter Lilleaas', title: 'Sentimental Value' },
+      { person: 'Teyana Taylor', title: 'One Battle After Another' },
+      { person: 'Amy Madigan', title: 'Weapons' }
+    ]
+  },
+  {
+    name: 'Best Original Screenplay',
+    nominees: [
+      { person: 'Ryan Coogler', title: 'Sinners' },
+      { person: 'Joachim Trier & Eskil Vogt', title: 'Sentimental Value' },
+      { person: 'Ronald Bronstein & Josh Safdie', title: 'Marty Supreme' },
+      { person: 'Robert Kaplow', title: 'Blue Moon' },
+      { person: 'Jafar Panahi', title: 'It Was Just an Accident' }
+    ]
+  },
+  {
+    name: 'Best Adapted Screenplay',
+    nominees: [
+      { person: 'Paul Thomas Anderson', title: 'One Battle After Another' },
+      { person: 'Chloé Zhao & Maggie O\'Farrell', title: 'Hamnet' },
+      { person: 'Guillermo del Toro', title: 'Frankenstein' },
+      { person: 'Will Tracy', title: 'Bugonia' },
+      { person: 'Clint Bentley & Greg Kwedar', title: 'Train Dreams' }
+    ]
+  },
+  {
+    name: 'Best Animated Feature',
+    nominees: [
+      { title: 'Zootopia 2' },
+      { title: 'Elio' },
+      { title: 'KPop Demon Hunters' },
+      { title: 'Arco' },
+      { title: 'Little Amélie or the Character of Rain' }
+    ]
+  },
+  {
+    name: 'Best International Feature',
+    nominees: [
+      { title: 'Sentimental Value', note: 'Norway' },
+      { title: 'The Secret Agent', note: 'Brazil' },
+      { title: 'It Was Just an Accident', note: 'Iran' },
+      { title: 'Sirât', note: 'Saudi Arabia' },
+      { title: 'The Voice of Hind Rajab', note: 'Palestine' }
+    ]
+  },
+  {
+    name: 'Best Documentary Feature',
+    nominees: [
+      { title: 'The Alabama Solution' },
+      { title: 'Come See Me in the Good Light' },
+      { title: 'Cutting Through Rocks' },
+      { title: 'Mr. Nobody Against Putin' },
+      { title: 'The Perfect Neighbor' }
+    ]
+  },
+  {
+    name: 'Best Cinematography',
+    nominees: [
+      { title: 'Sinners' },
+      { title: 'One Battle After Another' },
+      { title: 'Sentimental Value' },
+      { title: 'Marty Supreme' },
+      { title: 'Frankenstein' }
+    ]
+  },
+  {
+    name: 'Best Film Editing',
+    nominees: [
+      { person: 'Michael Shawver', title: 'Sinners' },
+      { person: 'Andy Jurgensen', title: 'One Battle After Another' },
+      { person: 'Olivier Bugge Coutté', title: 'Sentimental Value' },
+      { person: 'Ronald Bronstein & Josh Safdie', title: 'Marty Supreme' },
+      { person: 'Stephen Mirrione', title: 'F1' }
+    ]
+  },
+  {
+    name: 'Best Production Design',
+    nominees: [
+      { title: 'Sinners' },
+      { title: 'One Battle After Another' },
+      { title: 'Marty Supreme' },
+      { title: 'Hamnet' },
+      { title: 'Frankenstein' }
+    ]
+  },
+  {
+    name: 'Best Costume Design',
+    nominees: [
+      { title: 'Sinners' },
+      { title: 'Marty Supreme' },
+      { title: 'Hamnet' },
+      { title: 'Frankenstein' },
+      { title: 'Avatar: Fire and Ash' }
+    ]
+  },
+  {
+    name: 'Best Makeup and Hairstyling',
+    nominees: [
+      { title: 'Sinners' },
+      { title: 'Frankenstein' },
+      { title: 'The Smashing Machine' },
+      { title: 'Kokuho' },
+      { title: 'The Ugly Stepsister' }
+    ]
+  },
+  {
+    name: 'Best Original Score',
+    nominees: [
+      { title: 'Sinners' },
+      { title: 'One Battle After Another' },
+      { title: 'Hamnet' },
+      { title: 'Frankenstein' },
+      { title: 'Bugonia' }
+    ]
+  },
+  {
+    name: 'Best Original Song',
+    nominees: [
+      { title: 'Sinners', note: '"I Lied To You"' },
+      { title: 'Train Dreams', note: '"Train Dreams"' },
+      { title: 'KPop Demon Hunters', note: '"Golden"' },
+      { title: 'Highest 2 Lowest', note: '"Highest 2 Lowest"' },
+      { title: 'Diane Warren: Relentless', note: '"Dear Me"' }
+    ]
+  },
+  {
+    name: 'Best Sound',
+    nominees: [
+      { title: 'Sinners' },
+      { title: 'One Battle After Another' },
+      { title: 'F1' },
+      { title: 'Frankenstein' },
+      { title: 'Sirât' }
+    ]
+  },
+  {
+    name: 'Best Visual Effects',
+    nominees: [
+      { title: 'Sinners' },
+      { title: 'Avatar: Fire and Ash' },
+      { title: 'F1' },
+      { title: 'Jurassic World Rebirth' },
+      { title: 'The Lost Bus' }
+    ]
+  },
+  {
+    name: 'Best Casting',
+    note: 'New Category',
+    nominees: [
+      { title: 'Sinners' },
+      { title: 'One Battle After Another' },
+      { title: 'Marty Supreme' },
+      { title: 'Hamnet' },
+      { title: 'The Secret Agent' }
+    ]
+  }
+];
+
+// Best Picture nominees for the poster grid
+const bestPictureTitles = [
+  'Sinners', 'One Battle After Another', 'Bugonia', 'F1', 'Frankenstein',
+  'Hamnet', 'Marty Supreme', 'The Secret Agent', 'Sentimental Value', 'Train Dreams'
 ];
 
 // Search TMDB for each movie and get details
@@ -32,13 +233,11 @@ async function getMovieData(title: string) {
   try {
     const searchResult = await searchMovies(title, 1);
     if (searchResult.results && searchResult.results.length > 0) {
-      // Find 2025/2026 movie or take first result
       const movie = searchResult.results.find((m: any) => {
         const year = m.release_date ? new Date(m.release_date).getFullYear() : 0;
         return year >= 2024 && year <= 2026;
       }) || searchResult.results[0];
 
-      // Get full details
       const details = await getMovieDetails(movie.id);
       return {
         ...movie,
@@ -52,21 +251,17 @@ async function getMovieData(title: string) {
   return null;
 }
 
-// Fetch all nominee data
-const nomineeDataPromises = oscarNominees.map(async (nominee) => {
-  const movieData = await getMovieData(nominee.title);
+// Fetch Best Picture nominee data
+const nomineeDataPromises = bestPictureTitles.map(async (title) => {
+  const movieData = await getMovieData(title);
   return {
-    ...nominee,
+    title,
     tmdb: movieData
   };
 });
 
 const nominees = await Promise.all(nomineeDataPromises);
 const validNominees = nominees.filter(n => n.tmdb);
-
-// Separate Best Picture from others
-const bestPictureNominees = validNominees.filter(n => n.categories.includes('Best Picture'));
-const otherNominees = validNominees.filter(n => !n.categories.includes('Best Picture'));
 
 function getPosterUrl(path: string | null): string {
   if (!path) return '/images/no-poster.svg';
@@ -76,6 +271,17 @@ function getPosterUrl(path: string | null): string {
 function getBackdropUrl(path: string | null): string {
   if (!path) return '/images/no-backdrop.svg';
   return `https://image.tmdb.org/t/p/original${path}`;
+}
+
+// Get nomination count for a title
+function getNominationCount(title: string): number {
+  let count = 0;
+  for (const cat of oscarCategories) {
+    for (const nom of cat.nominees) {
+      if (nom.title === title) count++;
+    }
+  }
+  return count;
 }
 ---
 
@@ -104,11 +310,12 @@ function getBackdropUrl(path: string | null): string {
         </h1>
         <p class="text-xl text-gray-300 mb-2">98th Academy Awards</p>
         <p class="text-amber-400 font-semibold">March 15, 2026</p>
+        <p class="text-gray-400 mt-2 text-sm">Sinners leads with 16 nominations • One Battle After Another follows with 13</p>
       </div>
     </div>
   </section>
 
-  <!-- Best Picture Nominees -->
+  <!-- Best Picture Nominees with Posters -->
   <section class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
     <h2 class="text-2xl md:text-3xl font-bold mb-8 flex items-center gap-3" style="color: var(--text-primary);">
       <span class="text-amber-400">🎬</span>
@@ -116,57 +323,9 @@ function getBackdropUrl(path: string | null): string {
     </h2>
 
     <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 md:gap-6">
-      {bestPictureNominees.map((nominee) => (
-        <a
-          href={`/movie/${nominee.tmdb.id}`}
-          class="group relative rounded-lg overflow-hidden transition-transform hover:scale-105"
-          style="background-color: var(--bg-card);"
-        >
-          <div class="aspect-[2/3] relative">
-            <img
-              src={getPosterUrl(nominee.tmdb.poster_path)}
-              alt={nominee.title}
-              class="w-full h-full object-cover"
-            />
-            <div class="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
-
-            {nominee.nominations > 0 && (
-              <div class="absolute top-2 right-2 px-2 py-1 rounded-full text-xs font-bold bg-amber-500 text-black">
-                {nominee.nominations} noms
-              </div>
-            )}
-
-            <div class="absolute bottom-0 left-0 right-0 p-3 transform translate-y-full group-hover:translate-y-0 transition-transform">
-              <div class="flex items-center gap-1 text-amber-400 text-sm">
-                <span>⭐</span>
-                <span>{nominee.tmdb.vote_average?.toFixed(1)}</span>
-              </div>
-            </div>
-          </div>
-
-          <div class="p-3">
-            <h3 class="font-semibold text-sm line-clamp-2" style="color: var(--text-primary);">
-              {nominee.title}
-            </h3>
-            <p class="text-xs mt-1" style="color: var(--text-muted);">
-              {nominee.tmdb.release_date ? new Date(nominee.tmdb.release_date).getFullYear() : 'TBA'}
-            </p>
-          </div>
-        </a>
-      ))}
-    </div>
-  </section>
-
-  <!-- Other Nominated Films -->
-  {otherNominees.length > 0 && (
-    <section class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-      <h2 class="text-2xl md:text-3xl font-bold mb-8 flex items-center gap-3" style="color: var(--text-primary);">
-        <span class="text-amber-400">🎭</span>
-        Other Nominated Films
-      </h2>
-
-      <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
-        {otherNominees.map((nominee) => (
+      {validNominees.map((nominee) => {
+        const nomCount = getNominationCount(nominee.title);
+        return (
           <a
             href={`/movie/${nominee.tmdb.id}`}
             class="group relative rounded-lg overflow-hidden transition-transform hover:scale-105"
@@ -178,67 +337,171 @@ function getBackdropUrl(path: string | null): string {
                 alt={nominee.title}
                 class="w-full h-full object-cover"
               />
+              <div class="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent"></div>
+
+              {nomCount > 1 && (
+                <div class="absolute top-2 left-2 px-2 py-1 rounded-full text-xs font-bold bg-amber-500 text-black">
+                  {nomCount} noms
+                </div>
+              )}
             </div>
 
-            <div class="p-2">
-              <h3 class="font-medium text-xs line-clamp-2" style="color: var(--text-primary);">
+            <div class="p-3">
+              <h3 class="font-semibold text-sm line-clamp-2 mb-1" style="color: var(--text-primary);">
                 {nominee.title}
               </h3>
-              <p class="text-xs mt-1 line-clamp-1" style="color: var(--text-muted);">
-                {nominee.categories[0]}
-              </p>
+              <div class="flex items-center justify-between">
+                <p class="text-xs" style="color: var(--text-muted);">
+                  {nominee.tmdb.release_date ? new Date(nominee.tmdb.release_date).getFullYear() : 'TBA'}
+                </p>
+                <div class="flex items-center gap-1 text-amber-400 text-xs">
+                  <span>⭐</span>
+                  <span>{nominee.tmdb.vote_average?.toFixed(1)}</span>
+                </div>
+              </div>
             </div>
           </a>
-        ))}
-      </div>
-    </section>
-  )}
+        );
+      })}
+    </div>
+  </section>
 
-  <!-- Leading Nominees Section -->
+  <!-- All Categories -->
   <section class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
     <h2 class="text-2xl md:text-3xl font-bold mb-8 flex items-center gap-3" style="color: var(--text-primary);">
-      <span class="text-amber-400">🏆</span>
-      Leading Nominees
+      <span class="text-amber-400">📋</span>
+      All Categories & Nominees
     </h2>
 
     <div class="grid md:grid-cols-2 gap-6">
-      {validNominees.filter(n => n.nominations > 0).sort((a, b) => b.nominations - a.nominations).slice(0, 4).map((nominee, index) => (
-        <a
-          href={`/movie/${nominee.tmdb.id}`}
-          class="flex gap-4 p-4 rounded-xl transition-colors hover:bg-[var(--bg-hover)]"
+      {oscarCategories.map((category) => (
+        <div
+          class="rounded-xl p-5"
           style="background-color: var(--bg-card); border: 1px solid var(--border);"
         >
-          <div class="flex-shrink-0 w-24">
-            <img
-              src={getPosterUrl(nominee.tmdb.poster_path)}
-              alt={nominee.title}
-              class="w-full rounded-lg"
-            />
-          </div>
-          <div class="flex-1">
-            <div class="flex items-start justify-between gap-2">
-              <h3 class="font-bold text-lg" style="color: var(--text-primary);">
-                {nominee.title}
-              </h3>
-              <span class="flex-shrink-0 px-3 py-1 rounded-full text-sm font-bold bg-amber-500 text-black">
-                {nominee.nominations} nominations
+          <h3 class="text-lg font-bold mb-4 flex items-center gap-2" style="color: var(--text-primary);">
+            <span class="text-amber-400">🏆</span>
+            {category.name}
+            {category.note && (
+              <span class="text-xs px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-400">
+                {category.note}
               </span>
-            </div>
-            <p class="text-sm mt-2 line-clamp-2" style="color: var(--text-secondary);">
-              {nominee.tmdb.overview}
-            </p>
-            <div class="flex items-center gap-4 mt-3 text-sm" style="color: var(--text-muted);">
-              <span class="flex items-center gap-1">
-                <span class="text-amber-400">⭐</span>
-                {nominee.tmdb.vote_average?.toFixed(1)}
-              </span>
-              {nominee.tmdb.runtime && (
-                <span>{Math.floor(nominee.tmdb.runtime / 60)}h {nominee.tmdb.runtime % 60}m</span>
-              )}
-            </div>
-          </div>
-        </a>
+            )}
+          </h3>
+
+          <ul class="space-y-2">
+            {category.nominees.map((nominee, index) => (
+              <li
+                class="flex items-start gap-3 p-2 rounded-lg transition-colors hover:bg-[var(--bg-hover)]"
+              >
+                <span
+                  class="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 mt-0.5"
+                  style={index === 0
+                    ? 'background: linear-gradient(135deg, #fbbf24, #f59e0b); color: #000;'
+                    : 'background-color: var(--bg-hover); color: var(--text-secondary);'}
+                >
+                  {index + 1}
+                </span>
+                <div class="flex-1 min-w-0">
+                  {nominee.person ? (
+                    <>
+                      <p class="font-medium" style="color: var(--text-primary);">
+                        {nominee.person}
+                      </p>
+                      <p class="text-sm" style="color: var(--text-muted);">
+                        {nominee.title}
+                      </p>
+                    </>
+                  ) : (
+                    <>
+                      <p class="font-medium" style="color: var(--text-primary);">
+                        {nominee.title}
+                      </p>
+                      {nominee.note && (
+                        <p class="text-sm" style="color: var(--text-muted);">
+                          {nominee.note}
+                        </p>
+                      )}
+                    </>
+                  )}
+                </div>
+              </li>
+            ))}
+          </ul>
+        </div>
       ))}
+    </div>
+  </section>
+
+  <!-- Short Films Section -->
+  <section class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+    <h2 class="text-2xl md:text-3xl font-bold mb-8 flex items-center gap-3" style="color: var(--text-primary);">
+      <span class="text-amber-400">🎞️</span>
+      Short Film Categories
+    </h2>
+
+    <div class="grid md:grid-cols-3 gap-6">
+      <!-- Live Action Short -->
+      <div class="rounded-xl p-5" style="background-color: var(--bg-card); border: 1px solid var(--border);">
+        <h3 class="text-lg font-bold mb-4" style="color: var(--text-primary);">Best Live Action Short</h3>
+        <ul class="space-y-2 text-sm" style="color: var(--text-secondary);">
+          <li>• Butcher's Stain</li>
+          <li>• A Friend of Dorothy</li>
+          <li>• Jane Austen's Period Drama</li>
+          <li>• The Singers</li>
+          <li>• Two People Exchanging Saliva</li>
+        </ul>
+      </div>
+
+      <!-- Animated Short -->
+      <div class="rounded-xl p-5" style="background-color: var(--bg-card); border: 1px solid var(--border);">
+        <h3 class="text-lg font-bold mb-4" style="color: var(--text-primary);">Best Animated Short</h3>
+        <ul class="space-y-2 text-sm" style="color: var(--text-secondary);">
+          <li>• Butterfly</li>
+          <li>• Forevergreen</li>
+          <li>• The Girl Who Cried Pearls</li>
+          <li>• Retirement Plan</li>
+          <li>• The Three Sisters</li>
+        </ul>
+      </div>
+
+      <!-- Documentary Short -->
+      <div class="rounded-xl p-5" style="background-color: var(--bg-card); border: 1px solid var(--border);">
+        <h3 class="text-lg font-bold mb-4" style="color: var(--text-primary);">Best Documentary Short</h3>
+        <ul class="space-y-2 text-sm" style="color: var(--text-secondary);">
+          <li>• All the Empty Rooms</li>
+          <li>• Armed Only With a Camera</li>
+          <li>• Children No More</li>
+          <li>• The Devil Is Busy</li>
+          <li>• Perfectly a Strangeness</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- About Section -->
+  <section class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+    <div class="rounded-xl p-6 text-center" style="background-color: var(--bg-card); border: 1px solid var(--border);">
+      <h3 class="text-lg font-bold mb-2" style="color: var(--text-primary);">
+        98th Academy Awards
+      </h3>
+      <p class="text-sm mb-4" style="color: var(--text-secondary);">
+        The ceremony will be held on March 15, 2026 at the Dolby Theatre in Hollywood, Los Angeles.
+      </p>
+      <div class="flex flex-wrap justify-center gap-4 text-sm">
+        <div class="px-4 py-2 rounded-lg" style="background-color: var(--bg-hover);">
+          <span class="font-bold text-amber-400">23</span>
+          <span style="color: var(--text-muted);"> Categories</span>
+        </div>
+        <div class="px-4 py-2 rounded-lg" style="background-color: var(--bg-hover);">
+          <span class="font-bold text-amber-400">10</span>
+          <span style="color: var(--text-muted);"> Best Picture Nominees</span>
+        </div>
+        <div class="px-4 py-2 rounded-lg" style="background-color: var(--bg-hover);">
+          <span class="font-bold text-amber-400">16</span>
+          <span style="color: var(--text-muted);"> Nominations for Sinners</span>
+        </div>
+      </div>
     </div>
   </section>
 </BaseLayout>
