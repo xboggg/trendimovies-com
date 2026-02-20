@@ -142,13 +142,15 @@
           Close Player
         </button>
       </div>
-      <VideoPlayer
-        {tmdbId}
-        {imdbId}
-        type="tv"
-        season={playingEpisode.season}
-        episode={playingEpisode.episode}
-      />
+      {#key `${playingEpisode.season}-${playingEpisode.episode}`}
+        <VideoPlayer
+          {tmdbId}
+          {imdbId}
+          type="tv"
+          season={playingEpisode.season}
+          episode={playingEpisode.episode}
+        />
+      {/key}
     </div>
   {/if}
 
