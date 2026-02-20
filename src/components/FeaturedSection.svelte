@@ -67,7 +67,7 @@
 
       <!-- Featured Movie Image - Extended height -->
       {#if featuredOscar}
-        <a href={`/movie/${featuredOscar.id}`} class="block relative h-80 overflow-hidden group">
+        <a href={`/movie/${featuredOscar.id}`} class="block relative h-[400px] overflow-hidden group">
           <img
             src={getBackdropUrl(featuredOscar.backdrop_path || featuredOscar.poster_path)}
             alt={featuredOscar.title}
@@ -228,7 +228,7 @@
         {:else if activeTab === 'franchise'}
           <!-- Franchise placeholder -->
           <div class="grid grid-cols-2 gap-3">
-            {#each ['Marvel Cinematic Universe', 'DC Universe', 'Star Wars', 'Harry Potter', 'Fast & Furious', 'Jurassic World'] as franchise}
+            {#each ['Marvel Cinematic Universe', 'DC Universe', 'Star Wars', 'Harry Potter', 'Fast & Furious', 'Jurassic World', 'James Bond 007', 'Transformers'] as franchise}
               <a
                 href="/franchises"
                 class="p-3 rounded-lg transition-colors hover:bg-[var(--bg-hover)] text-center"
