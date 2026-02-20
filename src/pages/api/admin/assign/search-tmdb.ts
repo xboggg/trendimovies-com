@@ -1,14 +1,31 @@
 import type { APIRoute } from 'astro';
+import { requireAuth } from '../../../../lib/admin-auth';
 
-const TMDB_API_KEY = process.env.TMDB_API_KEY || import.meta.env.TMDB_API_KEY || '46300aaf372203a94763f1f46846e843';
+const TMDB_API_KEY = process.env.TMDB_API_KEY || import.meta.env.TMDB_API_KEY;
 const TMDB_BASE_URL = 'https://api.themoviedb.org/3';
 
-export const GET: APIRoute = async ({ url }) => {
+export const GET: APIRoute = async ({ request, url }) => {
+  // Auth check
+  const authError = requireAuth(request);
+  if (authError) return authError;
+
   let query = url.searchParams.get('query') || url.searchParams.get('q') || '';
   const type = url.searchParams.get('type') || 'movie';
 
   if (!query || query.length < 2) {
     return new Response(JSON.stringify({ results: [], message: 'Query too short' }), {
+      headers: { 'Content-Type': 'application/json' }
+    });
+  }
+
+  // Limit query length to prevent abuse
+  if (query.length > 100) {
+    query = query.substring(0, 100);
+  }
+
+  if (!TMDB_API_KEY) {
+    return new Response(JSON.stringify({ results: [], error: 'TMDB API not configured' }), {
+      status: 500,
       headers: { 'Content-Type': 'application/json' }
     });
   }
@@ -89,7 +106,7 @@ export const GET: APIRoute = async ({ url }) => {
   } catch (error: any) {
     console.error('TMDB search error:', error);
     return new Response(JSON.stringify({
-      error: error.message || 'Failed to search TMDB',
+      error: 'Failed to search TMDB',
       results: []
     }), {
       status: 500,

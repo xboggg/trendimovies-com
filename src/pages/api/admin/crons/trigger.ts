@@ -1,5 +1,6 @@
 import type { APIRoute } from 'astro';
 import { spawn } from 'child_process';
+import { requireAuth } from '../../../../lib/admin-auth';
 
 const SCRIPTS_DIR = '/var/www/trendimovies/scripts';
 
@@ -16,7 +17,14 @@ const ALLOWED_SCRIPTS: Record<string, { command: string; args: string[]; name: s
   }
 };
 
+// Track running scripts to prevent duplicate execution
+const runningScripts = new Map<string, number>();
+
 export const POST: APIRoute = async ({ request }) => {
+  // Auth check
+  const authError = requireAuth(request);
+  if (authError) return authError;
+
   try {
     const { script } = await request.json();
 
@@ -26,6 +34,17 @@ export const POST: APIRoute = async ({ request }) => {
         availableScripts: Object.keys(ALLOWED_SCRIPTS)
       }), {
         status: 400,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+
+    // Rate limit: prevent spawning same script if already running recently
+    const lastRun = runningScripts.get(script);
+    if (lastRun && Date.now() - lastRun < 30000) {
+      return new Response(JSON.stringify({
+        error: 'Script already triggered recently. Wait 30 seconds.'
+      }), {
+        status: 429,
         headers: { 'Content-Type': 'application/json' }
       });
     }
@@ -40,6 +59,7 @@ export const POST: APIRoute = async ({ request }) => {
     });
 
     child.unref();
+    runningScripts.set(script, Date.now());
 
     return new Response(JSON.stringify({
       success: true,
@@ -52,7 +72,7 @@ export const POST: APIRoute = async ({ request }) => {
     });
   } catch (error: any) {
     return new Response(JSON.stringify({
-      error: error.message || 'Failed to trigger script'
+      error: 'Failed to trigger script'
     }), {
       status: 500,
       headers: { 'Content-Type': 'application/json' }

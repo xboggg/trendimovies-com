@@ -2,10 +2,15 @@ import type { APIRoute } from 'astro';
 import { exec } from 'child_process';
 import { promisify } from 'util';
 import fs from 'fs/promises';
+import { requireAuth } from '../../../../lib/admin-auth';
 
 const execAsync = promisify(exec);
 
-export const GET: APIRoute = async () => {
+export const GET: APIRoute = async ({ request }) => {
+  // Auth check
+  const authError = requireAuth(request);
+  if (authError) return authError;
+
   try {
     // Check running processes for known scripts
     let runningScripts: any[] = [];
@@ -55,7 +60,7 @@ export const GET: APIRoute = async () => {
     });
   } catch (error: any) {
     return new Response(JSON.stringify({
-      error: error.message,
+      error: 'Failed to fetch status',
       runningScripts: [],
       progress: {}
     }), {

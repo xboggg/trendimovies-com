@@ -1,9 +1,15 @@
 import type { APIRoute } from 'astro';
+import { requireAuth } from '../../../../lib/admin-auth';
 
 const POSTGREST_URL = import.meta.env.PUBLIC_SUPABASE_URL || 'http://localhost:3001';
 const TGSTREAM_BASE = 'https://trendimovies.com/tgstream/stream';
-const TMDB_API_KEY = process.env.TMDB_API_KEY || import.meta.env.TMDB_API_KEY || '46300aaf372203a94763f1f46846e843';
+const TMDB_API_KEY = process.env.TMDB_API_KEY || import.meta.env.TMDB_API_KEY;
 const TMDB_BASE_URL = 'https://api.themoviedb.org/3';
+
+// Allowed values for validation
+const VALID_CONTENT_TYPES = ['movie', 'episode'];
+const VALID_SOURCES = ['telegram', 'cinematika', 'torrent'];
+const VALID_QUALITIES = ['720p', '1080p', '2160p', 'hdrip'];
 
 // Helper: Generate URL-safe slug from title (includes TMDB ID for uniqueness)
 function generateSlug(title: string, year: number | null, tmdbId: number): string {
@@ -13,12 +19,16 @@ function generateSlug(title: string, year: number | null, tmdbId: number): strin
     .replace(/\s+/g, '-')
     .replace(/-+/g, '-')
     .trim();
-  // Include TMDB ID to guarantee uniqueness (e.g., "kill-2024-1160018")
   return year ? `${base}-${year}-${tmdbId}` : `${base}-${tmdbId}`;
 }
 
 // Helper: Import movie from TMDB if not in database
 async function importMovieFromTMDB(tmdbId: number): Promise<boolean> {
+  if (!TMDB_API_KEY) {
+    console.error('TMDB_API_KEY not configured');
+    return false;
+  }
+
   try {
     const res = await fetch(`${TMDB_BASE_URL}/movie/${tmdbId}?api_key=${TMDB_API_KEY}`, {
       signal: AbortSignal.timeout(10000)
@@ -85,6 +95,10 @@ async function movieExists(tmdbId: number): Promise<boolean> {
 }
 
 export const POST: APIRoute = async ({ request }) => {
+  // Auth check
+  const authError = requireAuth(request);
+  if (authError) return authError;
+
   try {
     const body = await request.json();
     const {
@@ -107,7 +121,7 @@ export const POST: APIRoute = async ({ request }) => {
       });
     }
 
-    if (!['movie', 'episode'].includes(content_type)) {
+    if (!VALID_CONTENT_TYPES.includes(content_type)) {
       return new Response(JSON.stringify({
         error: 'content_type must be "movie" or "episode"'
       }), {
@@ -116,7 +130,7 @@ export const POST: APIRoute = async ({ request }) => {
       });
     }
 
-    if (!['telegram', 'cinematika', 'torrent'].includes(source)) {
+    if (!VALID_SOURCES.includes(source)) {
       return new Response(JSON.stringify({
         error: 'source must be "telegram", "cinematika", or "torrent"'
       }), {
@@ -125,9 +139,20 @@ export const POST: APIRoute = async ({ request }) => {
       });
     }
 
-    if (!['720p', '1080p', '2160p', 'hdrip'].includes(quality)) {
+    if (!VALID_QUALITIES.includes(quality)) {
       return new Response(JSON.stringify({
         error: 'quality must be "720p", "1080p", "2160p", or "hdrip"'
+      }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+
+    // Validate content_id is a positive integer
+    const parsedContentId = parseInt(content_id);
+    if (isNaN(parsedContentId) || parsedContentId <= 0) {
+      return new Response(JSON.stringify({
+        error: 'content_id must be a positive integer'
       }), {
         status: 400,
         headers: { 'Content-Type': 'application/json' }
@@ -140,6 +165,15 @@ export const POST: APIRoute = async ({ request }) => {
       if (!telegram_file_id) {
         return new Response(JSON.stringify({
           error: 'telegram_file_id required for telegram source'
+        }), {
+          status: 400,
+          headers: { 'Content-Type': 'application/json' }
+        });
+      }
+      // Validate telegram_file_id format (alphanumeric and some special chars)
+      if (!/^[A-Za-z0-9_-]+$/.test(String(telegram_file_id))) {
+        return new Response(JSON.stringify({
+          error: 'Invalid telegram_file_id format'
         }), {
           status: 400,
           headers: { 'Content-Type': 'application/json' }
@@ -159,10 +193,10 @@ export const POST: APIRoute = async ({ request }) => {
 
     // AUTO-IMPORT: If movie doesn't exist in database, import from TMDB
     if (content_type === 'movie') {
-      const exists = await movieExists(parseInt(content_id));
+      const exists = await movieExists(parsedContentId);
       if (!exists) {
-        console.log(`Movie ${content_id} not in database, importing from TMDB...`);
-        const imported = await importMovieFromTMDB(parseInt(content_id));
+        console.log(`Movie ${parsedContentId} not in database, importing from TMDB...`);
+        const imported = await importMovieFromTMDB(parsedContentId);
         if (!imported) {
           return new Response(JSON.stringify({
             error: 'Movie not in database and failed to import from TMDB. Please try again.'
@@ -176,7 +210,7 @@ export const POST: APIRoute = async ({ request }) => {
 
     // CHECK FOR DUPLICATES: Prevent adding same quality/source for same content
     const duplicateCheck = await fetch(
-      `${POSTGREST_URL}/download_links?content_type=eq.${content_type}&content_id=eq.${content_id}&quality=eq.${quality}&source=eq.${source}&select=id`,
+      `${POSTGREST_URL}/download_links?content_type=eq.${content_type}&content_id=eq.${parsedContentId}&quality=eq.${quality}&source=eq.${source}&select=id`,
       { headers: { 'Accept-Profile': 'public' } }
     );
     const existingLinks = await duplicateCheck.json();
@@ -192,7 +226,7 @@ export const POST: APIRoute = async ({ request }) => {
     // Insert into download_links
     const linkData = {
       content_type,
-      content_id: parseInt(content_id),
+      content_id: parsedContentId,
       source,
       quality,
       file_size: file_size || null,
@@ -215,8 +249,7 @@ export const POST: APIRoute = async ({ request }) => {
     });
 
     if (!response.ok) {
-      const error = await response.text();
-      return new Response(JSON.stringify({ error }), {
+      return new Response(JSON.stringify({ error: 'Failed to create link' }), {
         status: 500,
         headers: { 'Content-Type': 'application/json' }
       });
@@ -226,7 +259,7 @@ export const POST: APIRoute = async ({ request }) => {
 
     // Update has_downloads flag on the content
     if (content_type === 'movie') {
-      await fetch(`${POSTGREST_URL}/movies?tmdb_id=eq.${content_id}`, {
+      await fetch(`${POSTGREST_URL}/movies?tmdb_id=eq.${parsedContentId}`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
@@ -235,7 +268,7 @@ export const POST: APIRoute = async ({ request }) => {
         body: JSON.stringify({ has_downloads: true })
       });
     } else if (content_type === 'episode') {
-      await fetch(`${POSTGREST_URL}/episodes?id=eq.${content_id}`, {
+      await fetch(`${POSTGREST_URL}/episodes?id=eq.${parsedContentId}`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
@@ -253,7 +286,7 @@ export const POST: APIRoute = async ({ request }) => {
     });
   } catch (error: any) {
     return new Response(JSON.stringify({
-      error: error.message || 'Failed to create link'
+      error: 'Failed to create link'
     }), {
       status: 500,
       headers: { 'Content-Type': 'application/json' }
@@ -262,19 +295,25 @@ export const POST: APIRoute = async ({ request }) => {
 };
 
 export const DELETE: APIRoute = async ({ request }) => {
+  // Auth check
+  const authError = requireAuth(request);
+  if (authError) return authError;
+
   try {
     const body = await request.json();
     const { id } = body;
 
-    if (!id) {
-      return new Response(JSON.stringify({ error: 'Missing link id' }), {
+    if (!id || isNaN(parseInt(id)) || parseInt(id) <= 0) {
+      return new Response(JSON.stringify({ error: 'Invalid link id' }), {
         status: 400,
         headers: { 'Content-Type': 'application/json' }
       });
     }
 
+    const linkId = parseInt(id);
+
     // Get the link first to check content_type and content_id
-    const getRes = await fetch(`${POSTGREST_URL}/download_links?id=eq.${id}`, {
+    const getRes = await fetch(`${POSTGREST_URL}/download_links?id=eq.${linkId}`, {
       headers: { 'Accept-Profile': 'public' }
     });
     const links = await getRes.json();
@@ -288,14 +327,13 @@ export const DELETE: APIRoute = async ({ request }) => {
     }
 
     // Delete the link
-    const response = await fetch(`${POSTGREST_URL}/download_links?id=eq.${id}`, {
+    const response = await fetch(`${POSTGREST_URL}/download_links?id=eq.${linkId}`, {
       method: 'DELETE',
       headers: { 'Accept-Profile': 'public' }
     });
 
     if (!response.ok) {
-      const error = await response.text();
-      return new Response(JSON.stringify({ error }), {
+      return new Response(JSON.stringify({ error: 'Failed to delete link' }), {
         status: 500,
         headers: { 'Content-Type': 'application/json' }
       });
@@ -337,7 +375,7 @@ export const DELETE: APIRoute = async ({ request }) => {
     });
   } catch (error: any) {
     return new Response(JSON.stringify({
-      error: error.message || 'Failed to delete link'
+      error: 'Failed to delete link'
     }), {
       status: 500,
       headers: { 'Content-Type': 'application/json' }

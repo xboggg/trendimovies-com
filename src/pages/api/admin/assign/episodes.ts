@@ -1,9 +1,14 @@
 import type { APIRoute } from 'astro';
+import { requireAuth } from '../../../../lib/admin-auth';
 
-const TMDB_API_KEY = process.env.TMDB_API_KEY || import.meta.env.TMDB_API_KEY || '46300aaf372203a94763f1f46846e843';
+const TMDB_API_KEY = process.env.TMDB_API_KEY || import.meta.env.TMDB_API_KEY;
 const TMDB_BASE_URL = 'https://api.themoviedb.org/3';
 
-export const GET: APIRoute = async ({ url }) => {
+export const GET: APIRoute = async ({ request, url }) => {
+  // Auth check
+  const authError = requireAuth(request);
+  if (authError) return authError;
+
   const tmdbId = url.searchParams.get('tmdb_id');
   const season = url.searchParams.get('season');
 
@@ -14,9 +19,26 @@ export const GET: APIRoute = async ({ url }) => {
     });
   }
 
+  // Validate inputs are positive integers
+  const parsedTmdbId = parseInt(tmdbId);
+  const parsedSeason = parseInt(season);
+  if (isNaN(parsedTmdbId) || parsedTmdbId <= 0 || isNaN(parsedSeason) || parsedSeason < 0) {
+    return new Response(JSON.stringify({ error: 'Invalid tmdb_id or season', episodes: [] }), {
+      status: 400,
+      headers: { 'Content-Type': 'application/json' }
+    });
+  }
+
+  if (!TMDB_API_KEY) {
+    return new Response(JSON.stringify({ error: 'TMDB API not configured', episodes: [] }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' }
+    });
+  }
+
   try {
     const response = await fetch(
-      `${TMDB_BASE_URL}/tv/${tmdbId}/season/${season}?api_key=${TMDB_API_KEY}`,
+      `${TMDB_BASE_URL}/tv/${parsedTmdbId}/season/${parsedSeason}?api_key=${TMDB_API_KEY}`,
       { signal: AbortSignal.timeout(10000) }
     );
 
@@ -41,7 +63,7 @@ export const GET: APIRoute = async ({ url }) => {
   } catch (error: any) {
     console.error('Episodes fetch error:', error);
     return new Response(JSON.stringify({
-      error: error.message || 'Failed to fetch episodes',
+      error: 'Failed to fetch episodes',
       episodes: []
     }), {
       status: 500,

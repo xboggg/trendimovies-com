@@ -1,10 +1,15 @@
 import type { APIRoute } from 'astro';
+import { requireAuth } from '../../../lib/admin-auth';
 
 const POSTGREST_URL = import.meta.env.PUBLIC_SUPABASE_URL || 'http://localhost:3001';
 
-export const GET: APIRoute = async ({ url }) => {
+export const GET: APIRoute = async ({ request, url }) => {
+  // Auth check
+  const authError = requireAuth(request);
+  if (authError) return authError;
+
   const page = parseInt(url.searchParams.get('page') || '1');
-  const limit = parseInt(url.searchParams.get('limit') || '50');
+  const limit = Math.min(parseInt(url.searchParams.get('limit') || '50'), 100); // Cap at 100
   const search = url.searchParams.get('search') || '';
   const contentType = url.searchParams.get('content_type') || '';
   const source = url.searchParams.get('source') || '';
@@ -26,7 +31,10 @@ export const GET: APIRoute = async ({ url }) => {
         movieSearchUrl += `&title=ilike.*${cleanSearch}*`;
       }
       if (year) {
-        movieSearchUrl += `&year=eq.${parseInt(year)}`;
+        const parsedYear = parseInt(year);
+        if (parsedYear >= 1900 && parsedYear <= 2100) {
+          movieSearchUrl += `&year=eq.${parsedYear}`;
+        }
       }
       movieSearchUrl += '&limit=500';
 
@@ -63,11 +71,12 @@ export const GET: APIRoute = async ({ url }) => {
       countUrl += `&${idsFilter}`;
     }
 
-    if (contentType) {
+    // Validate and add filters
+    if (contentType && ['movie', 'episode'].includes(contentType)) {
       queryUrl += `&content_type=eq.${contentType}`;
       countUrl += `&content_type=eq.${contentType}`;
     }
-    if (source) {
+    if (source && ['telegram', 'cinematika', 'torrent'].includes(source)) {
       queryUrl += `&source=eq.${source}`;
       countUrl += `&source=eq.${source}`;
     }
@@ -126,7 +135,7 @@ export const GET: APIRoute = async ({ url }) => {
     });
   } catch (error: any) {
     return new Response(JSON.stringify({
-      error: error.message || 'Failed to fetch links'
+      error: 'Failed to fetch links'
     }), {
       status: 500,
       headers: { 'Content-Type': 'application/json' }

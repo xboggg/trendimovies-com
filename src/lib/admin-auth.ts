@@ -59,8 +59,16 @@ function getEnvVar(key: string): string | undefined {
   return cachedEnv[key];
 }
 
-const SESSION_SECRET = getEnvVar('ADMIN_SESSION_SECRET') || 'trendimovies-admin-secret-key-2026';
+const SESSION_SECRET = getEnvVar('ADMIN_SESSION_SECRET');
 const SESSION_DURATION = 24 * 60 * 60 * 1000; // 24 hours
+
+// Security: Require session secret to be set in environment
+function getSessionSecret(): string {
+  if (!SESSION_SECRET) {
+    throw new Error('ADMIN_SESSION_SECRET not configured - admin functions disabled');
+  }
+  return SESSION_SECRET;
+}
 
 export interface AdminSession {
   createdAt: number;
@@ -68,24 +76,26 @@ export interface AdminSession {
 }
 
 export function createSessionToken(): string {
+  const secret = getSessionSecret();
   const session: AdminSession = {
     createdAt: Date.now(),
     expiresAt: Date.now() + SESSION_DURATION
   };
   const data = JSON.stringify(session);
-  const signature = createHmac('sha256', SESSION_SECRET).update(data).digest('hex');
+  const signature = createHmac('sha256', secret).update(data).digest('hex');
   return Buffer.from(`${data}.${signature}`).toString('base64');
 }
 
 export function verifySessionToken(token: string): AdminSession | null {
   try {
+    const secret = getSessionSecret();
     const decoded = Buffer.from(token, 'base64').toString('utf-8');
     const lastDotIndex = decoded.lastIndexOf('.');
     if (lastDotIndex === -1) return null;
 
     const data = decoded.substring(0, lastDotIndex);
     const signature = decoded.substring(lastDotIndex + 1);
-    const expectedSignature = createHmac('sha256', SESSION_SECRET).update(data).digest('hex');
+    const expectedSignature = createHmac('sha256', secret).update(data).digest('hex');
 
     if (signature !== expectedSignature) return null;
 
@@ -132,4 +142,19 @@ export function createSessionCookie(token: string): string {
 
 export function clearSessionCookie(): string {
   return 'admin_session=; Path=/admin; HttpOnly; SameSite=Strict; Max-Age=0';
+}
+
+// Helper for API routes: returns 401 Response if not authenticated, null if authenticated
+export function requireAuth(request: Request): Response | null {
+  const cookieHeader = request.headers.get('cookie');
+  const session = getSessionFromCookies(cookieHeader);
+
+  if (!session) {
+    return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+      status: 401,
+      headers: { 'Content-Type': 'application/json' }
+    });
+  }
+
+  return null; // Authenticated - continue
 }

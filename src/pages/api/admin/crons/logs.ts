@@ -1,6 +1,7 @@
 import type { APIRoute } from 'astro';
 import fs from 'fs/promises';
 import path from 'path';
+import { requireAuth } from '../../../../lib/admin-auth';
 
 const LOG_DIR = '/var/www/trendimovies/scripts';
 const TEMP_LOG_DIR = '/tmp';
@@ -11,9 +12,13 @@ const ALLOWED_LOGS: Record<string, string> = {
   'episode-ddl-migration.log': path.join(TEMP_LOG_DIR, 'episode-ddl-migration.log'),
 };
 
-export const GET: APIRoute = async ({ url }) => {
+export const GET: APIRoute = async ({ request, url }) => {
+  // Auth check
+  const authError = requireAuth(request);
+  if (authError) return authError;
+
   const logFile = url.searchParams.get('file') || 'series-sync.log';
-  const lines = parseInt(url.searchParams.get('lines') || '100');
+  const lines = Math.min(parseInt(url.searchParams.get('lines') || '100'), 500); // Cap at 500 lines
 
   // Check if log file is allowed
   const logPath = ALLOWED_LOGS[logFile];
@@ -42,7 +47,7 @@ export const GET: APIRoute = async ({ url }) => {
   } catch (error: any) {
     return new Response(JSON.stringify({
       file: logFile,
-      error: error.code === 'ENOENT' ? 'Log file not found' : error.message,
+      error: error.code === 'ENOENT' ? 'Log file not found' : 'Failed to read log',
       lines: []
     }), {
       status: error.code === 'ENOENT' ? 404 : 500,

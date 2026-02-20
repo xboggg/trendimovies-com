@@ -1,22 +1,27 @@
 import type { APIRoute } from 'astro';
 import { exec } from 'child_process';
 import { promisify } from 'util';
+import { requireAuth } from '../../../../lib/admin-auth';
 
 const execAsync = promisify(exec);
 
-// Telegram API service (if available) - currently may not work for older files
+// Telegram API service (if available)
 const TELEGRAM_API = 'http://127.0.0.1:8765';
 
-// Direct SQLite access via SSH (more reliable, searches all files)
+// Direct SQLite access via SSH
 const SQLITE_DB = '/opt/trendimovies/bot/database/movies.db';
 const SQLITE_HOST = '38.242.195.0';
 const SSH_PORT = 80;
 
-export const GET: APIRoute = async ({ url }) => {
+export const GET: APIRoute = async ({ request, url }) => {
+  // Auth check
+  const authError = requireAuth(request);
+  if (authError) return authError;
+
   const query = url.searchParams.get('query') || url.searchParams.get('q') || '';
   const year = url.searchParams.get('year') || '';
   const quality = url.searchParams.get('quality') || '';
-  const useDirect = url.searchParams.get('direct') === 'true'; // Force direct SQLite query
+  const useDirect = url.searchParams.get('direct') === 'true';
 
   if (!query || query.length < 2) {
     return new Response(JSON.stringify({ files: [], message: 'Query too short' }), {
@@ -24,7 +29,14 @@ export const GET: APIRoute = async ({ url }) => {
     });
   }
 
-  // Try direct SQLite query first (more comprehensive, searches all files including older ones)
+  // Limit query length
+  if (query.length > 100) {
+    return new Response(JSON.stringify({ files: [], message: 'Query too long' }), {
+      headers: { 'Content-Type': 'application/json' }
+    });
+  }
+
+  // Try direct SQLite query first
   try {
     const files = await searchSQLiteDirect(query, year, quality);
     if (files.length > 0) {
@@ -86,37 +98,44 @@ export const GET: APIRoute = async ({ url }) => {
 };
 
 async function searchSQLiteDirect(query: string, year?: string, quality?: string): Promise<any[]> {
-  // Escape special characters for SQL LIKE query
-  // Replace spaces, dots, dashes with % wildcard for flexible matching
-  const searchTerm = query
-    .replace(/'/g, "''")
-    .replace(/[%_]/g, '\\$&')
-    .replace(/[\s.\-_]+/g, '%'); // Replace spaces, dots, dashes with wildcards
-
-  // Build SQL query
-  let sql = `SELECT id, message_id, file_name, file_size, quality, year
-             FROM movies
-             WHERE file_name LIKE '%${searchTerm}%' ESCAPE '\\'
-             AND file_name NOT LIKE '%.srt'
-             AND file_name NOT LIKE '%.sub'`;
-
-  if (year) {
-    sql += ` AND year = ${parseInt(year)}`;
+  // Sanitize input: only allow alphanumeric, spaces, and basic punctuation
+  const sanitizedQuery = query.replace(/[^a-zA-Z0-9\s.\-_]/g, '');
+  if (!sanitizedQuery || sanitizedQuery.length < 2) {
+    return [];
   }
 
-  sql += ` ORDER BY
-           CASE quality
-             WHEN '2160p' THEN 1
-             WHEN '1080p' THEN 2
-             WHEN '720p' THEN 3
-             ELSE 4
-           END,
-           file_size DESC
-           LIMIT 50`;
+  // Build search term: replace separators with % wildcard for flexible matching
+  const searchTerm = sanitizedQuery
+    .replace(/[\s.\-_]+/g, '%');
 
-  // Execute via SSH
-  const escapedSql = sql.replace(/"/g, '\\"');
-  const sshCmd = `ssh -o ConnectTimeout=10 -o StrictHostKeyChecking=no -p ${SSH_PORT} root@${SQLITE_HOST} "sqlite3 -json ${SQLITE_DB} \\"${escapedSql}\\""`;
+  // Validate year if provided
+  let yearFilter = '';
+  if (year) {
+    const parsedYear = parseInt(year);
+    if (parsedYear >= 1900 && parsedYear <= 2100) {
+      yearFilter = ` AND year = ${parsedYear}`;
+    }
+  }
+
+  // Build SQL query (values are sanitized above)
+  const sql = `SELECT id, message_id, file_name, file_size, quality, year
+             FROM movies
+             WHERE file_name LIKE '%${searchTerm}%' ESCAPE '\\\\'
+             AND file_name NOT LIKE '%.srt'
+             AND file_name NOT LIKE '%.sub'${yearFilter}
+             ORDER BY
+             CASE quality
+               WHEN '2160p' THEN 1
+               WHEN '1080p' THEN 2
+               WHEN '720p' THEN 3
+               ELSE 4
+             END,
+             file_size DESC
+             LIMIT 50`;
+
+  // Escape for shell - use base64 encoding to avoid shell injection
+  const base64Sql = Buffer.from(sql).toString('base64');
+  const sshCmd = `ssh -o ConnectTimeout=10 -o StrictHostKeyChecking=no -p ${SSH_PORT} root@${SQLITE_HOST} "echo '${base64Sql}' | base64 -d | sqlite3 -json ${SQLITE_DB}"`;
 
   try {
     const { stdout } = await execAsync(sshCmd, { timeout: 30000, maxBuffer: 10 * 1024 * 1024 });
@@ -137,9 +156,13 @@ async function searchSQLiteDirect(query: string, year?: string, quality?: string
 
     // Filter by quality if specified
     if (quality) {
-      files = files.filter((f: any) =>
-        f.quality?.toLowerCase().includes(quality.toLowerCase())
-      );
+      const validQualities = ['720p', '1080p', '2160p', '4k', 'hdrip', 'bluray', 'webrip'];
+      const cleanQuality = quality.toLowerCase();
+      if (validQualities.some(q => cleanQuality.includes(q))) {
+        files = files.filter((f: any) =>
+          f.quality?.toLowerCase().includes(cleanQuality)
+        );
+      }
     }
 
     return files;
