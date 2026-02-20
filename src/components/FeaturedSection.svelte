@@ -28,9 +28,9 @@
   export let top2020_23: Movie[] = [];
   export let boxOffice: BoxOfficeEntry[] = [];
 
-  let oscarIndex = 0;
   let activeTab: 'top2026' | 'top2024_25' | 'top2020_23' | 'boxoffice' | 'franchise' = 'top2026';
-  let autoScrollInterval: ReturnType<typeof setInterval>;
+  let carouselContainer: HTMLDivElement;
+  let isPaused = false;
 
   $: currentTabMovies = activeTab === 'top2026' ? top2026
     : activeTab === 'top2024_25' ? top2024_25
@@ -38,6 +38,9 @@
     : [];
 
   $: featuredOscar = oscarMovies[0];
+
+  // Duplicate movies for seamless infinite scroll
+  $: duplicatedOscars = [...oscarMovies, ...oscarMovies];
 
   function getPosterUrl(path: string | null): string {
     if (!path) return '/images/no-poster.svg';
@@ -49,30 +52,13 @@
     return `https://image.tmdb.org/t/p/w780${path}`;
   }
 
-  function nextOscar() {
-    const maxIndex = Math.max(0, oscarMovies.length - 5);
-    oscarIndex = oscarIndex >= maxIndex ? 0 : oscarIndex + 1;
+  function pauseAnimation() {
+    isPaused = true;
   }
 
-  function prevOscar() {
-    const maxIndex = Math.max(0, oscarMovies.length - 5);
-    oscarIndex = oscarIndex === 0 ? maxIndex : oscarIndex - 1;
+  function resumeAnimation() {
+    isPaused = false;
   }
-
-  // Auto-scroll every 4 seconds
-  onMount(() => {
-    autoScrollInterval = setInterval(() => {
-      nextOscar();
-    }, 4000);
-  });
-
-  onDestroy(() => {
-    if (autoScrollInterval) {
-      clearInterval(autoScrollInterval);
-    }
-  });
-
-  $: visibleOscars = oscarMovies.slice(oscarIndex, oscarIndex + 5);
 </script>
 
 <section class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -116,22 +102,18 @@
           </a>
         </div>
 
-        <!-- Carousel -->
-        <div class="relative">
-          <button
-            on:click={prevOscar}
-            class="absolute left-0 top-1/2 -translate-y-1/2 z-10 w-7 h-7 rounded-full flex items-center justify-center transition-colors"
-            style="background-color: var(--bg-hover);"
-            disabled={oscarIndex === 0}
-          >
-            <ChevronLeft size={16} style="color: var(--text-primary);" />
-          </button>
-
-          <div class="flex gap-2 overflow-hidden px-8">
-            {#each visibleOscars as movie, i}
+        <!-- Carousel with smooth infinite scroll -->
+        <div
+          class="relative overflow-hidden"
+          bind:this={carouselContainer}
+          on:mouseenter={pauseAnimation}
+          on:mouseleave={resumeAnimation}
+        >
+          <div class="oscar-scroll-container flex gap-3" class:paused={isPaused}>
+            {#each duplicatedOscars as movie, i}
               <a
                 href={`/movie/${movie.id}`}
-                class="flex-shrink-0 w-[calc(20%-6px)] group"
+                class="flex-shrink-0 w-24 group"
               >
                 <div class="relative aspect-[2/3] rounded-lg overflow-hidden mb-1">
                   <img
@@ -147,15 +129,6 @@
               </a>
             {/each}
           </div>
-
-          <button
-            on:click={nextOscar}
-            class="absolute right-0 top-1/2 -translate-y-1/2 z-10 w-7 h-7 rounded-full flex items-center justify-center transition-colors"
-            style="background-color: var(--bg-hover);"
-            disabled={oscarIndex >= oscarMovies.length - 5}
-          >
-            <ChevronRight size={16} style="color: var(--text-primary);" />
-          </button>
         </div>
       </div>
     </div>
@@ -295,3 +268,22 @@
     </div>
   </div>
 </section>
+
+<style>
+  .oscar-scroll-container {
+    animation: scroll-left 30s linear infinite;
+  }
+
+  .oscar-scroll-container.paused {
+    animation-play-state: paused;
+  }
+
+  @keyframes scroll-left {
+    0% {
+      transform: translateX(0);
+    }
+    100% {
+      transform: translateX(-50%);
+    }
+  }
+</style>
