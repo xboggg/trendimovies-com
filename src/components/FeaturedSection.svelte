@@ -30,7 +30,11 @@
 
   let activeTab: 'top2026' | 'top2024_25' | 'top2020_23' | 'boxoffice' | 'franchise' = 'top2026';
   let carouselContainer: HTMLDivElement;
+  let scrollContainer: HTMLDivElement;
   let isPaused = false;
+  let isTouching = false;
+  let touchStartX = 0;
+  let touchStartScrollLeft = 0;
 
   $: currentTabMovies = activeTab === 'top2026' ? top2026
     : activeTab === 'top2024_25' ? top2024_25
@@ -38,9 +42,6 @@
     : [];
 
   $: featuredOscar = oscarMovies[0];
-
-  // Duplicate movies for seamless infinite scroll
-  $: duplicatedOscars = [...oscarMovies, ...oscarMovies];
 
   function getPosterUrl(path: string | null): string {
     if (!path) return '/images/no-poster.svg';
@@ -57,7 +58,33 @@
   }
 
   function resumeAnimation() {
-    isPaused = false;
+    if (!isTouching) {
+      isPaused = false;
+    }
+  }
+
+  function handleTouchStart(e: TouchEvent) {
+    isTouching = true;
+    isPaused = true;
+    touchStartX = e.touches[0].clientX;
+    touchStartScrollLeft = scrollContainer?.scrollLeft || 0;
+  }
+
+  function handleTouchMove(e: TouchEvent) {
+    if (!isTouching || !scrollContainer) return;
+    const touchX = e.touches[0].clientX;
+    const diff = touchStartX - touchX;
+    scrollContainer.scrollLeft = touchStartScrollLeft + diff;
+  }
+
+  function handleTouchEnd() {
+    isTouching = false;
+    // Resume animation after a short delay
+    setTimeout(() => {
+      if (!isTouching) {
+        isPaused = false;
+      }
+    }, 2000);
   }
 </script>
 
@@ -102,15 +129,37 @@
           </a>
         </div>
 
-        <!-- Carousel with smooth infinite scroll -->
+        <!-- Carousel with smooth scroll and touch support -->
         <div
-          class="relative overflow-hidden"
-          bind:this={carouselContainer}
+          class="relative overflow-x-auto hide-scrollbar"
+          bind:this={scrollContainer}
           on:mouseenter={pauseAnimation}
           on:mouseleave={resumeAnimation}
+          on:touchstart={handleTouchStart}
+          on:touchmove={handleTouchMove}
+          on:touchend={handleTouchEnd}
         >
           <div class="oscar-scroll-container flex gap-3" class:paused={isPaused}>
-            {#each duplicatedOscars as movie, i}
+            {#each oscarMovies as movie, i}
+              <a
+                href={`/movie/${movie.id}`}
+                class="flex-shrink-0 w-24 group"
+              >
+                <div class="relative aspect-[2/3] rounded-lg overflow-hidden mb-1">
+                  <img
+                    src={getPosterUrl(movie.poster_path)}
+                    alt={movie.title}
+                    class="w-full h-full object-cover transition-transform group-hover:scale-110"
+                  />
+                  <div class="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                </div>
+                <p class="text-[10px] font-medium line-clamp-1 text-center" style="color: var(--text-primary);">
+                  {movie.title}
+                </p>
+              </a>
+            {/each}
+            <!-- Duplicate for seamless loop -->
+            {#each oscarMovies as movie, i}
               <a
                 href={`/movie/${movie.id}`}
                 class="flex-shrink-0 w-24 group"
@@ -270,6 +319,14 @@
 </section>
 
 <style>
+  .hide-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .hide-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+
   .oscar-scroll-container {
     animation: scroll-left 30s linear infinite;
   }
