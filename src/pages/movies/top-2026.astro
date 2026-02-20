@@ -3,15 +3,45 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
 import MovieGrid from '../../components/MovieGrid.svelte';
 import { discoverMovies } from '../../lib/tmdb';
 
-// Fetch top rated movies from 2026
-const data = await discoverMovies({
-  'primary_release_date.gte': '2026-01-01',
-  'primary_release_date.lte': '2026-12-31',
-  sort_by: 'vote_average.desc',
-  'vote_count.gte': '20'
+// Fetch multiple pages for more movies
+const [page1, page2, page3] = await Promise.all([
+  discoverMovies({
+    'primary_release_date.gte': '2026-01-01',
+    'primary_release_date.lte': '2026-12-31',
+    sort_by: 'vote_average.desc',
+    'vote_count.gte': '10',
+    page: '1'
+  }),
+  discoverMovies({
+    'primary_release_date.gte': '2026-01-01',
+    'primary_release_date.lte': '2026-12-31',
+    sort_by: 'vote_average.desc',
+    'vote_count.gte': '10',
+    page: '2'
+  }),
+  discoverMovies({
+    'primary_release_date.gte': '2026-01-01',
+    'primary_release_date.lte': '2026-12-31',
+    sort_by: 'popularity.desc',
+    page: '1'
+  })
+]);
+
+const allResults = [
+  ...(page1?.results || []),
+  ...(page2?.results || []),
+  ...(page3?.results || [])
+];
+
+// Remove duplicates
+const seen = new Set();
+const uniqueResults = allResults.filter((m: any) => {
+  if (seen.has(m.id)) return false;
+  seen.add(m.id);
+  return true;
 });
 
-const movies = (data?.results || []).map((m: any) => ({
+const movies = uniqueResults.map((m: any) => ({
   id: m.id,
   tmdb_id: m.id,
   title: m.title,
@@ -30,10 +60,10 @@ const movies = (data?.results || []).map((m: any) => ({
   <section class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
     <div class="flex items-center justify-between mb-8">
       <div>
-        <h1 class="text-2xl md:text-4xl font-bold" style="color: var(--text-primary);">
+        <h1 class="text-2xl md:text-4xl font-bold text-gray-900 dark:text-white">
           Top Movies of 2026
         </h1>
-        <p class="mt-2" style="color: var(--text-secondary);">
+        <p class="mt-2 text-gray-600 dark:text-gray-400">
           The highest rated films released in 2026
         </p>
       </div>
@@ -45,7 +75,7 @@ const movies = (data?.results || []).map((m: any) => ({
     <MovieGrid client:load items={movies} />
 
     {movies.length === 0 && (
-      <div class="text-center py-12" style="color: var(--text-secondary);">
+      <div class="text-center py-12 text-gray-600 dark:text-gray-400">
         <p>No movies found for 2026 yet. Check back later!</p>
       </div>
     )}

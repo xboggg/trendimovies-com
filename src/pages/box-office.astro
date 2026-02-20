@@ -130,7 +130,7 @@ function getPosterUrl(path: string | null): string {
             <th class="pb-4 text-right">Weekend (3-Day)</th>
             <th class="pb-4 text-right hidden md:table-cell">Weekend (4-Day)</th>
             <th class="pb-4 text-right">Total Gross</th>
-            <th class="pb-4 text-right hidden sm:table-cell">Weeks</th>
+            <th class="pb-4 text-center pr-4">Weeks</th>
           </tr>
         </thead>
         <tbody>
@@ -178,8 +178,10 @@ function getPosterUrl(path: string | null): string {
               <td class="py-4 text-right">
                 <span class="font-bold text-green-500">{formatMoney(entry.total_gross)}</span>
               </td>
-              <td class="py-4 text-right hidden sm:table-cell" style="color: var(--text-muted);">
-                {entry.weeks_in_release || 1}
+              <td class="py-4 text-center pr-4">
+                <span class="inline-flex items-center justify-center w-8 h-8 rounded-full text-sm font-bold" style="background-color: var(--bg-hover); color: var(--text-primary);">
+                  {entry.weeks_in_release || 1}
+                </span>
               </td>
             </tr>
           ))}

@@ -5,6 +5,7 @@
     id: number;
     title: string;
     poster_path: string | null;
+    backdrop_path?: string | null;
     vote_average: number;
     year: number | null;
     release_date?: string;
@@ -34,9 +35,16 @@
     : activeTab === 'top2020_23' ? top2020_23
     : [];
 
+  $: featuredOscar = oscarMovies[0];
+
   function getPosterUrl(path: string | null): string {
     if (!path) return '/images/no-poster.svg';
     return `https://image.tmdb.org/t/p/w342${path}`;
+  }
+
+  function getBackdropUrl(path: string | null): string {
+    if (!path) return '/images/no-backdrop.svg';
+    return `https://image.tmdb.org/t/p/w780${path}`;
   }
 
   function nextOscar() {
@@ -53,66 +61,84 @@
 <section class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
   <div class="grid lg:grid-cols-2 gap-6">
     <!-- Left Column: Oscar Nominations -->
-    <div class="rounded-2xl p-5 relative overflow-hidden" style="background-color: var(--bg-card); border: 1px solid var(--border);">
+    <div class="rounded-2xl relative overflow-hidden" style="background-color: var(--bg-card); border: 1px solid var(--border);">
       <!-- Golden accent gradient -->
-      <div class="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-amber-400 via-yellow-500 to-amber-400"></div>
+      <div class="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-amber-400 via-yellow-500 to-amber-400 z-10"></div>
 
-      <div class="flex items-center justify-between mb-4">
-        <div class="flex items-center gap-2">
-          <Trophy size={24} class="text-amber-400" />
-          <h2 class="text-lg font-bold" style="color: var(--text-primary);">2026 Oscar Nominations</h2>
-        </div>
-        <a href="/oscars-2026" class="text-sm font-medium text-amber-400 hover:text-amber-300 transition-colors">
-          View All →
+      <!-- Featured Movie Image -->
+      {#if featuredOscar}
+        <a href={`/movie/${featuredOscar.id}`} class="block relative h-40 overflow-hidden group">
+          <img
+            src={getBackdropUrl(featuredOscar.backdrop_path || featuredOscar.poster_path)}
+            alt={featuredOscar.title}
+            class="w-full h-full object-cover transition-transform group-hover:scale-105"
+          />
+          <div class="absolute inset-0 bg-gradient-to-t from-black via-black/60 to-transparent"></div>
+          <div class="absolute bottom-3 left-4 right-4">
+            <div class="flex items-center gap-2 mb-1">
+              <span class="px-2 py-0.5 rounded text-xs font-bold bg-amber-500 text-black">16 Nominations</span>
+              <span class="flex items-center gap-1 text-amber-400 text-sm">
+                <Star size={12} fill="currentColor" />
+                {featuredOscar.vote_average.toFixed(1)}
+              </span>
+            </div>
+            <h3 class="text-xl font-bold text-white">{featuredOscar.title}</h3>
+          </div>
         </a>
-      </div>
+      {/if}
 
-      <!-- Carousel -->
-      <div class="relative">
-        <button
-          on:click={prevOscar}
-          class="absolute left-0 top-1/2 -translate-y-1/2 z-10 w-8 h-8 rounded-full flex items-center justify-center transition-colors"
-          style="background-color: var(--bg-hover);"
-          disabled={oscarIndex === 0}
-        >
-          <ChevronLeft size={18} style="color: var(--text-primary);" />
-        </button>
-
-        <div class="flex gap-3 overflow-hidden px-8">
-          {#each visibleOscars as movie, i}
-            <a
-              href={`/movie/${movie.id}`}
-              class="flex-shrink-0 w-[calc(20%-10px)] group"
-            >
-              <div class="relative aspect-[2/3] rounded-lg overflow-hidden mb-2">
-                <img
-                  src={getPosterUrl(movie.poster_path)}
-                  alt={movie.title}
-                  class="w-full h-full object-cover transition-transform group-hover:scale-110"
-                />
-                <div class="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
-                <div class="absolute bottom-2 left-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <div class="flex items-center gap-1 text-xs text-amber-400">
-                    <Star size={12} fill="currentColor" />
-                    <span>{movie.vote_average.toFixed(1)}</span>
-                  </div>
-                </div>
-              </div>
-              <p class="text-xs font-medium line-clamp-2 text-center" style="color: var(--text-primary);">
-                {movie.title}
-              </p>
-            </a>
-          {/each}
+      <div class="p-4">
+        <div class="flex items-center justify-between mb-3">
+          <div class="flex items-center gap-2">
+            <Trophy size={20} class="text-amber-400" />
+            <h2 class="text-base font-bold" style="color: var(--text-primary);">2026 Oscar Nominations</h2>
+          </div>
+          <a href="/oscars-2026" class="text-xs font-medium text-amber-400 hover:text-amber-300 transition-colors">
+            View All →
+          </a>
         </div>
 
-        <button
-          on:click={nextOscar}
-          class="absolute right-0 top-1/2 -translate-y-1/2 z-10 w-8 h-8 rounded-full flex items-center justify-center transition-colors"
-          style="background-color: var(--bg-hover);"
-          disabled={oscarIndex >= oscarMovies.length - 5}
-        >
-          <ChevronRight size={18} style="color: var(--text-primary);" />
-        </button>
+        <!-- Carousel -->
+        <div class="relative">
+          <button
+            on:click={prevOscar}
+            class="absolute left-0 top-1/2 -translate-y-1/2 z-10 w-7 h-7 rounded-full flex items-center justify-center transition-colors"
+            style="background-color: var(--bg-hover);"
+            disabled={oscarIndex === 0}
+          >
+            <ChevronLeft size={16} style="color: var(--text-primary);" />
+          </button>
+
+          <div class="flex gap-2 overflow-hidden px-8">
+            {#each visibleOscars as movie, i}
+              <a
+                href={`/movie/${movie.id}`}
+                class="flex-shrink-0 w-[calc(20%-6px)] group"
+              >
+                <div class="relative aspect-[2/3] rounded-lg overflow-hidden mb-1">
+                  <img
+                    src={getPosterUrl(movie.poster_path)}
+                    alt={movie.title}
+                    class="w-full h-full object-cover transition-transform group-hover:scale-110"
+                  />
+                  <div class="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                </div>
+                <p class="text-[10px] font-medium line-clamp-1 text-center" style="color: var(--text-primary);">
+                  {movie.title}
+                </p>
+              </a>
+            {/each}
+          </div>
+
+          <button
+            on:click={nextOscar}
+            class="absolute right-0 top-1/2 -translate-y-1/2 z-10 w-7 h-7 rounded-full flex items-center justify-center transition-colors"
+            style="background-color: var(--bg-hover);"
+            disabled={oscarIndex >= oscarMovies.length - 5}
+          >
+            <ChevronRight size={16} style="color: var(--text-primary);" />
+          </button>
+        </div>
       </div>
     </div>
 

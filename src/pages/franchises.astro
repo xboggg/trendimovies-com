@@ -4,28 +4,102 @@ import { fetchFromTMDB, searchMovies } from '../lib/tmdb';
 
 const POSTGREST_URL = import.meta.env.PUBLIC_SUPABASE_URL || 'http://localhost:3001';
 
-// TMDB Collection IDs for popular franchises
+// TMDB Collection IDs for popular franchises - Comprehensive list
 const franchiseCollections: Record<string, { name: string; collectionId: number; color: string }> = {
+  // Superhero Franchises
   'mcu': { name: 'Marvel Cinematic Universe', collectionId: 529892, color: '#e23636' },
   'dceu': { name: 'DC Extended Universe', collectionId: 209131, color: '#0476F2' },
-  'star-wars': { name: 'Star Wars', collectionId: 10, color: '#FFE81F' },
-  'harry-potter': { name: 'Harry Potter', collectionId: 1241, color: '#946B2D' },
-  'fast-furious': { name: 'Fast & Furious', collectionId: 9485, color: '#FF6B00' },
-  'jurassic': { name: 'Jurassic Park / World', collectionId: 328, color: '#228B22' },
-  'james-bond': { name: 'James Bond 007', collectionId: 645, color: '#000000' },
-  'mission-impossible': { name: 'Mission: Impossible', collectionId: 87359, color: '#C41E3A' },
-  'transformers': { name: 'Transformers', collectionId: 8650, color: '#1E90FF' },
   'spider-man': { name: 'Spider-Man', collectionId: 531241, color: '#E62429' },
   'x-men': { name: 'X-Men', collectionId: 748, color: '#FFD700' },
-  'planet-apes': { name: 'Planet of the Apes', collectionId: 1709, color: '#8B4513' },
-  'lord-of-rings': { name: 'The Lord of the Rings', collectionId: 119, color: '#C9B037' },
-  'pirates': { name: 'Pirates of the Caribbean', collectionId: 295, color: '#8B0000' },
+  'batman': { name: 'Batman Collection', collectionId: 263, color: '#1a1a1a' },
+  'superman': { name: 'Superman Collection', collectionId: 8537, color: '#0476F2' },
+
+  // Action Franchises
+  'james-bond': { name: 'James Bond 007', collectionId: 645, color: '#000000' },
+  'mission-impossible': { name: 'Mission: Impossible', collectionId: 87359, color: '#C41E3A' },
+  'fast-furious': { name: 'Fast & Furious', collectionId: 9485, color: '#FF6B00' },
   'john-wick': { name: 'John Wick', collectionId: 404609, color: '#1a1a1a' },
-  'conjuring': { name: 'The Conjuring Universe', collectionId: 313086, color: '#4A0E0E' },
-  'minions': { name: 'Despicable Me / Minions', collectionId: 86066, color: '#FFD700' },
-  'toy-story': { name: 'Toy Story', collectionId: 10194, color: '#1E90FF' },
+  'bourne': { name: 'The Bourne Collection', collectionId: 31562, color: '#2E8B57' },
+  'die-hard': { name: 'Die Hard', collectionId: 1570, color: '#8B0000' },
+  'rambo': { name: 'Rambo Collection', collectionId: 5039, color: '#228B22' },
+  'rocky': { name: 'Rocky Collection', collectionId: 1575, color: '#C41E3A' },
+  'terminator': { name: 'Terminator', collectionId: 528, color: '#C0C0C0' },
+  'mad-max': { name: 'Mad Max Collection', collectionId: 8945, color: '#FF4500' },
+  'matrix': { name: 'The Matrix', collectionId: 2344, color: '#00FF00' },
+  'expendables': { name: 'The Expendables', collectionId: 126125, color: '#333333' },
+
+  // Sci-Fi Franchises
+  'star-wars': { name: 'Star Wars', collectionId: 10, color: '#FFE81F' },
+  'transformers': { name: 'Transformers', collectionId: 8650, color: '#1E90FF' },
+  'alien': { name: 'Alien Collection', collectionId: 8091, color: '#006400' },
+  'predator': { name: 'Predator Collection', collectionId: 399, color: '#228B22' },
+  'planet-apes': { name: 'Planet of the Apes', collectionId: 1709, color: '#8B4513' },
   'avatar': { name: 'Avatar', collectionId: 87096, color: '#00CED1' },
+  'back-to-future': { name: 'Back to the Future', collectionId: 264, color: '#FF6B00' },
+  'men-in-black': { name: 'Men in Black', collectionId: 86055, color: '#000000' },
+  'godzilla': { name: 'Godzilla Collection', collectionId: 535313, color: '#228B22' },
+  'jurassic': { name: 'Jurassic Park / World', collectionId: 328, color: '#228B22' },
+
+  // Fantasy Franchises
+  'harry-potter': { name: 'Harry Potter', collectionId: 1241, color: '#946B2D' },
+  'lord-of-rings': { name: 'The Lord of the Rings', collectionId: 119, color: '#C9B037' },
+  'hobbit': { name: 'The Hobbit', collectionId: 121938, color: '#C9B037' },
+  'narnia': { name: 'Chronicles of Narnia', collectionId: 420, color: '#87CEEB' },
+  'pirates': { name: 'Pirates of the Caribbean', collectionId: 295, color: '#8B0000' },
+  'fantastic-beasts': { name: 'Fantastic Beasts', collectionId: 435259, color: '#946B2D' },
+
+  // Horror Franchises
+  'conjuring': { name: 'The Conjuring Universe', collectionId: 313086, color: '#4A0E0E' },
+  'insidious': { name: 'Insidious Collection', collectionId: 228446, color: '#8B0000' },
+  'halloween': { name: 'Halloween Collection', collectionId: 126209, color: '#FF4500' },
+  'saw': { name: 'Saw Collection', collectionId: 656, color: '#8B0000' },
+  'nightmare-elm': { name: 'A Nightmare on Elm Street', collectionId: 8581, color: '#C41E3A' },
+  'friday-13th': { name: 'Friday the 13th', collectionId: 9735, color: '#8B0000' },
+  'scream': { name: 'Scream Collection', collectionId: 2602, color: '#000000' },
+  'it': { name: 'IT Collection', collectionId: 477962, color: '#C41E3A' },
+  'purge': { name: 'The Purge Collection', collectionId: 256322, color: '#8B0000' },
+
+  // Animation Franchises
+  'toy-story': { name: 'Toy Story', collectionId: 10194, color: '#1E90FF' },
   'shrek': { name: 'Shrek', collectionId: 2150, color: '#228B22' },
+  'minions': { name: 'Despicable Me / Minions', collectionId: 86066, color: '#FFD700' },
+  'kung-fu-panda': { name: 'Kung Fu Panda', collectionId: 77816, color: '#000000' },
+  'how-train-dragon': { name: 'How to Train Your Dragon', collectionId: 89137, color: '#228B22' },
+  'ice-age': { name: 'Ice Age', collectionId: 8354, color: '#87CEEB' },
+  'madagascar': { name: 'Madagascar', collectionId: 14740, color: '#FFD700' },
+  'cars': { name: 'Cars Collection', collectionId: 87118, color: '#FF4500' },
+  'incredibles': { name: 'The Incredibles', collectionId: 468222, color: '#C41E3A' },
+  'finding-nemo': { name: 'Finding Nemo', collectionId: 137697, color: '#FF6B00' },
+  'frozen': { name: 'Frozen Collection', collectionId: 386382, color: '#87CEEB' },
+  'hotel-transylvania': { name: 'Hotel Transylvania', collectionId: 185103, color: '#4B0082' },
+  'boss-baby': { name: 'The Boss Baby', collectionId: 519160, color: '#1E90FF' },
+  'trolls': { name: 'Trolls Collection', collectionId: 489724, color: '#FF69B4' },
+  'croods': { name: 'The Croods', collectionId: 464577, color: '#FF6B00' },
+
+  // Comedy Franchises
+  'hangover': { name: 'The Hangover', collectionId: 86119, color: '#FF6B00' },
+  'bad-boys': { name: 'Bad Boys Collection', collectionId: 14890, color: '#FF6B00' },
+  'austin-powers': { name: 'Austin Powers', collectionId: 1006, color: '#FF69B4' },
+  'rush-hour': { name: 'Rush Hour Collection', collectionId: 90863, color: '#C41E3A' },
+  'jump-street': { name: '21/22 Jump Street', collectionId: 212562, color: '#1E90FF' },
+  'ace-ventura': { name: 'Ace Ventura', collectionId: 3167, color: '#228B22' },
+  'pink-panther': { name: 'Pink Panther', collectionId: 9325, color: '#FF69B4' },
+
+  // Crime/Thriller Franchises
+  'oceans': { name: "Ocean's Trilogy", collectionId: 304, color: '#FFD700' },
+  'godfather': { name: 'The Godfather', collectionId: 230, color: '#1a1a1a' },
+  'taken': { name: 'Taken Collection', collectionId: 135483, color: '#333333' },
+  'sicario': { name: 'Sicario Collection', collectionId: 467298, color: '#8B4513' },
+  'now-you-see-me': { name: 'Now You See Me', collectionId: 382685, color: '#4B0082' },
+
+  // Adventure Franchises
+  'indiana-jones': { name: 'Indiana Jones', collectionId: 84, color: '#8B4513' },
+  'national-treasure': { name: 'National Treasure', collectionId: 52984, color: '#C9B037' },
+  'mummy': { name: 'The Mummy', collectionId: 1733, color: '#C9B037' },
+  'tomb-raider': { name: 'Tomb Raider', collectionId: 2467, color: '#333333' },
+  'maze-runner': { name: 'Maze Runner', collectionId: 295130, color: '#228B22' },
+  'hunger-games': { name: 'The Hunger Games', collectionId: 131635, color: '#FF4500' },
+  'divergent': { name: 'Divergent Collection', collectionId: 283579, color: '#C41E3A' },
 };
 
 // Fetch collection details from TMDB
@@ -133,19 +207,20 @@ function getBackdropUrl(path: string | null): string {
             </div>
           </div>
 
-          <!-- Movies Grid -->
+          <!-- Movies Grid - Show ALL movies -->
           <div class="p-6">
-            <div class="flex gap-3 overflow-x-auto hide-scrollbar pb-2">
-              {franchise.movies.slice(0, 12).map((movie: any) => (
+            <div class="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 xl:grid-cols-12 gap-3">
+              {franchise.movies.map((movie: any) => (
                 <a
                   href={`/movie/${movie.id}`}
-                  class="flex-shrink-0 w-28 group"
+                  class="group"
                 >
                   <div class="relative aspect-[2/3] rounded-lg overflow-hidden mb-2">
                     <img
                       src={getPosterUrl(movie.poster_path)}
                       alt={movie.title}
                       class="w-full h-full object-cover transition-transform group-hover:scale-110"
+                      loading="lazy"
                     />
                     <div class="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                       <span class="text-white text-xs font-medium">View</span>
@@ -160,12 +235,6 @@ function getBackdropUrl(path: string | null): string {
                 </a>
               ))}
             </div>
-
-            {franchise.totalMovies > 12 && (
-              <p class="text-center mt-4 text-sm" style="color: var(--text-muted);">
-                + {franchise.totalMovies - 12} more movies in this franchise
-              </p>
-            )}
           </div>
         </div>
       ))}
@@ -173,12 +242,3 @@ function getBackdropUrl(path: string | null): string {
   </section>
 </BaseLayout>
 
-<style>
-  .hide-scrollbar {
-    -ms-overflow-style: none;
-    scrollbar-width: none;
-  }
-  .hide-scrollbar::-webkit-scrollbar {
-    display: none;
-  }
-</style>
