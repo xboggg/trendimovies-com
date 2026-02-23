@@ -1,0 +1,13 @@
+---
+import AdminLayout from '../../layouts/AdminLayout.astro';
+import RequestsManager from '../../components/admin/RequestsManager.svelte';
+---
+
+<AdminLayout title="Content Requests" activeTab="requests">
+  <div class="mb-6">
+    <h2 class="text-2xl font-bold mb-2">Content Requests</h2>
+    <p class="text-[#888]">User-submitted movie and series requests</p>
+  </div>
+
+  <RequestsManager client:load />
+</AdminLayout>

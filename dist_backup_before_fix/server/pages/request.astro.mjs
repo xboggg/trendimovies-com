@@ -1,0 +1,42 @@
+import { e as createComponent, k as renderComponent, r as renderTemplate, m as maybeRenderHead, n as renderScript } from '../chunks/astro/server_Di6iaaQd.mjs';
+import 'piccolore';
+import { $ as $$BaseLayout } from '../chunks/BaseLayout_B64ZId-j.mjs';
+export { r as renderers } from '../chunks/_@astro-renderers_DbfXOWuU.mjs';
+
+const $$Request = createComponent(async ($$result, $$props, $$slots) => {
+  return renderTemplate`${renderComponent($$result, "BaseLayout", $$BaseLayout, { "title": "Request a Movie", "description": "Request movies or TV series to be added to TrendiMovies" }, { "default": async ($$result2) => renderTemplate` ${maybeRenderHead()}<div class="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8 py-8"> <h1 class="text-3xl font-bold mb-4" style="color: var(--text-primary);">Request a Movie or Series</h1> <p class="mb-8" style="color: var(--text-secondary);">
+Can't find what you're looking for? Request it here and we'll try to add it as soon as possible.
+</p> <div class="rounded-lg p-6" style="background-color: var(--bg-card); border: 1px solid var(--border);"> <form id="request-form" class="space-y-6"> <div> <label for="title" class="block text-sm font-medium mb-2" style="color: var(--text-primary);">
+Title <span class="text-red-500">*</span> </label> <input type="text" id="title" name="title" required placeholder="e.g., The Dark Knight" class="w-full px-4 py-2 rounded-lg" style="background-color: var(--bg-secondary); color: var(--text-primary); border: 1px solid var(--border);"> </div> <div> <label for="type" class="block text-sm font-medium mb-2" style="color: var(--text-primary);">
+Type <span class="text-red-500">*</span> </label> <select id="type" name="type" required class="w-full px-4 py-2 rounded-lg" style="background-color: var(--bg-secondary); color: var(--text-primary); border: 1px solid var(--border);"> <option value="movie">Movie</option> <option value="series">TV Series</option> </select> </div> <div> <label for="year" class="block text-sm font-medium mb-2" style="color: var(--text-primary);">
+Year (optional)
+</label> <input type="number" id="year" name="year" placeholder="e.g., 2024" min="1900" max="2030" class="w-full px-4 py-2 rounded-lg" style="background-color: var(--bg-secondary); color: var(--text-primary); border: 1px solid var(--border);"> </div> <div> <label for="imdb" class="block text-sm font-medium mb-2" style="color: var(--text-primary);">
+IMDb Link (optional)
+</label> <input type="url" id="imdb" name="imdb" placeholder="https://www.imdb.com/title/tt..." class="w-full px-4 py-2 rounded-lg" style="background-color: var(--bg-secondary); color: var(--text-primary); border: 1px solid var(--border);"> </div> <div> <label for="notes" class="block text-sm font-medium mb-2" style="color: var(--text-primary);">
+Additional Notes (optional)
+</label> <textarea id="notes" name="notes" rows="3" placeholder="Any additional information..." class="w-full px-4 py-2 rounded-lg" style="background-color: var(--bg-secondary); color: var(--text-primary); border: 1px solid var(--border);"></textarea> </div> <button type="submit" class="w-full btn-primary py-3 text-lg font-semibold">
+Submit Request
+</button> </form> <div id="success-message" class="hidden text-center py-8"> <div class="text-4xl mb-4">✅</div> <h2 class="text-xl font-bold mb-2" style="color: var(--text-primary);">Request Submitted!</h2> <p style="color: var(--text-secondary);">
+Thank you for your request. We'll review it and try to add it soon.
+</p> <button id="new-request" class="mt-4 btn-secondary">
+Submit Another Request
+</button> </div> </div> <!-- Telegram Link --> <div class="mt-8 text-center"> <p style="color: var(--text-secondary);">
+For faster requests, join our Telegram group:
+</p> <a href="https://t.me/+n6x4_P8DROA5ZDY0" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-2 mt-3 px-6 py-3 rounded-lg text-white" style="background-color: #0088cc;"> <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"> <path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"></path> </svg>
+Join Telegram Group
+</a> </div> </div> ${renderScript($$result2, "/var/www/trendimovies/src/pages/request.astro?astro&type=script&index=0&lang.ts")} ` })}`;
+}, "/var/www/trendimovies/src/pages/request.astro", void 0);
+
+const $$file = "/var/www/trendimovies/src/pages/request.astro";
+const $$url = "/request";
+
+const _page = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
+  __proto__: null,
+  default: $$Request,
+  file: $$file,
+  url: $$url
+}, Symbol.toStringTag, { value: 'Module' }));
+
+const page = () => _page;
+
+export { page };

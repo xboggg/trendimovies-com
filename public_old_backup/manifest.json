@@ -1,0 +1,19 @@
+{
+  "name": "TrendiMovies",
+  "short_name": "TrendiMovies",
+  "description": "Watch Movies & TV Series Online Free in HD",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0f0f0f",
+  "theme_color": "#e50914",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["entertainment", "movies", "streaming"]
+}

@@ -1,0 +1,8 @@
+---
+import AdminLayout from '../../layouts/AdminLayout.astro';
+import CronMonitor from '../../components/admin/CronMonitor.svelte';
+---
+
+<AdminLayout title="Cron Jobs" activeTab="crons">
+  <CronMonitor client:load />
+</AdminLayout>

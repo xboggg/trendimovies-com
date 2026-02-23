@@ -1,0 +1,147 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import HeroCarousel from '../components/HeroCarousel.svelte';
+import ContentRow from '../components/ContentRow.svelte';
+import { getTrendingMovies, getNowPlayingMovies, getPopularMovies, getTopRatedMovies, getTrendingTV, getPopularTV, discoverMovies } from '../lib/tmdb';
+
+// Fetch all data from TMDB in parallel
+const [trending, nowPlaying, popular, topRated, trendingTV, popularTV, actionMovies, comedyMovies] = await Promise.all([
+  getTrendingMovies('week'),
+  getNowPlayingMovies(),
+  getPopularMovies(),
+  getTopRatedMovies(),
+  getTrendingTV('week'),
+  getPopularTV(),
+  discoverMovies({ with_genres: '28', sort_by: 'popularity.desc' }),
+  discoverMovies({ with_genres: '35', sort_by: 'popularity.desc' })
+]);
+
+// Transform for components
+function transformMovie(m: any) {
+  return {
+    id: m.id,
+    tmdb_id: m.id,
+    title: m.title,
+    poster_path: m.poster_path,
+    backdrop_path: m.backdrop_path,
+    vote_average: m.vote_average,
+    year: m.release_date ? new Date(m.release_date).getFullYear() : null,
+    overview: m.overview,
+    genre_ids: m.genre_ids,
+    type: 'movie' as const
+  };
+}
+
+function transformTV(t: any) {
+  return {
+    id: t.id,
+    tmdb_id: t.id,
+    title: t.name,
+    poster_path: t.poster_path,
+    backdrop_path: t.backdrop_path,
+    vote_average: t.vote_average,
+    year: t.first_air_date ? new Date(t.first_air_date).getFullYear() : null,
+    overview: t.overview,
+    type: 'series' as const
+  };
+}
+
+const trendingItems = (trending || []).slice(0, 10).map(transformMovie);
+const featured = trendingItems[0] || null;
+const nowPlayingItems = (nowPlaying || []).map(transformMovie);
+const popularItems = (popular || []).map(transformMovie);
+const topRatedItems = (topRated || []).map(transformMovie);
+const tvItems = (trendingTV || []).map(transformTV);
+const popularTVItems = (popularTV || []).map(transformTV);
+const actionItems = (actionMovies?.results || []).slice(0, 15).map(transformMovie);
+const comedyItems = (comedyMovies?.results || []).slice(0, 15).map(transformMovie);
+---
+
+<BaseLayout title="Watch Movies & TV Series Online Free">
+  <!-- Hero Section -->
+  <HeroCarousel
+    client:load
+    featured={featured}
+    trending={trendingItems}
+  />
+
+  <!-- Now Playing -->
+  {nowPlayingItems.length > 0 && (
+    <ContentRow
+      client:visible
+      title="Now Playing in Theaters"
+      items={nowPlayingItems}
+      seeAllLink="/movies?filter=now_playing"
+    />
+  )}
+
+  <!-- Trending Movies -->
+  {trendingItems.length > 0 && (
+    <ContentRow
+      client:visible
+      title="Trending This Week"
+      items={trendingItems}
+      seeAllLink="/trending"
+    />
+  )}
+
+  <!-- Popular Movies -->
+  {popularItems.length > 0 && (
+    <ContentRow
+      client:visible
+      title="Popular Movies"
+      items={popularItems}
+      seeAllLink="/movies"
+    />
+  )}
+
+  <!-- Top Rated -->
+  {topRatedItems.length > 0 && (
+    <ContentRow
+      client:visible
+      title="Top Rated"
+      items={topRatedItems}
+      seeAllLink="/top-rated"
+    />
+  )}
+
+  <!-- Trending TV -->
+  {tvItems.length > 0 && (
+    <ContentRow
+      client:visible
+      title="Trending TV Series"
+      items={tvItems}
+      seeAllLink="/series"
+    />
+  )}
+
+  <!-- Popular TV -->
+  {popularTVItems.length > 0 && (
+    <ContentRow
+      client:visible
+      title="Popular TV Series"
+      items={popularTVItems}
+      seeAllLink="/series"
+    />
+  )}
+
+  <!-- Action Movies -->
+  {actionItems.length > 0 && (
+    <ContentRow
+      client:visible
+      title="Action Movies"
+      items={actionItems}
+      seeAllLink="/genre/action"
+    />
+  )}
+
+  <!-- Comedy Movies -->
+  {comedyItems.length > 0 && (
+    <ContentRow
+      client:visible
+      title="Comedy Movies"
+      items={comedyItems}
+      seeAllLink="/genre/comedy"
+    />
+  )}
+</BaseLayout>

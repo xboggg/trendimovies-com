@@ -1,0 +1,126 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import MovieCard from '../../components/MovieCard.svelte';
+import { discoverMovies } from '../../lib/tmdb';
+
+const { slug } = Astro.params;
+
+// Genre mapping
+const genreMap: Record<string, { id: number; name: string }> = {
+  'action': { id: 28, name: 'Action' },
+  'adventure': { id: 12, name: 'Adventure' },
+  'animation': { id: 16, name: 'Animation' },
+  'comedy': { id: 35, name: 'Comedy' },
+  'crime': { id: 80, name: 'Crime' },
+  'documentary': { id: 99, name: 'Documentary' },
+  'drama': { id: 18, name: 'Drama' },
+  'family': { id: 10751, name: 'Family' },
+  'fantasy': { id: 14, name: 'Fantasy' },
+  'history': { id: 36, name: 'History' },
+  'horror': { id: 27, name: 'Horror' },
+  'music': { id: 10402, name: 'Music' },
+  'mystery': { id: 9648, name: 'Mystery' },
+  'romance': { id: 10749, name: 'Romance' },
+  'science-fiction': { id: 878, name: 'Science Fiction' },
+  'sci-fi': { id: 878, name: 'Science Fiction' },
+  'thriller': { id: 53, name: 'Thriller' },
+  'war': { id: 10752, name: 'War' },
+  'western': { id: 37, name: 'Western' }
+};
+
+const genre = genreMap[slug?.toLowerCase() || ''];
+
+if (!genre) {
+  return Astro.redirect('/movies');
+}
+
+// Get query params
+const page = parseInt(Astro.url.searchParams.get('page') || '1');
+
+// Fetch movies with this genre from TMDB
+const response = await discoverMovies({
+  with_genres: genre.id.toString(),
+  sort_by: 'popularity.desc',
+  page: page.toString(),
+  'vote_count.gte': '10'
+});
+
+const movies = response.results || [];
+const totalPages = Math.min(response.total_pages || 1, 500);
+
+function transformToItem(movie: any) {
+  return {
+    id: movie.id,
+    tmdb_id: movie.id,
+    title: movie.title,
+    poster_path: movie.poster_path,
+    vote_average: movie.vote_average,
+    year: movie.release_date ? new Date(movie.release_date).getFullYear() : null,
+    type: 'movie' as const
+  };
+}
+---
+
+<BaseLayout title={`${genre.name} Movies`} description={`Browse ${genre.name} movies available for streaming`}>
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <h1 class="text-3xl font-bold mb-8" style="color: var(--text-primary);">{genre.name} Movies</h1>
+
+    <!-- Movie Grid -->
+    {movies.length > 0 ? (
+      <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
+        {movies.map(movie => (
+          <MovieCard client:visible item={transformToItem(movie)} />
+        ))}
+      </div>
+    ) : (
+      <div class="text-center py-16">
+        <p style="color: var(--text-secondary);">No {genre.name.toLowerCase()} movies found</p>
+      </div>
+    )}
+
+    <!-- Pagination -->
+    {totalPages > 1 && (
+      <div class="flex justify-center mt-8 gap-2">
+        {page > 1 && (
+          <a
+            href={`/genre/${slug}?page=${page - 1}`}
+            class="px-4 py-2 rounded-lg"
+            style="background-color: var(--bg-card); color: var(--text-primary); border: 1px solid var(--border);"
+          >
+            Previous
+          </a>
+        )}
+
+        <span class="px-4 py-2" style="color: var(--text-secondary);">
+          Page {page} of {totalPages}
+        </span>
+
+        {page < totalPages && (
+          <a
+            href={`/genre/${slug}?page=${page + 1}`}
+            class="px-4 py-2 rounded-lg"
+            style="background-color: var(--bg-card); color: var(--text-primary); border: 1px solid var(--border);"
+          >
+            Next
+          </a>
+        )}
+      </div>
+    )}
+
+    <!-- Other Genres -->
+    <div class="mt-12">
+      <h2 class="text-xl font-semibold mb-4" style="color: var(--text-primary);">Browse by Genre</h2>
+      <div class="flex flex-wrap gap-2">
+        {Object.entries(genreMap).filter(([key]) => !['sci-fi'].includes(key)).map(([genreSlug, g]) => (
+          <a
+            href={`/genre/${genreSlug}`}
+            class={`px-4 py-2 rounded-full text-sm transition-colors ${genreSlug === slug ? 'bg-[var(--accent)] text-white' : ''}`}
+            style={genreSlug !== slug ? "background-color: var(--bg-card); color: var(--text-primary); border: 1px solid var(--border);" : ""}
+          >
+            {g.name}
+          </a>
+        ))}
+      </div>
+    </div>
+  </div>
+</BaseLayout>

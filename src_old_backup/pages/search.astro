@@ -1,0 +1,30 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import SearchResults from '../components/SearchResults.svelte';
+
+const query = Astro.url.searchParams.get('q') || '';
+const type = Astro.url.searchParams.get('type') || 'all';
+const year = Astro.url.searchParams.get('year') || '';
+const genre = Astro.url.searchParams.get('genre') || '';
+const language = Astro.url.searchParams.get('language') || '';
+---
+
+<BaseLayout
+  title={query ? `Search: ${query}` : 'Search'}
+  description="Search for movies and TV series"
+>
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <h1 class="text-3xl font-bold mb-8" style="color: var(--text-primary);">
+      {query ? `Results for "${query}"` : 'Search'}
+    </h1>
+
+    <SearchResults
+      client:load
+      initialQuery={query}
+      initialType={type}
+      initialYear={year}
+      initialGenre={genre}
+      initialLanguage={language}
+    />
+  </div>
+</BaseLayout>

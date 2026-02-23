@@ -1,0 +1,72 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import MovieCard from '../components/MovieCard.svelte';
+import { getTopRatedMovies, getTopRatedTV } from '../lib/tmdb';
+
+// Fetch top rated from TMDB
+const [topMovies, topTV] = await Promise.all([
+  getTopRatedMovies(),
+  getTopRatedTV()
+]);
+
+function transformMovie(movie: any) {
+  return {
+    id: movie.id,
+    tmdb_id: movie.id,
+    title: movie.title,
+    poster_path: movie.poster_path,
+    vote_average: movie.vote_average,
+    year: movie.release_date ? new Date(movie.release_date).getFullYear() : null,
+    type: 'movie' as const
+  };
+}
+
+function transformSeries(show: any) {
+  return {
+    id: show.id,
+    tmdb_id: show.id,
+    title: show.name,
+    poster_path: show.poster_path,
+    vote_average: show.vote_average,
+    year: show.first_air_date ? new Date(show.first_air_date).getFullYear() : null,
+    type: 'series' as const
+  };
+}
+
+const movies = topMovies.map(transformMovie);
+const series = topTV.map(transformSeries);
+---
+
+<BaseLayout title="Top Rated" description="Highest rated movies and TV series">
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <h1 class="text-3xl font-bold mb-8" style="color: var(--text-primary);">Top Rated</h1>
+
+    <!-- Top Rated Movies -->
+    <section class="mb-12">
+      <h2 class="text-2xl font-semibold mb-6" style="color: var(--text-primary);">Movies</h2>
+      {movies.length > 0 ? (
+        <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
+          {movies.map(movie => (
+            <MovieCard client:visible item={movie} />
+          ))}
+        </div>
+      ) : (
+        <p style="color: var(--text-secondary);">No movies found</p>
+      )}
+    </section>
+
+    <!-- Top Rated Series -->
+    <section>
+      <h2 class="text-2xl font-semibold mb-6" style="color: var(--text-primary);">TV Series</h2>
+      {series.length > 0 ? (
+        <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
+          {series.map(show => (
+            <MovieCard client:visible item={show} />
+          ))}
+        </div>
+      ) : (
+        <p style="color: var(--text-secondary);">No series found</p>
+      )}
+    </section>
+  </div>
+</BaseLayout>

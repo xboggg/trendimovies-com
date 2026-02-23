@@ -1,0 +1,153 @@
+import { e as createComponent, k as renderComponent, r as renderTemplate, m as maybeRenderHead, g as addAttribute } from '../chunks/astro/server_Di6iaaQd.mjs';
+import 'piccolore';
+import { $ as $$BaseLayout } from '../chunks/BaseLayout_B64ZId-j.mjs';
+import { f as fetchFromTMDB } from '../chunks/tmdb_DKnoDzGN.mjs';
+export { r as renderers } from '../chunks/_@astro-renderers_DbfXOWuU.mjs';
+
+const $$Franchises = createComponent(async ($$result, $$props, $$slots) => {
+  const franchiseCollections = {
+    // Superhero Franchises
+    "mcu": { name: "Marvel Cinematic Universe", collectionId: 529892, color: "#e23636" },
+    "dceu": { name: "DC Extended Universe", collectionId: 209131, color: "#0476F2" },
+    "spider-man": { name: "Spider-Man", collectionId: 531241, color: "#E62429" },
+    "x-men": { name: "X-Men", collectionId: 748, color: "#FFD700" },
+    "batman": { name: "Batman Collection", collectionId: 263, color: "#1a1a1a" },
+    "superman": { name: "Superman Collection", collectionId: 8537, color: "#0476F2" },
+    // Action Franchises
+    "james-bond": { name: "James Bond 007", collectionId: 645, color: "#000000" },
+    "mission-impossible": { name: "Mission: Impossible", collectionId: 87359, color: "#C41E3A" },
+    "fast-furious": { name: "Fast & Furious", collectionId: 9485, color: "#FF6B00" },
+    "john-wick": { name: "John Wick", collectionId: 404609, color: "#1a1a1a" },
+    "bourne": { name: "The Bourne Collection", collectionId: 31562, color: "#2E8B57" },
+    "die-hard": { name: "Die Hard", collectionId: 1570, color: "#8B0000" },
+    "rambo": { name: "Rambo Collection", collectionId: 5039, color: "#228B22" },
+    "rocky": { name: "Rocky Collection", collectionId: 1575, color: "#C41E3A" },
+    "terminator": { name: "Terminator", collectionId: 528, color: "#C0C0C0" },
+    "mad-max": { name: "Mad Max Collection", collectionId: 8945, color: "#FF4500" },
+    "matrix": { name: "The Matrix", collectionId: 2344, color: "#00FF00" },
+    "expendables": { name: "The Expendables", collectionId: 126125, color: "#333333" },
+    // Sci-Fi Franchises
+    "star-wars": { name: "Star Wars", collectionId: 10, color: "#FFE81F" },
+    "transformers": { name: "Transformers", collectionId: 8650, color: "#1E90FF" },
+    "alien": { name: "Alien Collection", collectionId: 8091, color: "#006400" },
+    "predator": { name: "Predator Collection", collectionId: 399, color: "#228B22" },
+    "planet-apes": { name: "Planet of the Apes", collectionId: 1709, color: "#8B4513" },
+    "avatar": { name: "Avatar", collectionId: 87096, color: "#00CED1" },
+    "back-to-future": { name: "Back to the Future", collectionId: 264, color: "#FF6B00" },
+    "men-in-black": { name: "Men in Black", collectionId: 86055, color: "#000000" },
+    "godzilla": { name: "Godzilla Collection", collectionId: 535313, color: "#228B22" },
+    "jurassic": { name: "Jurassic Park / World", collectionId: 328, color: "#228B22" },
+    // Fantasy Franchises
+    "harry-potter": { name: "Harry Potter", collectionId: 1241, color: "#946B2D" },
+    "lord-of-rings": { name: "The Lord of the Rings", collectionId: 119, color: "#C9B037" },
+    "hobbit": { name: "The Hobbit", collectionId: 121938, color: "#C9B037" },
+    "narnia": { name: "Chronicles of Narnia", collectionId: 420, color: "#87CEEB" },
+    "pirates": { name: "Pirates of the Caribbean", collectionId: 295, color: "#8B0000" },
+    "fantastic-beasts": { name: "Fantastic Beasts", collectionId: 435259, color: "#946B2D" },
+    // Horror Franchises
+    "conjuring": { name: "The Conjuring Universe", collectionId: 313086, color: "#4A0E0E" },
+    "insidious": { name: "Insidious Collection", collectionId: 228446, color: "#8B0000" },
+    "halloween": { name: "Halloween Collection", collectionId: 126209, color: "#FF4500" },
+    "saw": { name: "Saw Collection", collectionId: 656, color: "#8B0000" },
+    "nightmare-elm": { name: "A Nightmare on Elm Street", collectionId: 8581, color: "#C41E3A" },
+    "friday-13th": { name: "Friday the 13th", collectionId: 9735, color: "#8B0000" },
+    "scream": { name: "Scream Collection", collectionId: 2602, color: "#000000" },
+    "it": { name: "IT Collection", collectionId: 477962, color: "#C41E3A" },
+    "purge": { name: "The Purge Collection", collectionId: 256322, color: "#8B0000" },
+    // Animation Franchises
+    "toy-story": { name: "Toy Story", collectionId: 10194, color: "#1E90FF" },
+    "shrek": { name: "Shrek", collectionId: 2150, color: "#228B22" },
+    "minions": { name: "Despicable Me / Minions", collectionId: 86066, color: "#FFD700" },
+    "kung-fu-panda": { name: "Kung Fu Panda", collectionId: 77816, color: "#000000" },
+    "how-train-dragon": { name: "How to Train Your Dragon", collectionId: 89137, color: "#228B22" },
+    "ice-age": { name: "Ice Age", collectionId: 8354, color: "#87CEEB" },
+    "madagascar": { name: "Madagascar", collectionId: 14740, color: "#FFD700" },
+    "cars": { name: "Cars Collection", collectionId: 87118, color: "#FF4500" },
+    "incredibles": { name: "The Incredibles", collectionId: 468222, color: "#C41E3A" },
+    "finding-nemo": { name: "Finding Nemo", collectionId: 137697, color: "#FF6B00" },
+    "frozen": { name: "Frozen Collection", collectionId: 386382, color: "#87CEEB" },
+    "hotel-transylvania": { name: "Hotel Transylvania", collectionId: 185103, color: "#4B0082" },
+    "boss-baby": { name: "The Boss Baby", collectionId: 519160, color: "#1E90FF" },
+    "trolls": { name: "Trolls Collection", collectionId: 489724, color: "#FF69B4" },
+    "croods": { name: "The Croods", collectionId: 464577, color: "#FF6B00" },
+    // Comedy Franchises
+    "hangover": { name: "The Hangover", collectionId: 86119, color: "#FF6B00" },
+    "bad-boys": { name: "Bad Boys Collection", collectionId: 14890, color: "#FF6B00" },
+    "austin-powers": { name: "Austin Powers", collectionId: 1006, color: "#FF69B4" },
+    "rush-hour": { name: "Rush Hour Collection", collectionId: 90863, color: "#C41E3A" },
+    "jump-street": { name: "21/22 Jump Street", collectionId: 212562, color: "#1E90FF" },
+    "ace-ventura": { name: "Ace Ventura", collectionId: 3167, color: "#228B22" },
+    "pink-panther": { name: "Pink Panther", collectionId: 9325, color: "#FF69B4" },
+    // Crime/Thriller Franchises
+    "oceans": { name: "Ocean's Trilogy", collectionId: 304, color: "#FFD700" },
+    "godfather": { name: "The Godfather", collectionId: 230, color: "#1a1a1a" },
+    "taken": { name: "Taken Collection", collectionId: 135483, color: "#333333" },
+    "sicario": { name: "Sicario Collection", collectionId: 467298, color: "#8B4513" },
+    "now-you-see-me": { name: "Now You See Me", collectionId: 382685, color: "#4B0082" },
+    // Adventure Franchises
+    "indiana-jones": { name: "Indiana Jones", collectionId: 84, color: "#8B4513" },
+    "national-treasure": { name: "National Treasure", collectionId: 52984, color: "#C9B037" },
+    "mummy": { name: "The Mummy", collectionId: 1733, color: "#C9B037" },
+    "tomb-raider": { name: "Tomb Raider", collectionId: 2467, color: "#333333" },
+    "maze-runner": { name: "Maze Runner", collectionId: 295130, color: "#228B22" },
+    "hunger-games": { name: "The Hunger Games", collectionId: 131635, color: "#FF4500" },
+    "divergent": { name: "Divergent Collection", collectionId: 283579, color: "#C41E3A" }
+  };
+  async function getCollectionDetails(collectionId) {
+    try {
+      return await fetchFromTMDB(`/collection/${collectionId}`);
+    } catch (e) {
+      console.error(`Failed to fetch collection ${collectionId}:`, e);
+      return null;
+    }
+  }
+  const collectionPromises = Object.entries(franchiseCollections).map(async ([slug, info]) => {
+    const data = await getCollectionDetails(info.collectionId);
+    if (!data) return null;
+    return {
+      slug,
+      name: info.name,
+      color: info.color,
+      backdrop_path: data.backdrop_path,
+      poster_path: data.poster_path,
+      overview: data.overview,
+      movies: (data.parts || []).sort((a, b) => {
+        const dateA = a.release_date ? new Date(a.release_date).getTime() : 0;
+        const dateB = b.release_date ? new Date(b.release_date).getTime() : 0;
+        return dateA - dateB;
+      }),
+      totalMovies: data.parts?.length || 0
+    };
+  });
+  const collectionsData = await Promise.all(collectionPromises);
+  const franchises = collectionsData.filter((f) => f !== null);
+  franchises.sort((a, b) => b.totalMovies - a.totalMovies);
+  function getPosterUrl(path) {
+    if (!path) return "/images/no-poster.svg";
+    return `https://image.tmdb.org/t/p/w342${path}`;
+  }
+  function getBackdropUrl(path) {
+    if (!path) return "/images/no-backdrop.svg";
+    return `https://image.tmdb.org/t/p/w1280${path}`;
+  }
+  return renderTemplate`${renderComponent($$result, "BaseLayout", $$BaseLayout, { "title": "Movie Franchises - Complete Collections", "description": "Explore complete movie franchise collections including Marvel, DC, Star Wars, Harry Potter, and more." }, { "default": async ($$result2) => renderTemplate`  ${maybeRenderHead()}<section class="relative py-12 overflow-hidden"> <div class="absolute inset-0 bg-gradient-to-br from-purple-900/30 via-transparent to-blue-900/30"></div> <div class="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8"> <div class="text-center"> <h1 class="text-3xl md:text-5xl font-black mb-4" style="color: var(--text-primary);"> <span class="text-purple-500">🎬</span> Movie Franchises
+</h1> <p class="text-lg" style="color: var(--text-secondary);">
+Explore complete movie collections and franchise universes
+</p> </div> </div> </section>  <section class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8"> <div class="space-y-12"> ${franchises.map((franchise) => renderTemplate`<div class="rounded-2xl overflow-hidden" style="background-color: var(--bg-card); border: 1px solid var(--border);"> <!-- Franchise Header --> <div class="relative h-48 md:h-64"> <img${addAttribute(getBackdropUrl(franchise.backdrop_path), "src")}${addAttribute(franchise.name, "alt")} class="w-full h-full object-cover"> <div class="absolute inset-0 bg-gradient-to-t from-black via-black/60 to-transparent"></div> <div class="absolute inset-0"${addAttribute(`background: linear-gradient(135deg, ${franchise.color}33, transparent);`, "style")}></div> <div class="absolute bottom-0 left-0 right-0 p-6"> <div class="flex items-end justify-between"> <div> <h2 class="text-2xl md:text-3xl font-black text-white mb-2"> ${franchise.name} </h2> <p class="text-sm text-gray-300"> ${franchise.totalMovies} Movies
+</p> </div> <div class="px-4 py-2 rounded-full text-sm font-bold"${addAttribute(`background-color: ${franchise.color}; color: ${franchise.color === "#FFE81F" || franchise.color === "#FFD700" ? "#000" : "#fff"};`, "style")}>
+Collection
+</div> </div> </div> </div> <!-- Movies Grid - Show ALL movies --> <div class="p-6"> <div class="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 xl:grid-cols-12 gap-3"> ${franchise.movies.map((movie) => renderTemplate`<a${addAttribute(`/movie/${movie.id}`, "href")} class="group"> <div class="relative aspect-[2/3] rounded-lg overflow-hidden mb-2"> <img${addAttribute(getPosterUrl(movie.poster_path), "src")}${addAttribute(movie.title, "alt")} class="w-full h-full object-cover transition-transform group-hover:scale-110" loading="lazy"> <div class="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"> <span class="text-white text-xs font-medium">View</span> </div> </div> <p class="text-xs font-medium line-clamp-2" style="color: var(--text-primary);"> ${movie.title} </p> <p class="text-xs" style="color: var(--text-muted);"> ${movie.release_date ? new Date(movie.release_date).getFullYear() : "TBA"} </p> </a>`)} </div> </div> </div>`)} </div> </section> ` })}`;
+}, "/var/www/trendimovies/src/pages/franchises.astro", void 0);
+const $$file = "/var/www/trendimovies/src/pages/franchises.astro";
+const $$url = "/franchises";
+
+const _page = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
+  __proto__: null,
+  default: $$Franchises,
+  file: $$file,
+  url: $$url
+}, Symbol.toStringTag, { value: 'Module' }));
+
+const page = () => _page;
+
+export { page };

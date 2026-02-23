@@ -1,0 +1,15 @@
+User-Agent: *
+Allow: /
+Disallow: /api/
+Disallow: /admin/
+Disallow: /tgstream/
+
+User-Agent: Googlebot
+Allow: /
+
+User-Agent: Bingbot
+Allow: /
+
+Sitemap: https://trendimovies.com/sitemap.xml
+Sitemap: https://trendimovies.com/sitemap-movies.xml
+Sitemap: https://trendimovies.com/sitemap-series.xml

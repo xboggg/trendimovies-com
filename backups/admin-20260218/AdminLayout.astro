@@ -1,0 +1,61 @@
+---
+import { getSessionFromCookies } from '../lib/admin-auth';
+import Sidebar from '../components/admin/Sidebar.svelte';
+import '../styles/global.css';
+import '../styles/admin.css';
+
+interface Props {
+  title: string;
+  activeTab?: string;
+}
+
+const { title, activeTab = 'dashboard' } = Astro.props;
+
+// Auth check - redirect to login if no valid session
+const session = getSessionFromCookies(Astro.request.headers.get('cookie'));
+if (!session) {
+  return Astro.redirect('/admin/login');
+}
+---
+
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="robots" content="noindex, nofollow">
+  <title>{title} | TrendiMovies Admin</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Inter', sans-serif;
+      background-color: #0a0a0a;
+      color: #ffffff;
+      min-height: 100vh;
+    }
+    /* Explicit sidebar offset for main content */
+    .admin-main {
+      margin-left: 256px;
+      min-height: 100vh;
+    }
+  </style>
+</head>
+<body class="admin-scrollbar">
+  <Sidebar client:load activeTab={activeTab} />
+
+  <main class="admin-main">
+    <!-- Header -->
+    <header class="sticky top-0 z-40 bg-[#0a0a0a]/80 backdrop-blur-lg border-b border-[#2a2a2a]">
+      <div class="px-6 py-4">
+        <h1 class="text-2xl font-bold">{title}</h1>
+      </div>
+    </header>
+
+    <!-- Content -->
+    <div class="p-6">
+      <slot />
+    </div>
+  </main>
+</body>
+</html>

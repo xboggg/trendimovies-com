@@ -1,0 +1,51 @@
+---
+interface Props {
+  series: {
+    title: string;
+    overview?: string;
+    first_air_date?: string;
+    number_of_seasons?: number;
+    number_of_episodes?: number;
+    genres?: { name: string }[];
+    vote_average?: number;
+    vote_count?: number;
+    poster_path?: string;
+    cast_data?: { name: string }[];
+  };
+  tmdbId: number;
+}
+
+const { series, tmdbId } = Astro.props;
+
+const ogImage = series.poster_path
+  ? `https://image.tmdb.org/t/p/w780${series.poster_path}`
+  : 'https://trendimovies.com/images/og-default.jpg';
+
+const jsonLd = {
+  "@context": "https://schema.org",
+  "@type": "TVSeries",
+  "name": series.title,
+  "description": series.overview || "",
+  "image": ogImage,
+  "datePublished": series.first_air_date || undefined,
+  "genre": series.genres?.map((g) => g.name) || [],
+  "numberOfSeasons": series.number_of_seasons || undefined,
+  "numberOfEpisodes": series.number_of_episodes || undefined,
+  "actor": (series.cast_data || []).slice(0, 10).map((a) => ({
+    "@type": "Person",
+    "name": a.name
+  })),
+  "aggregateRating": series.vote_average ? {
+    "@type": "AggregateRating",
+    "ratingValue": series.vote_average,
+    "bestRating": 10,
+    "ratingCount": series.vote_count || 1
+  } : undefined,
+  "url": `https://trendimovies.com/tv/${tmdbId}`
+};
+
+// Remove undefined values
+const cleanJsonLd = JSON.parse(JSON.stringify(jsonLd));
+---
+
+<script type="application/ld+json" set:html={JSON.stringify(cleanJsonLd)} />
