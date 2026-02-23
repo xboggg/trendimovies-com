@@ -130,10 +130,10 @@
     <ChevronRight size={24} class="text-white md:w-8 md:h-8" />
   </button>
 
-  <div class="relative h-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-12">
-    <div class="flex h-full items-center pt-16 md:pt-20">
+  <div class="relative h-full">
+    <div class="flex h-full items-center pt-16 md:pt-20 px-4 sm:px-6 lg:px-12">
       {#if currentItem}
-        <div class="flex-1 flex items-center gap-12">
+        <div class="flex-1 flex items-center gap-12 max-w-7xl mx-auto">
           <!-- Content -->
           <div class="flex-1 max-w-2xl">
             <!-- Type Badge -->
