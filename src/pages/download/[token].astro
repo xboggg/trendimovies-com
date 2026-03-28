@@ -33,10 +33,8 @@ if (isValid && link) {
       .single();
     if (movie) contentTitle = movie.title;
   } else if (tokenData.content_type === 'episode') {
-    // Fetch episode with season and series info for title display
     const POSTGREST_URL = import.meta.env.PUBLIC_SUPABASE_URL || 'http://localhost:3001';
     try {
-      // Get episode
       const epResp = await fetch(
         `${POSTGREST_URL}/episodes?id=eq.${tokenData.content_id}&select=name,episode_number,season_id,series_id`,
         { headers: { 'Accept-Profile': 'public' }, signal: AbortSignal.timeout(5000) }
@@ -45,14 +43,12 @@ if (isValid && link) {
         const epData = await epResp.json();
         if (epData.length > 0) {
           const ep = epData[0];
-          // Get season number
           const seasonResp = await fetch(
             `${POSTGREST_URL}/seasons?id=eq.${ep.season_id}&select=season_number`,
             { headers: { 'Accept-Profile': 'public' }, signal: AbortSignal.timeout(5000) }
           );
           const seasonData = seasonResp.ok ? await seasonResp.json() : [];
           const seasonNum = seasonData.length > 0 ? seasonData[0].season_number : 0;
-          // Get series title
           const seriesResp = await fetch(
             `${POSTGREST_URL}/series?id=eq.${ep.series_id}&select=title`,
             { headers: { 'Accept-Profile': 'public' }, signal: AbortSignal.timeout(5000) }
@@ -86,7 +82,7 @@ function getQualityLabel(quality: string): string {
     <div class="max-w-md w-full text-center">
       {!isValid ? (
         <div class="rounded-lg p-8" style="background-color: var(--bg-card); border: 1px solid var(--border);">
-          <div class="text-4xl mb-4">❌</div>
+          <div class="text-4xl mb-4">&#x274C;</div>
           <h1 class="text-xl font-bold mb-2" style="color: var(--text-primary);">Link Expired or Invalid</h1>
           <p class="mb-4" style="color: var(--text-secondary);">
             This download link has expired or is invalid. Please go back and try again.
@@ -97,77 +93,36 @@ function getQualityLabel(quality: string): string {
         </div>
       ) : (
         <div class="rounded-lg p-8" style="background-color: var(--bg-card); border: 1px solid var(--border);">
-          <div class="text-4xl mb-4">📥</div>
+          <div class="text-4xl mb-4">&#x1F4E5;</div>
           <h1 class="text-xl font-bold mb-2" style="color: var(--text-primary);">{contentTitle}</h1>
           <p class="text-sm mb-1" style="color: var(--text-secondary);">
             Quality: {getQualityLabel(link.quality)}
           </p>
           {link.file_size && (
-            <p class="text-sm mb-4" style="color: var(--text-muted);">
+            <p class="text-sm mb-6" style="color: var(--text-muted);">
               Size: {link.file_size}
             </p>
           )}
 
-          <!-- Countdown Timer -->
-          <div id="countdown-container" class="mb-6">
-            <p class="text-sm mb-2" style="color: var(--text-secondary);">
-              Your download will start in
-            </p>
-            <div id="countdown" class="text-3xl font-bold" style="color: var(--accent);">
-              5
-            </div>
-          </div>
-
-          <!-- Ad Placeholder -->
-          <div class="mb-6 p-4 rounded" style="background-color: var(--bg-secondary); border: 1px dashed var(--border);">
-            <p class="text-xs" style="color: var(--text-muted);">Advertisement</p>
-            <!-- Insert ad code here -->
-          </div>
-
-          <!-- Download Button (hidden initially) -->
-          <div id="download-btn" style="display: none;">
-            <a
-              href={downloadUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              class="btn-primary inline-flex items-center gap-2 text-lg px-8 py-3"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                <polyline points="7 10 12 15 17 10"></polyline>
-                <line x1="12" y1="15" x2="12" y2="3"></line>
-              </svg>
-              Download Now
-            </a>
-          </div>
+          <a
+            href={downloadUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            class="btn-primary inline-flex items-center gap-2 text-lg px-8 py-3"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+              <polyline points="7 10 12 15 17 10"></polyline>
+              <line x1="12" y1="15" x2="12" y2="3"></line>
+            </svg>
+            Download Now
+          </a>
 
           <p class="text-xs mt-4" style="color: var(--text-muted);">
-            If download doesn't start, click the button above.
+            Click the button to start your download.
           </p>
         </div>
       )}
     </div>
   </div>
-
-  <script define:vars={{ downloadUrl }}>
-    if (downloadUrl) {
-      let countdown = 5;
-      const countdownEl = document.getElementById('countdown');
-      const countdownContainer = document.getElementById('countdown-container');
-      const downloadBtn = document.getElementById('download-btn');
-
-      const timer = setInterval(() => {
-        countdown--;
-        if (countdownEl) countdownEl.textContent = countdown.toString();
-
-        if (countdown <= 0) {
-          clearInterval(timer);
-          if (countdownContainer) countdownContainer.style.display = 'none';
-          if (downloadBtn) downloadBtn.style.display = 'block';
-          // Auto-start download
-          window.open(downloadUrl, '_blank');
-        }
-      }, 1000);
-    }
-  </script>
 </BaseLayout>

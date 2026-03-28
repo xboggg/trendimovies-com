@@ -3,10 +3,7 @@ import BaseLayout from '../layouts/BaseLayout.astro';
 import HeroCarousel from '../components/HeroCarousel.svelte';
 import ContentRow from '../components/ContentRow.svelte';
 import FeaturedSection from '../components/FeaturedSection.svelte';
-import Collections from '../components/Collections.svelte';
-import PickYourMood from '../components/PickYourMood.svelte';
-import ContinueWatching from '../components/ContinueWatching.svelte';
-import { getTrendingMovies, getNowPlayingMovies, getPopularMovies, getTopRatedMovies, getTrendingTV, getPopularTV, getOnTheAirTV, discoverMovies, getMovieDetails, getMovieGenres, getTVDetails, searchMovies, discoverTV } from '../lib/tmdb';
+import { getTrendingMovies, getNowPlayingMovies, getPopularMovies, getTopRatedMovies, getTrendingTV, getPopularTV, getOnTheAirTV, discoverMovies, getMovieDetails, getMovieGenres, getTVDetails, searchMovies } from '../lib/tmdb';
 
 const POSTGREST_URL = import.meta.env.PUBLIC_SUPABASE_URL || 'http://localhost:3001';
 
@@ -34,11 +31,11 @@ threeMonthsLater.setMonth(threeMonthsLater.getMonth() + 3);
 const futureStr = threeMonthsLater.toISOString().split('T')[0];
 
 // Fetch all data from TMDB and our database in parallel
-const [trending, nowPlaying, popular, topRated, upcomingData, trendingTV, popularTV, onTheAirTV, actionMovies, comedyMovies, romanceMovies, thrillerMovies, animeMovies, kDramaTV, movieGenres, latestAdditions] = await Promise.all([
+const [trending, nowPlaying, popular, topRatedRecent, upcomingData, trendingTV, popularTV, onTheAirTV, actionMovies, comedyMovies, romanceMovies, thrillerMovies, animeMovies, kDramaMovies, movieGenres, latestAdditions] = await Promise.all([
   getTrendingMovies('week'),
   getNowPlayingMovies(),
   getPopularMovies(),
-  getTopRatedMovies(),
+  discoverMovies({ sort_by: 'vote_average.desc', 'vote_count.gte': '1000', 'primary_release_date.gte': '2015-01-01' }),
   discoverMovies({
     'primary_release_date.gte': tomorrowStr,
     'primary_release_date.lte': futureStr,
@@ -51,8 +48,8 @@ const [trending, nowPlaying, popular, topRated, upcomingData, trendingTV, popula
   discoverMovies({ with_genres: '35', sort_by: 'popularity.desc' }),
   discoverMovies({ with_genres: '10749', sort_by: 'popularity.desc' }),
   discoverMovies({ with_genres: '53', sort_by: 'popularity.desc' }),
-  discoverMovies({ with_genres: '16', with_original_language: 'ja', sort_by: 'popularity.desc' }),
-  discoverTV({ with_original_language: 'ko', sort_by: 'popularity.desc' }),
+  discoverMovies({ with_genres: '16', with_original_language: 'ja', sort_by: 'vote_average.desc', 'vote_count.gte': '500' }),
+  discoverMovies({ with_original_language: 'ko', sort_by: 'vote_average.desc', 'vote_count.gte': '200' }),
   getMovieGenres(),
   getLatestAdditions()
 ]);
@@ -148,7 +145,7 @@ const trendingItems = (trending || []).slice(0, 20).map(transformMovie);
 const featured = heroItems[0] || null;
 const nowPlayingItems = (nowPlaying || []).map(transformMovie);
 const popularItems = (popular || []).map(transformMovie);
-const topRatedItems = (topRated || []).map(transformMovie);
+const topRatedItems = (topRatedRecent?.results || []).slice(0, 20).map(transformMovie);
 
 // Transform latest additions from database
 const latestAdditionItems = (latestAdditions || []).map(transformDbMovie);
@@ -161,7 +158,6 @@ const upcomingItems = (upcoming || []).map((m: any) => ({
   poster_path: m.poster_path,
   vote_average: m.vote_average,
   year: m.release_date ? new Date(m.release_date).getFullYear() : null,
-    release_date: m.release_date || null,
   release_date: m.release_date,
   type: 'movie' as const
 }));
@@ -190,7 +186,7 @@ const comedyItems = (comedyMovies?.results || []).slice(0, 15).map(transformMovi
 const romanceItems = (romanceMovies?.results || []).slice(0, 15).map(transformMovie);
 const thrillerItems = (thrillerMovies?.results || []).slice(0, 15).map(transformMovie);
 const animeItems = (animeMovies?.results || []).slice(0, 15).map(transformMovie);
-const kDramaItems = (kDramaTV?.results || []).slice(0, 15).map(transformTV);
+const kDramaItems = (kDramaMovies?.results || []).slice(0, 15).map(transformMovie);
 
 // Oscar 2026 nominees - search TMDB for each
 const oscarTitles = [
@@ -268,63 +264,6 @@ async function getBoxOfficeData() {
 }
 const boxOfficeData = await getBoxOfficeData();
 
-// Fetch mood-specific genres (family/animation for chill, horror for thrilling/cry, sci-fi for mind-blown)
-const [familyMovies, horrorMovies, sciFiMovies, dramaMovies] = await Promise.all([
-  discoverMovies({ with_genres: '10751', sort_by: 'vote_average.desc', 'vote_count.gte': '200' }),
-  discoverMovies({ with_genres: '27', sort_by: 'popularity.desc' }),
-  discoverMovies({ with_genres: '878', sort_by: 'vote_average.desc', 'vote_count.gte': '300' }),
-  discoverMovies({ with_genres: '18', sort_by: 'vote_average.desc', 'vote_count.gte': '500' }),
-]);
-
-const familyItems = (familyMovies?.results || []).slice(0, 8).map(transformMovie);
-const horrorItems = (horrorMovies?.results || []).slice(0, 8).map(transformMovie);
-const sciFiItems = (sciFiMovies?.results || []).slice(0, 8).map(transformMovie);
-const dramaItems = (dramaMovies?.results || []).slice(0, 8).map(transformMovie);
-
-// Build mood data from real TMDB results
-const moodData = [
-  { id: 'chill', emoji: '😌', label: 'Chill', gradient: 'linear-gradient(135deg, #06b6d4, #0284c7)', items: familyItems.slice(0, 4) },
-  { id: 'thrilling', emoji: '😰', label: 'Thrilling', gradient: 'linear-gradient(135deg, #dc2626, #991b1b)', items: thrillerItems.slice(0, 4) },
-  { id: 'laugh', emoji: '😂', label: 'Laugh', gradient: 'linear-gradient(135deg, #f59e0b, #ea580c)', items: comedyItems.slice(0, 4) },
-  { id: 'cry', emoji: '😢', label: 'Cry', gradient: 'linear-gradient(135deg, #7c3aed, #4f46e5)', items: dramaItems.slice(0, 4) },
-  { id: 'mind-blown', emoji: '🤯', label: 'Mind-Blown', gradient: 'linear-gradient(135deg, #059669, #0d9488)', items: sciFiItems.slice(0, 4) },
-  { id: 'nostalgic', emoji: '🥹', label: 'Nostalgic', gradient: 'linear-gradient(135deg, #be185d, #e11d48)', items: romanceItems.slice(0, 4) },
-];
-
-// Build collections from real genre data
-const collectionsData = [
-  {
-    id: 'romance', title: 'Love Stories', subtitle: 'Romance that melts your heart',
-    link: '/genre/romance', gradient: 'linear-gradient(135deg, #ec4899 0%, #8b5cf6 100%)',
-    posters: romanceItems.slice(0, 4).map((i: any) => i.poster_path).filter(Boolean)
-  },
-  {
-    id: 'top-rated', title: 'Highest Rated of All Time', subtitle: 'The all-time greatest',
-    link: '/top-rated', gradient: 'linear-gradient(135deg, #f59e0b 0%, #ef4444 100%)',
-    posters: topRatedItems.slice(0, 4).map((i: any) => i.poster_path).filter(Boolean)
-  },
-  {
-    id: 'comedy', title: 'Comedy Gold', subtitle: 'Guaranteed laughs',
-    link: '/genre/comedy', gradient: 'linear-gradient(135deg, #06b6d4 0%, #3b82f6 100%)',
-    posters: comedyItems.slice(0, 4).map((i: any) => i.poster_path).filter(Boolean)
-  },
-  {
-    id: 'horror', title: 'Nightmare Fuel', subtitle: 'Sleep with the lights on',
-    link: '/genre/horror', gradient: 'linear-gradient(135deg, #1e1e1e 0%, #7f1d1d 100%)',
-    posters: horrorItems.slice(0, 4).map((i: any) => i.poster_path).filter(Boolean)
-  },
-  {
-    id: 'sci-fi', title: 'Mind-Bending Sci-Fi', subtitle: 'Beyond imagination',
-    link: '/genre/sci-fi', gradient: 'linear-gradient(135deg, #059669 0%, #0d9488 100%)',
-    posters: sciFiItems.slice(0, 4).map((i: any) => i.poster_path).filter(Boolean)
-  },
-  {
-    id: 'action', title: 'Non-Stop Action', subtitle: 'Explosions & adrenaline',
-    link: '/genre/action', gradient: 'linear-gradient(135deg, #dc2626 0%, #ea580c 100%)',
-    posters: actionItems.slice(0, 4).map((i: any) => i.poster_path).filter(Boolean)
-  },
-];
-
 // Search TMDB for box office movies to get posters
 const boxOfficeWithPosters = await Promise.all(boxOfficeData.map(async (entry) => {
   try {
@@ -340,6 +279,8 @@ const boxOfficeWithPosters = await Promise.all(boxOfficeData.map(async (entry) =
 
 <BaseLayout title="Watch Movies & TV Series Online Free">
   <!-- Hero Section -->
+  <!-- SEO H1 -->
+  <h1 class="sr-only">Watch Movies &amp; TV Series Online Free - TrendiMovies</h1>
   <HeroCarousel
     client:load
     featured={featured}
@@ -420,14 +361,15 @@ const boxOfficeWithPosters = await Promise.all(boxOfficeData.map(async (entry) =
     />
   )}
 
-  <!-- Continue Watching (client-side, reads from localStorage) -->
-  <ContinueWatching client:load />
-
-  <!-- Collections -->
-  <Collections client:visible collections={collectionsData} />
-
-  <!-- Pick Your Mood -->
-  <PickYourMood client:visible moods={moodData} />
+  <!-- Popular TV -->
+  {popularTVItems.length > 0 && (
+    <ContentRow
+      client:visible
+      title="Popular TV Series"
+      items={popularTVItems}
+      seeAllLink="/series"
+    />
+  )}
 
   <!-- New Episodes This Week -->
   {onTheAirItems.length > 0 && (
@@ -483,19 +425,19 @@ const boxOfficeWithPosters = await Promise.all(boxOfficeData.map(async (entry) =
   {animeItems.length > 0 && (
     <ContentRow
       client:visible
-      title="Anime Movies"
+      title="Top Anime Movies"
       items={animeItems}
-      seeAllLink="/genre/anime"
+      seeAllLink="/movies/anime"
     />
   )}
 
-  <!-- K-Drama Series -->
+  <!-- Korean Movies -->
   {kDramaItems.length > 0 && (
     <ContentRow
       client:visible
-      title="K-Drama Series"
+      title="Top Korean Movies"
       items={kDramaItems}
-      seeAllLink="/genre/k-drama"
+      seeAllLink="/movies/korean"
     />
   )}
 

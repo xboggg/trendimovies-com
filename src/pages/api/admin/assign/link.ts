@@ -1,3 +1,18 @@
+import jwt from 'jsonwebtoken';
+import { readFileSync } from 'fs';
+
+let _linkJwtSecret: string = '';
+try { _linkJwtSecret = readFileSync('/etc/trendimovies/jwt_secret', 'utf-8').trim(); } catch {}
+
+function _linkAuthHeaders(extra?: Record<string, string>): Record<string, string> {
+  const h: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (_linkJwtSecret) {
+    h['Authorization'] = 'Bearer ' + jwt.sign({ role: 'web_auth' }, _linkJwtSecret, { expiresIn: '5m' });
+  }
+  if (extra) Object.assign(h, extra);
+  return h;
+}
+
 import type { APIRoute } from 'astro';
 import { requireAuth } from '../../../../lib/admin-auth';
 import { TMDB_API_KEY } from '../../../../lib/env';
@@ -94,6 +109,230 @@ async function movieExists(tmdbId: number): Promise<boolean> {
   }
 }
 
+// Helper: Get database episode ID from TMDB episode ID
+async function getDbEpisodeId(tmdbEpisodeId: number): Promise<number | null> {
+  try {
+    const res = await fetch(`${POSTGREST_URL}/episodes?tmdb_id=eq.${tmdbEpisodeId}&select=id`, {
+      headers: { 'Accept-Profile': 'public' }
+    });
+    const data = await res.json();
+    if (Array.isArray(data) && data.length > 0) {
+      return data[0].id;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+// Helper: Import TV series, season, and episode from TMDB
+async function importEpisodeFromTMDB(tmdbEpisodeId: number, showId: number, seasonNum: number, episodeNum: number): Promise<number | null> {
+  if (!TMDB_API_KEY) {
+    console.error('TMDB_API_KEY not configured');
+    return null;
+  }
+
+  try {
+    // First check if series exists, if not import it
+    let seriesRes = await fetch(`${POSTGREST_URL}/series?tmdb_id=eq.${showId}&select=id`, {
+      headers: { 'Accept-Profile': 'public' }
+    });
+    let seriesData = await seriesRes.json();
+    let seriesDbId: number;
+
+    if (!Array.isArray(seriesData) || seriesData.length === 0) {
+      // Import series from TMDB
+      console.log(`Importing series ${showId} from TMDB...`);
+      const tvRes = await fetch(`${TMDB_BASE_URL}/tv/${showId}?api_key=${TMDB_API_KEY}`, {
+        signal: AbortSignal.timeout(10000)
+      });
+      if (!tvRes.ok) {
+        console.error(`Failed to fetch series ${showId} from TMDB`);
+        return null;
+      }
+      const tv = await tvRes.json();
+      const year = tv.first_air_date ? parseInt(tv.first_air_date.substring(0, 4)) : null;
+      const slug = generateSlug(tv.name, year, showId);
+
+      const seriesInsertRes = await fetch(`${POSTGREST_URL}/series`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept-Profile': 'public',
+          'Prefer': 'return=representation'
+        },
+        body: JSON.stringify({
+          tmdb_id: tv.id,
+          slug: slug,
+          title: tv.name,
+          original_title: tv.original_name || tv.name,
+          overview: tv.overview || '',
+          poster_path: tv.poster_path,
+          backdrop_path: tv.backdrop_path,
+          first_air_date: tv.first_air_date || null,
+          year: year,
+          number_of_seasons: tv.number_of_seasons || 1,
+          number_of_episodes: tv.number_of_episodes || 0,
+          vote_average: tv.vote_average || 0,
+          popularity: tv.popularity || 0,
+          status: tv.status || 'Unknown',
+          original_language: tv.original_language || 'en'
+        })
+      });
+
+      if (!seriesInsertRes.ok) {
+        console.error(`Failed to insert series ${showId}`);
+        return null;
+      }
+      const insertedSeries = await seriesInsertRes.json();
+      seriesDbId = Array.isArray(insertedSeries) ? insertedSeries[0].id : insertedSeries.id;
+      console.log(`Imported series: ${tv.name} (DB ID: ${seriesDbId})`);
+    } else {
+      seriesDbId = seriesData[0].id;
+    }
+
+    // Check if season exists, if not import it
+    let seasonRes = await fetch(`${POSTGREST_URL}/seasons?series_id=eq.${seriesDbId}&season_number=eq.${seasonNum}&select=id,tmdb_id`, {
+      headers: { 'Accept-Profile': 'public' }
+    });
+    let seasonData = await seasonRes.json();
+    let seasonDbId: number;
+    let seasonTmdbId: number;
+
+    if (!Array.isArray(seasonData) || seasonData.length === 0) {
+      // Fetch and import season from TMDB
+      console.log(`Importing season ${seasonNum} for series ${showId}...`);
+      const seasonTmdbRes = await fetch(`${TMDB_BASE_URL}/tv/${showId}/season/${seasonNum}?api_key=${TMDB_API_KEY}`, {
+        signal: AbortSignal.timeout(10000)
+      });
+      if (!seasonTmdbRes.ok) {
+        console.error(`Failed to fetch season ${seasonNum} from TMDB`);
+        return null;
+      }
+      const seasonTmdb = await seasonTmdbRes.json();
+      seasonTmdbId = seasonTmdb.id;
+
+      const seasonInsertRes = await fetch(`${POSTGREST_URL}/seasons`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept-Profile': 'public',
+          'Prefer': 'return=representation'
+        },
+        body: JSON.stringify({
+          series_id: seriesDbId,
+          tmdb_id: seasonTmdb.id,
+          season_number: seasonNum,
+          name: seasonTmdb.name || `Season ${seasonNum}`,
+          overview: seasonTmdb.overview || null,
+          poster_path: seasonTmdb.poster_path || null,
+          air_date: seasonTmdb.air_date || null,
+          episode_count: seasonTmdb.episodes?.length || 0
+        })
+      });
+
+      if (!seasonInsertRes.ok) {
+        console.error(`Failed to insert season ${seasonNum}`);
+        return null;
+      }
+      const insertedSeason = await seasonInsertRes.json();
+      seasonDbId = Array.isArray(insertedSeason) ? insertedSeason[0].id : insertedSeason.id;
+      console.log(`Imported season ${seasonNum} (DB ID: ${seasonDbId})`);
+
+      // Import all episodes from this season
+      if (seasonTmdb.episodes && seasonTmdb.episodes.length > 0) {
+        const episodesData = seasonTmdb.episodes.map((ep: any) => ({
+          season_id: seasonDbId,
+          series_id: seriesDbId,
+          tmdb_id: ep.id,
+          episode_number: ep.episode_number,
+          name: ep.name || `Episode ${ep.episode_number}`,
+          overview: ep.overview || null,
+          still_path: ep.still_path || null,
+          air_date: ep.air_date || null,
+          runtime: ep.runtime || null,
+          vote_average: ep.vote_average || null
+        }));
+
+        const episodesInsertRes = await fetch(`${POSTGREST_URL}/episodes`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept-Profile': 'public',
+            'Prefer': 'return=representation'
+          },
+          body: JSON.stringify(episodesData)
+        });
+
+        if (episodesInsertRes.ok) {
+          console.log(`Imported ${episodesData.length} episodes for season ${seasonNum}`);
+        }
+      }
+    } else {
+      seasonDbId = seasonData[0].id;
+      seasonTmdbId = seasonData[0].tmdb_id;
+    }
+
+    // Now get the specific episode DB ID
+    const epRes = await fetch(`${POSTGREST_URL}/episodes?tmdb_id=eq.${tmdbEpisodeId}&select=id`, {
+      headers: { 'Accept-Profile': 'public' }
+    });
+    const epData = await epRes.json();
+
+    if (Array.isArray(epData) && epData.length > 0) {
+      return epData[0].id;
+    }
+
+    // Episode still not found - try to import just this episode
+    console.log(`Episode ${tmdbEpisodeId} not found, trying direct import...`);
+    const epTmdbRes = await fetch(`${TMDB_BASE_URL}/tv/${showId}/season/${seasonNum}/episode/${episodeNum}?api_key=${TMDB_API_KEY}`, {
+      signal: AbortSignal.timeout(10000)
+    });
+
+    if (!epTmdbRes.ok) {
+      console.error(`Failed to fetch episode from TMDB`);
+      return null;
+    }
+
+    const epTmdb = await epTmdbRes.json();
+
+    const epInsertRes = await fetch(`${POSTGREST_URL}/episodes`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept-Profile': 'public',
+        'Prefer': 'return=representation'
+      },
+      body: JSON.stringify({
+        season_id: seasonDbId,
+        series_id: seriesDbId,
+        tmdb_id: epTmdb.id,
+        episode_number: epTmdb.episode_number,
+        name: epTmdb.name || `Episode ${epTmdb.episode_number}`,
+        overview: epTmdb.overview || null,
+        still_path: epTmdb.still_path || null,
+        air_date: epTmdb.air_date || null,
+        runtime: epTmdb.runtime || null,
+        vote_average: epTmdb.vote_average || null
+      })
+    });
+
+    if (!epInsertRes.ok) {
+      console.error(`Failed to insert episode`);
+      return null;
+    }
+
+    const insertedEp = await epInsertRes.json();
+    const dbEpId = Array.isArray(insertedEp) ? insertedEp[0].id : insertedEp.id;
+    console.log(`Imported episode ${episodeNum} (DB ID: ${dbEpId})`);
+    return dbEpId;
+
+  } catch (err) {
+    console.error(`Error importing episode:`, err);
+    return null;
+  }
+}
+
 export const POST: APIRoute = async ({ request }) => {
   // Auth check
   const authError = requireAuth(request);
@@ -109,6 +348,10 @@ export const POST: APIRoute = async ({ request }) => {
       file_size,
       telegram_file_id,
       url,
+      // For episode auto-import
+      show_id,
+      season_number,
+      episode_number,
     } = body;
 
     // Validate required fields
@@ -117,7 +360,7 @@ export const POST: APIRoute = async ({ request }) => {
         error: 'Missing required fields: content_type, content_id, source, quality'
       }), {
         status: 400,
-        headers: { 'Content-Type': 'application/json' }
+        headers: _linkAuthHeaders()
       });
     }
 
@@ -126,7 +369,7 @@ export const POST: APIRoute = async ({ request }) => {
         error: 'content_type must be "movie" or "episode"'
       }), {
         status: 400,
-        headers: { 'Content-Type': 'application/json' }
+        headers: _linkAuthHeaders()
       });
     }
 
@@ -135,7 +378,7 @@ export const POST: APIRoute = async ({ request }) => {
         error: 'source must be "telegram", "cinematika", or "torrent"'
       }), {
         status: 400,
-        headers: { 'Content-Type': 'application/json' }
+        headers: _linkAuthHeaders()
       });
     }
 
@@ -144,7 +387,7 @@ export const POST: APIRoute = async ({ request }) => {
         error: 'quality must be "720p", "1080p", "2160p", or "hdrip"'
       }), {
         status: 400,
-        headers: { 'Content-Type': 'application/json' }
+        headers: _linkAuthHeaders()
       });
     }
 
@@ -155,7 +398,7 @@ export const POST: APIRoute = async ({ request }) => {
         error: 'content_id must be a positive integer'
       }), {
         status: 400,
-        headers: { 'Content-Type': 'application/json' }
+        headers: _linkAuthHeaders()
       });
     }
 
@@ -167,7 +410,7 @@ export const POST: APIRoute = async ({ request }) => {
           error: 'telegram_file_id required for telegram source'
         }), {
           status: 400,
-          headers: { 'Content-Type': 'application/json' }
+          headers: _linkAuthHeaders()
         });
       }
       // Validate telegram_file_id format (alphanumeric and some special chars)
@@ -176,7 +419,7 @@ export const POST: APIRoute = async ({ request }) => {
           error: 'Invalid telegram_file_id format'
         }), {
           status: 400,
-          headers: { 'Content-Type': 'application/json' }
+          headers: _linkAuthHeaders()
         });
       }
       downloadUrl = `${TGSTREAM_BASE}/${telegram_file_id}`;
@@ -187,9 +430,12 @@ export const POST: APIRoute = async ({ request }) => {
         error: 'url required for non-telegram sources'
       }), {
         status: 400,
-        headers: { 'Content-Type': 'application/json' }
+        headers: _linkAuthHeaders()
       });
     }
+
+    // Determine the actual content_id to use for database
+    let dbContentId = parsedContentId;
 
     // AUTO-IMPORT: If movie doesn't exist in database, import from TMDB
     if (content_type === 'movie') {
@@ -202,15 +448,48 @@ export const POST: APIRoute = async ({ request }) => {
             error: 'Movie not in database and failed to import from TMDB. Please try again.'
           }), {
             status: 500,
-            headers: { 'Content-Type': 'application/json' }
+            headers: _linkAuthHeaders()
           });
         }
       }
+      // Convert TMDB ID to internal PostgreSQL ID
+      const movieIdRes = await fetch(`${POSTGREST_URL}/movies?tmdb_id=eq.${parsedContentId}&select=id`, {
+        headers: { 'Accept-Profile': 'public' }
+      });
+      const movieIdData = await movieIdRes.json();
+      if (Array.isArray(movieIdData) && movieIdData.length > 0) {
+        dbContentId = movieIdData[0].id;
+        console.log(`Converted TMDB movie ID ${parsedContentId} to DB movie ID ${dbContentId}`);
+      }
+    } else if (content_type === 'episode') {
+      // For episodes, the frontend sends TMDB episode ID
+      // We need to convert it to database episode ID
+      let dbEpId = await getDbEpisodeId(parsedContentId);
+
+      if (!dbEpId) {
+        // Episode not in database - try to auto-import
+        console.log(`Episode TMDB ID ${parsedContentId} not in database, attempting auto-import...`);
+
+        if (show_id && season_number && episode_number) {
+          dbEpId = await importEpisodeFromTMDB(parsedContentId, show_id, season_number, episode_number);
+        }
+
+        if (!dbEpId) {
+          return new Response(JSON.stringify({
+            error: `Episode not found in database (TMDB ID: ${parsedContentId}). The TV series may not be imported yet.`
+          }), {
+            status: 404,
+            headers: _linkAuthHeaders()
+          });
+        }
+      }
+      dbContentId = dbEpId;
+      console.log(`Converted TMDB episode ID ${parsedContentId} to DB episode ID ${dbContentId}`);
     }
 
     // CHECK FOR DUPLICATES: Prevent adding same quality/source for same content
     const duplicateCheck = await fetch(
-      `${POSTGREST_URL}/download_links?content_type=eq.${content_type}&content_id=eq.${parsedContentId}&quality=eq.${quality}&source=eq.${source}&select=id`,
+      `${POSTGREST_URL}/download_links?content_type=eq.${content_type}&content_id=eq.${dbContentId}&quality=eq.${quality}&source=eq.${source}&select=id`,
       { headers: { 'Accept-Profile': 'public' } }
     );
     const existingLinks = await duplicateCheck.json();
@@ -219,14 +498,14 @@ export const POST: APIRoute = async ({ request }) => {
         error: `A ${quality} link from ${source} already exists for this content. Delete the existing link first if you want to replace it.`
       }), {
         status: 409,
-        headers: { 'Content-Type': 'application/json' }
+        headers: _linkAuthHeaders()
       });
     }
 
     // Insert into download_links
     const linkData = {
       content_type,
-      content_id: parsedContentId,
+      content_id: dbContentId,
       source,
       quality,
       file_size: file_size || null,
@@ -251,7 +530,7 @@ export const POST: APIRoute = async ({ request }) => {
     if (!response.ok) {
       return new Response(JSON.stringify({ error: 'Failed to create link' }), {
         status: 500,
-        headers: { 'Content-Type': 'application/json' }
+        headers: _linkAuthHeaders()
       });
     }
 
@@ -259,7 +538,7 @@ export const POST: APIRoute = async ({ request }) => {
 
     // Update has_downloads flag on the content
     if (content_type === 'movie') {
-      await fetch(`${POSTGREST_URL}/movies?tmdb_id=eq.${parsedContentId}`, {
+      await fetch(`${POSTGREST_URL}/movies?id=eq.${dbContentId}`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
@@ -268,7 +547,7 @@ export const POST: APIRoute = async ({ request }) => {
         body: JSON.stringify({ has_downloads: true })
       });
     } else if (content_type === 'episode') {
-      await fetch(`${POSTGREST_URL}/episodes?id=eq.${parsedContentId}`, {
+      await fetch(`${POSTGREST_URL}/episodes?id=eq.${dbContentId}`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
@@ -282,14 +561,14 @@ export const POST: APIRoute = async ({ request }) => {
       success: true,
       link: Array.isArray(result) ? result[0] : result
     }), {
-      headers: { 'Content-Type': 'application/json' }
+      headers: _linkAuthHeaders()
     });
   } catch (error: any) {
     return new Response(JSON.stringify({
       error: 'Failed to create link'
     }), {
       status: 500,
-      headers: { 'Content-Type': 'application/json' }
+      headers: _linkAuthHeaders()
     });
   }
 };
@@ -306,7 +585,7 @@ export const DELETE: APIRoute = async ({ request }) => {
     if (!id || isNaN(parseInt(id)) || parseInt(id) <= 0) {
       return new Response(JSON.stringify({ error: 'Invalid link id' }), {
         status: 400,
-        headers: { 'Content-Type': 'application/json' }
+        headers: _linkAuthHeaders()
       });
     }
 
@@ -322,7 +601,7 @@ export const DELETE: APIRoute = async ({ request }) => {
     if (!link) {
       return new Response(JSON.stringify({ error: 'Link not found' }), {
         status: 404,
-        headers: { 'Content-Type': 'application/json' }
+        headers: _linkAuthHeaders()
       });
     }
 
@@ -335,7 +614,7 @@ export const DELETE: APIRoute = async ({ request }) => {
     if (!response.ok) {
       return new Response(JSON.stringify({ error: 'Failed to delete link' }), {
         status: 500,
-        headers: { 'Content-Type': 'application/json' }
+        headers: _linkAuthHeaders()
       });
     }
 
@@ -350,7 +629,7 @@ export const DELETE: APIRoute = async ({ request }) => {
     // If no links remain, update has_downloads to false
     if (remainingCount === 0) {
       if (link.content_type === 'movie') {
-        await fetch(`${POSTGREST_URL}/movies?tmdb_id=eq.${link.content_id}`, {
+        await fetch(`${POSTGREST_URL}/movies?id=eq.${link.content_id}`, {
           method: 'PATCH',
           headers: {
             'Content-Type': 'application/json',
@@ -371,14 +650,14 @@ export const DELETE: APIRoute = async ({ request }) => {
     }
 
     return new Response(JSON.stringify({ success: true }), {
-      headers: { 'Content-Type': 'application/json' }
+      headers: _linkAuthHeaders()
     });
   } catch (error: any) {
     return new Response(JSON.stringify({
       error: 'Failed to delete link'
     }), {
       status: 500,
-      headers: { 'Content-Type': 'application/json' }
+      headers: _linkAuthHeaders()
     });
   }
 };

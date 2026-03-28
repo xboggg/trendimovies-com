@@ -48,7 +48,7 @@ const canonicalUrl = new URL(Astro.url.pathname, Astro.site || 'https://trendimo
   <meta property="og:type" content={type} />
   <meta property="og:title" content={title} />
   <meta property="og:description" content={description} />
-  <meta property="og:image" content={image} />
+  <meta property="og:image" content={image.startsWith("http") ? image : `https://trendimovies.com${image}`} />
   <meta property="og:url" content={canonicalUrl} />
   <meta property="og:site_name" content="TrendiMovies" />
 
@@ -56,7 +56,7 @@ const canonicalUrl = new URL(Astro.url.pathname, Astro.site || 'https://trendimo
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:title" content={title} />
   <meta name="twitter:description" content={description} />
-  <meta name="twitter:image" content={image} />
+  <meta name="twitter:image" content={image.startsWith("http") ? image : `https://trendimovies.com${image}`} />
 
   <!-- Preconnect to external resources -->
   <link rel="preconnect" href="https://image.tmdb.org" />
@@ -102,7 +102,7 @@ const canonicalUrl = new URL(Astro.url.pathname, Astro.site || 'https://trendimo
       left: 0;
       width: 100%;
       height: 100%;
-      background: linear-gradient(180deg, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.92) 50%, rgba(0,0,0,0.95) 100%);
+      background: linear-gradient(180deg, rgba(0,0,0,0.88) 0%, rgba(0,0,0,0.88) 50%, rgba(0,0,0,0.93) 100%);
       z-index: -1;
     }
 
@@ -263,50 +263,6 @@ const canonicalUrl = new URL(Astro.url.pathname, Astro.site || 'https://trendimo
         navigator.serviceWorker.register('/sw.js').catch(function() {});
       });
     }
-  </script>
-
-  <!-- Continue Watching tracker -->
-  <script is:inline>
-    (function() {
-      var path = window.location.pathname;
-      var match = path.match(/^\/(movie|tv)\/(\d+)/);
-      if (!match) return;
-
-      var type = match[1] === 'movie' ? 'movie' : 'series';
-      var id = parseInt(match[2]);
-      var ogTitle = document.querySelector('meta[property="og:title"]');
-      var ogImage = document.querySelector('meta[property="og:image"]');
-      if (!ogTitle) return;
-
-      var title = ogTitle.getAttribute('content') || '';
-      var image = ogImage ? ogImage.getAttribute('content') || '' : '';
-
-      // Extract poster_path from full TMDB URL
-      var posterMatch = image.match(/\/t\/p\/\w+(\/.+)$/);
-      var poster_path = posterMatch ? posterMatch[1] : null;
-
-      var STORAGE_KEY = 'tm_continue_watching';
-      var MAX_ITEMS = 12;
-
-      try {
-        var items = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
-        // Remove existing entry for this ID
-        items = items.filter(function(i) { return i.id !== id; });
-        // Add to front
-        items.unshift({
-          id: id,
-          title: title,
-          poster_path: poster_path,
-          backdrop_path: poster_path,
-          type: type,
-          href: path,
-          visited_at: Date.now()
-        });
-        // Trim to max
-        if (items.length > MAX_ITEMS) items = items.slice(0, MAX_ITEMS);
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
-      } catch(e) {}
-    })();
   </script>
 </body>
 </html>

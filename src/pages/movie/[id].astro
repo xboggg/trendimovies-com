@@ -1,8 +1,10 @@
 ---
 import BaseLayout from '../../layouts/BaseLayout.astro';
+import MovieJsonLd from '../../components/MovieJsonLd.astro';
 import VideoPlayer from '../../components/VideoPlayer.svelte';
 import DownloadSection from '../../components/DownloadSection.svelte';
 import ContentRow from '../../components/ContentRow.svelte';
+import UserActions from '../../components/UserActions.svelte';
 import { getMovieDetails, transformMovieData } from '../../lib/tmdb';
 import { supabase } from '../../lib/supabase';
 import { Star, Clock, Calendar, Globe, Play } from 'lucide-svelte';
@@ -22,19 +24,36 @@ if (!tmdbData) {
 
 const movie = transformMovieData(tmdbData);
 
-// Fetch download links from Supabase using TMDB ID
-const { data: rawLinks } = await supabase
+// Look up internal DB ID for this movie (cron stores content_id = movies.id, not tmdb_id)
+const { data: dbMovie } = await supabase
+  .from('movies')
+  .select('id')
+  .eq('tmdb_id', tmdbId)
+  .single();
+
+const internalId = dbMovie?.id;
+
+// Fetch download links using internal DB ID
+const { data: rawLinks } = internalId ? await supabase
   .from('download_links')
   .select('*')
   .eq('content_type', 'movie')
-  .eq('content_id', tmdbId)
-  .eq('is_active', true);
+  .eq('content_id', internalId)
+  .eq('is_active', true) : { data: [] };
 
 const downloadLinks = (rawLinks || []).map((link: any) => ({
   ...link,
   type: link.source === 'torrent' ? 'torrent' as const : 'ddl' as const,
   source: link.source === 'telegram' ? 1 : link.source === 'cinematika' ? 2 : undefined,
 }));
+
+// Fetch subtitle links
+const { data: subtitleLinks } = internalId ? await supabase
+  .from('subtitle_links')
+  .select('id, file_name, file_size, telegram_file_id')
+  .eq('content_type', 'movie')
+  .eq('content_id', internalId)
+  .eq('is_active', true) : { data: [] };
 
 // Helper functions
 function getPosterUrl(path: string | null): string {
@@ -94,21 +113,12 @@ const similar = (tmdbData.similar?.results || []).slice(0, 12).map((m: any) => (
   type: 'movie' as const
 }));
 
-// Build enhanced OG description for WhatsApp/social sharing
+// Build OG description for WhatsApp/social sharing - Title (Year) and Synopsis only
 const ogYear = movie.year ? `(${movie.year})` : '';
-const ogRating = movie.vote_average ? `⭐ ${movie.vote_average.toFixed(1)}` : '';
-const ogGenres = movie.genres?.length > 0
-  ? movie.genres.map((g: any) => g.name).join(', ')
-  : '';
 const ogSynopsis = movie.overview || `Watch ${movie.title} online for free in HD quality.`;
 
-// Format: "Rating\nGenres\n\nSynopsis"
-const ogDescription = [
-  ogRating,
-  ogGenres,
-  '',
-  ogSynopsis
-].filter(Boolean).join('\n');
+// Only synopsis - no rating or genres
+const ogDescription = ogSynopsis;
 
 // Use poster for OG image (better for WhatsApp preview)
 const ogImage = movie.poster_path
@@ -124,12 +134,15 @@ const ogTitle = `${movie.title} ${ogYear}`.trim();
   image={ogImage}
   type="video.movie"
 >
+  <MovieJsonLd movie={movie} tmdbId={tmdbId} />
   <!-- Backdrop Header -->
   <section class="relative">
     <div class="absolute inset-0 h-[300px] md:h-[500px]">
       <img
         src={getBackdropUrl(movie.backdrop_path)}
         alt={movie.title}
+        width="1280"
+        height="720"
         class="w-full h-full object-cover"
       />
       <div class="absolute inset-0 bg-gradient-to-t from-[var(--bg-primary)] via-[var(--bg-primary)]/80 to-transparent"></div>
@@ -141,6 +154,8 @@ const ogTitle = `${movie.title} ${ogYear}`.trim();
           <img
             src={getPosterUrl(movie.poster_path)}
             alt={movie.title}
+            width="500"
+            height="750"
             class="w-full rounded-lg shadow-2xl"
           />
         </div>
@@ -194,6 +209,14 @@ const ogTitle = `${movie.title} ${ogYear}`.trim();
             </div>
           )}
 
+          <!-- User Actions -->
+          <UserActions
+            client:load
+            contentType="movie"
+            tmdbId={movie.tmdb_id}
+            title={movie.title}
+            posterPath={movie.poster_path}
+          />
           <div class="mb-4 md:mb-6">
             <h3 class="font-semibold mb-1.5 md:mb-2" style="color: var(--text-primary);">Synopsis</h3>
             <p class="leading-relaxed text-sm md:text-base" style="color: var(--text-primary); opacity: 0.85;">
@@ -231,6 +254,7 @@ const ogTitle = `${movie.title} ${ogYear}`.trim();
       tmdbId={movie.tmdb_id}
       imdbId={movie.imdb_id}
       type="movie"
+      releaseDate={movie.release_date}
     />
   </section>
 
@@ -239,6 +263,7 @@ const ogTitle = `${movie.title} ${ogYear}`.trim();
     <DownloadSection
       client:load
       links={downloadLinks || []}
+      subtitles={subtitleLinks || []}
       contentId={tmdbId}
       contentType="movie"
     />

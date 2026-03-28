@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { Play, Download, Star, Clock, Calendar, ChevronDown, ChevronUp } from 'lucide-svelte';
+  import { Play, Download, Star, Clock, Calendar, ChevronDown, FileText } from 'lucide-svelte';
   import VideoPlayer from './VideoPlayer.svelte';
 
   interface Season {
@@ -34,6 +34,15 @@
     telegram_file_id: string | null;
     variant: string | null;
     is_active: boolean;
+    language?: string;
+    language_tag?: string | null;
+  }
+
+  interface SubtitleLink {
+    id: number;
+    file_name: string | null;
+    file_size: string | null;
+    telegram_file_id: string;
   }
 
   export let seriesId: number;
@@ -42,13 +51,15 @@
   export let seasons: Season[] = [];
   export let episodesBySeason: Record<number, Episode[]> = {};
   export let downloadsByEpisode: Record<number, DownloadLink[]> = {};
+  export let subtitlesByEpisode: Record<number, SubtitleLink[]> = {};
 
   let activeSeason = seasons.length > 0 ? seasons[0].season_number : 1;
   let playingEpisode: { season: number; episode: number } | null = null;
-  let expandedDownloads: number | null = null;
   let playerContainer: HTMLDivElement;
+  let isDropdownOpen = false;
 
   $: currentEpisodes = episodesBySeason[activeSeason] || [];
+  $: activeSeasonsData = seasons.find(s => s.season_number === activeSeason);
 
   function getStillUrl(path: string | null): string {
     return path ? `https://image.tmdb.org/t/p/w300${path}` : '/images/no-still.jpg';
@@ -65,7 +76,6 @@
 
   function playEpisode(seasonNum: number, episodeNum: number) {
     playingEpisode = { season: seasonNum, episode: episodeNum };
-    // Scroll to player after it renders
     setTimeout(() => {
       if (playerContainer) {
         playerContainer.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -77,8 +87,14 @@
     playingEpisode = null;
   }
 
-  function toggleDownloads(episodeId: number) {
-    expandedDownloads = expandedDownloads === episodeId ? null : episodeId;
+  function selectSeason(seasonNum: number) {
+    activeSeason = seasonNum;
+    playingEpisode = null;
+    isDropdownOpen = false;
+  }
+
+  function toggleDropdown() {
+    isDropdownOpen = !isDropdownOpen;
   }
 
   function getVariantLabel(variant: string | null): string {
@@ -92,6 +108,11 @@
     }
   }
 
+  function getLinkColor(link: DownloadLink): string {
+    if (link.language_tag) return "bg-violet-600 hover:bg-violet-700";
+    return getQualityColor(link.quality);
+  }
+
   function getQualityColor(quality: string): string {
     switch(quality) {
       case '720p': return 'bg-green-600 hover:bg-green-700';
@@ -101,46 +122,81 @@
     }
   }
 
-  function handleDownload(link: DownloadLink, episodeId: number) {
-    window.location.href = `/download/generate?link_id=${link.id}&type=episode&id=${episodeId}`;
-  }
-
   function getEpisodeDownloads(episodeId: number): DownloadLink[] {
     return downloadsByEpisode[episodeId] || [];
   }
+
+  function getEpisodeSubtitles(episodeId: number): SubtitleLink[] {
+    return subtitlesByEpisode[episodeId] || [];
+  }
+
+  // Close dropdown when clicking outside
+  function handleClickOutside(event: MouseEvent) {
+    const target = event.target as HTMLElement;
+    if (!target.closest('.season-dropdown')) {
+      isDropdownOpen = false;
+    }
+  }
 </script>
 
+<svelte:window on:click={handleClickOutside} />
+
 <div>
-  <!-- Season Selector -->
-  <div class="flex items-center gap-3 mb-6">
-    <label for="season-select" class="text-sm font-semibold whitespace-nowrap" style="color: var(--text-secondary);">Season:</label>
-    <div class="relative flex-1 max-w-xs">
-      <select
-        id="season-select"
-        bind:value={activeSeason}
-        on:change={() => { playingEpisode = null; }}
-        class="season-select w-full appearance-none px-4 py-2.5 pr-10 rounded-lg text-sm font-medium cursor-pointer"
-      >
-        {#each seasons as season}
-          <option value={season.season_number}>
-            {season.name || `Season ${season.season_number}`}
-            {season.episode_count ? ` (${season.episode_count} eps)` : ''}
-          </option>
-        {/each}
-      </select>
-      <!-- Chevron icon -->
-      <div class="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2" style="color: var(--text-secondary);">
-        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
-        </svg>
-      </div>
+  <!-- Episodes Header with Dropdown -->
+  <div class="flex items-center gap-4 mb-6">
+    <div class="flex items-center gap-2">
+      <Play size={20} style="color: var(--accent);" />
+      <h2 class="text-xl font-bold" style="color: var(--text-primary);">Episodes</h2>
     </div>
-    <!-- Episode count badge for active season -->
-    {#if currentEpisodes.length > 0}
-      <span class="text-xs px-3 py-1 rounded-full font-medium" style="background: var(--bg-card); color: var(--text-secondary); border: 1px solid var(--border);">
-        {currentEpisodes.length} Episode{currentEpisodes.length !== 1 ? 's' : ''}
-      </span>
-    {/if}
+
+    <!-- Season Dropdown -->
+    <div class="season-dropdown relative">
+      <button
+        on:click|stopPropagation={toggleDropdown}
+        class="flex items-center gap-2 px-4 py-2 rounded-lg transition-colors"
+        style="background-color: var(--bg-card); border: 1px solid var(--border); color: var(--text-primary);"
+      >
+        <span class="font-medium" style="color: var(--accent);">
+          Season {activeSeason}
+        </span>
+        {#if activeSeasonsData?.episode_count}
+          <span class="text-sm" style="color: var(--text-secondary);">
+            ({activeSeasonsData.episode_count} episodes)
+          </span>
+        {/if}
+        <ChevronDown size={18} class="transition-transform {isDropdownOpen ? 'rotate-180' : ''}" style="color: var(--text-secondary);" />
+      </button>
+
+      {#if isDropdownOpen}
+        <div
+          class="absolute top-full left-0 mt-2 w-64 max-h-80 overflow-y-auto rounded-lg shadow-xl z-50"
+          style="background-color: var(--bg-card); border: 1px solid var(--border);"
+        >
+          {#each seasons as season}
+            <button
+              on:click|stopPropagation={() => selectSeason(season.season_number)}
+              class="w-full flex items-center justify-between px-4 py-3 text-left transition-colors hover:bg-[var(--bg-hover)]"
+              class:bg-[var(--bg-hover)]={activeSeason === season.season_number}
+            >
+              <span
+                class="font-medium"
+                style="color: {activeSeason === season.season_number ? 'var(--accent)' : 'var(--text-primary)'};"
+              >
+                Season {season.season_number}
+              </span>
+              {#if season.episode_count}
+                <span
+                  class="text-sm px-2 py-0.5 rounded-full"
+                  style="background-color: var(--bg-hover); color: var(--text-secondary);"
+                >
+                  {season.episode_count} eps
+                </span>
+              {/if}
+            </button>
+          {/each}
+        </div>
+      {/if}
+    </div>
   </div>
 
   <!-- Video Player (when playing) -->
@@ -232,7 +288,7 @@
             {episode.overview || 'No description available.'}
           </p>
 
-          <!-- Action Buttons -->
+          <!-- Action Buttons - Watch + Direct Download Links -->
           <div class="flex flex-wrap gap-2">
             <button
               on:click={() => playEpisode(activeSeason, episode.episode_number)}
@@ -242,43 +298,45 @@
               <Play size={16} />
               Watch
             </button>
-            {#if hasDownloads}
-              <button
-                on:click={() => toggleDownloads(episode.id)}
-                class="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors"
-                style="background-color: var(--bg-hover); color: var(--text-primary);"
-              >
-                <Download size={16} />
-                Downloads ({epDownloads.length})
-                {#if expandedDownloads === episode.id}
-                  <ChevronUp size={14} />
-                {:else}
-                  <ChevronDown size={14} />
-                {/if}
-              </button>
-            {/if}
-          </div>
 
-          <!-- Inline Download Links (expandable) -->
-          {#if hasDownloads && expandedDownloads === episode.id}
-            <div class="mt-3 flex flex-wrap gap-2">
-              {#each epDownloads as link}
-                <button
-                  on:click={() => handleDownload(link, episode.id)}
-                  class="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium text-white transition-colors {getQualityColor(link.quality)}"
-                >
-                  <Download size={14} />
-                  <span>{link.quality}</span>
-                  {#if link.variant}
-                    <span class="opacity-75 text-xs">{getVariantLabel(link.variant)}</span>
-                  {/if}
-                  {#if link.file_size}
-                    <span class="opacity-75 text-xs">({link.file_size})</span>
-                  {/if}
-                </button>
-              {/each}
-            </div>
-          {/if}
+            <!-- Direct Download Buttons (no dropdown, no countdown) -->
+            {#each epDownloads as link}
+              <a
+                href={link.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                class="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium text-white transition-colors {getLinkColor(link)}"
+              >
+                <Download size={14} />
+                <span>{link.quality}</span>
+                {#if link.variant}
+                  <span class="opacity-75 text-xs">{getVariantLabel(link.variant)}</span>
+                {/if}
+                {#if link.file_size}
+                  <span class="opacity-75 text-xs">({link.file_size})</span>
+                {/if}
+                {#if link.language_tag}
+                  <span class="text-xs opacity-90 border-l border-white/30 pl-2 ml-1">{link.language_tag}</span>
+                {/if}
+              </a>
+            {/each}
+
+            <!-- Subtitle Downloads -->
+            
+            {#each getEpisodeSubtitles(episode.id) as sub}
+              <a
+                href="https://trendimovies.com/tgstream/stream/{sub.telegram_file_id}"
+                download
+                class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium text-white transition-colors bg-cyan-600 hover:bg-cyan-700"
+              >
+                <FileText size={14} />
+                <span>SRT</span>
+                {#if sub.file_size}
+                  <span class="opacity-75 text-xs">({sub.file_size})</span>
+                {/if}
+              </a>
+            {/each}
+          </div>
         </div>
       </div>
     {/each}
@@ -292,18 +350,7 @@
 </div>
 
 <style>
-  .season-select {
-    background: var(--bg-card);
-    border: 1px solid var(--border);
-    color: var(--text-primary);
-    transition: border-color 0.2s ease, background 0.2s ease;
-  }
-  .season-select:focus {
-    outline: none;
-    border-color: var(--accent);
-  }
-  .season-select option {
-    background: #1a1a1a;
-    color: #fff;
+  .season-dropdown {
+    position: relative;
   }
 </style>

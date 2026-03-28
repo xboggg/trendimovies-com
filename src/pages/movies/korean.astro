@@ -1,0 +1,89 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import MovieCard from '../../components/MovieCard.svelte';
+import { discoverMovies } from '../../lib/tmdb';
+
+// Get query params
+const page = parseInt(Astro.url.searchParams.get('page') || '1');
+
+// Fetch top-rated Korean movies
+const tmdbPage1 = (page - 1) * 2 + 1;
+const tmdbPage2 = tmdbPage1 + 1;
+
+const [response1, response2] = await Promise.all([
+  discoverMovies({
+    with_original_language: 'ko',
+    sort_by: 'vote_average.desc',
+    'vote_count.gte': '200',
+    page: tmdbPage1.toString()
+  }),
+  discoverMovies({
+    with_original_language: 'ko',
+    sort_by: 'vote_average.desc',
+    'vote_count.gte': '200',
+    page: tmdbPage2.toString()
+  })
+]);
+
+const allMovies = [...(response1.results || []), ...(response2.results || [])];
+const movies = allMovies.slice(0, 30);
+const totalPages = Math.min(Math.ceil((response1.total_pages || 1) / 2), 100);
+
+function transformToItem(movie: any) {
+  return {
+    id: movie.id,
+    tmdb_id: movie.id,
+    title: movie.title,
+    poster_path: movie.poster_path,
+    vote_average: movie.vote_average,
+    year: movie.release_date ? new Date(movie.release_date).getFullYear() : null,
+    type: 'movie' as const
+  };
+}
+---
+
+<BaseLayout title="Top Korean Movies" description="Browse the best rated Korean movies">
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <div class="flex flex-col md:flex-row md:items-center md:justify-between mb-8">
+      <h1 class="text-3xl font-bold mb-4 md:mb-0" style="color: var(--text-primary);">Top Korean Movies</h1>
+    </div>
+
+    {movies.length > 0 ? (
+      <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4 mb-8">
+        {movies.map(movie => (
+          <MovieCard item={transformToItem(movie)} />
+        ))}
+      </div>
+    ) : (
+      <div class="text-center py-16">
+        <p class="text-lg" style="color: var(--text-muted);">No Korean movies found</p>
+      </div>
+    )}
+
+    {totalPages > 1 && (
+      <div class="flex justify-center gap-2">
+        {page > 1 && (
+          <a
+            href={`/movies/korean?page=${page - 1}`}
+            class="px-4 py-2 rounded-lg font-medium"
+            style="background-color: var(--bg-card); color: var(--text-primary); border: 1px solid var(--border);"
+          >
+            Previous
+          </a>
+        )}
+        <span class="px-4 py-2" style="color: var(--text-secondary);">
+          Page {page} of {totalPages}
+        </span>
+        {page < totalPages && (
+          <a
+            href={`/movies/korean?page=${page + 1}`}
+            class="px-4 py-2 rounded-lg font-medium"
+            style="background-color: var(--bg-card); color: var(--text-primary); border: 1px solid var(--border);"
+          >
+            Next
+          </a>
+        )}
+      </div>
+    )}
+  </div>
+</BaseLayout>

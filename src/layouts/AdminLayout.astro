@@ -21,9 +21,18 @@ const isAuthenticated = !!session;
 <html lang="en" class="dark">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <meta name="robots" content="noindex, nofollow">
   <title>{title} | TrendiMovies Admin</title>
+
+  <!-- PWA for Admin -->
+  <link rel="manifest" href="/admin-manifest.json">
+  <meta name="theme-color" content="#dc2626">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="TM Admin">
+  <link rel="apple-touch-icon" href="/icons/icon-192x192.png">
+
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -32,43 +41,151 @@ const isAuthenticated = !!session;
       background-color: #0a0a0a;
       color: #ffffff;
       min-height: 100vh;
+      overflow-x: hidden;
     }
-    /* Sidebar is fixed at 256px (w-64) */
+
+    /* Desktop: Sidebar fixed at 256px */
     .admin-main {
       margin-left: 256px;
       min-height: 100vh;
       display: flex;
       flex-direction: column;
+      transition: margin-left 0.3s ease;
     }
-    /* Header with proper spacing */
+
+    /* Mobile: No margin, sidebar is overlay */
+    @media (max-width: 1024px) {
+      .admin-main {
+        margin-left: 0;
+      }
+    }
+
+    /* Header */
     .admin-header {
       position: sticky;
       top: 0;
       z-index: 40;
-      background: rgba(10, 10, 10, 0.8);
+      background: rgba(10, 10, 10, 0.95);
       backdrop-filter: blur(12px);
       border-bottom: 1px solid #2a2a2a;
-      padding: 1.25rem 1.5rem;
+      padding: 1rem 1.5rem;
+      display: flex;
+      align-items: center;
+      gap: 1rem;
     }
+
     .admin-header h1 {
-      font-size: 1.5rem;
+      font-size: 1.25rem;
       font-weight: 700;
+      flex: 1;
     }
+
+    /* Mobile menu button */
+    .mobile-menu-btn {
+      display: none;
+      padding: 8px;
+      background: #1a1a1a;
+      border: 1px solid #333;
+      border-radius: 8px;
+      color: white;
+      cursor: pointer;
+    }
+
+    @media (max-width: 1024px) {
+      .mobile-menu-btn {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      .admin-header h1 {
+        font-size: 1rem;
+      }
+    }
+
     /* Content area */
     .admin-content {
       flex: 1;
       padding: 1.5rem;
+    }
+
+    @media (max-width: 768px) {
+      .admin-content {
+        padding: 1rem;
+      }
+    }
+
+    /* Mobile overlay for sidebar */
+    .sidebar-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.5);
+      z-index: 45;
+    }
+
+    .sidebar-overlay.active {
+      display: block;
+    }
+
+    /* PWA Install Banner for Admin */
+    #admin-pwa-banner {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: linear-gradient(135deg, #dc2626, #b91c1c);
+      padding: 12px 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      z-index: 9999;
+      box-shadow: 0 -4px 20px rgba(0,0,0,0.3);
+      gap: 12px;
+    }
+    #admin-pwa-banner .pwa-text {
+      font-size: 14px;
+      color: white;
+      font-weight: 500;
+    }
+    #admin-pwa-banner .pwa-buttons {
+      display: flex;
+      gap: 8px;
+    }
+    #admin-pwa-banner button {
+      padding: 8px 16px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 13px;
+      border: none;
+    }
+    #admin-pwa-banner .btn-later {
+      background: transparent;
+      border: 1px solid rgba(255,255,255,0.3);
+      color: white;
+    }
+    #admin-pwa-banner .btn-install {
+      background: white;
+      color: #dc2626;
+      font-weight: 600;
     }
   </style>
 </head>
 <body class="admin-scrollbar">
   {isAuthenticated ? (
     <>
+      <!-- Mobile overlay -->
+      <div class="sidebar-overlay" id="sidebar-overlay" onclick="closeSidebar()"></div>
+
       <Sidebar client:load activeTab={activeTab} />
 
       <main class="admin-main">
         {showHeader && (
           <header class="admin-header">
+            <button class="mobile-menu-btn" onclick="toggleSidebar()" aria-label="Open menu">
+              <svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M4 6h16M4 12h16M4 18h16"></path>
+              </svg>
+            </button>
             <h1>{title}</h1>
           </header>
         )}
@@ -77,6 +194,66 @@ const isAuthenticated = !!session;
           <slot />
         </div>
       </main>
+
+      <script is:inline>
+        function toggleSidebar() {
+          var sidebar = document.querySelector('.admin-sidebar');
+          var overlay = document.getElementById('sidebar-overlay');
+          if (sidebar) {
+            sidebar.classList.toggle('mobile-open');
+            overlay.classList.toggle('active');
+          }
+        }
+
+        function closeSidebar() {
+          var sidebar = document.querySelector('.admin-sidebar');
+          var overlay = document.getElementById('sidebar-overlay');
+          if (sidebar) {
+            sidebar.classList.remove('mobile-open');
+            overlay.classList.remove('active');
+          }
+        }
+
+        // PWA Install for Admin
+        var adminDeferredPrompt = null;
+        window.addEventListener('beforeinstallprompt', function(e) {
+          e.preventDefault();
+          adminDeferredPrompt = e;
+          if (!localStorage.getItem('admin-pwa-dismissed')) {
+            setTimeout(showAdminPWABanner, 2000);
+          }
+        });
+
+        function showAdminPWABanner() {
+          if (document.getElementById('admin-pwa-banner')) return;
+          var banner = document.createElement('div');
+          banner.id = 'admin-pwa-banner';
+          banner.innerHTML = '<span class="pwa-text">Install Admin App</span><div class="pwa-buttons"><button class="btn-later" onclick="dismissAdminPWA()">Later</button><button class="btn-install" onclick="installAdminPWA()">Install</button></div>';
+          document.body.appendChild(banner);
+        }
+
+        window.installAdminPWA = function() {
+          if (adminDeferredPrompt) {
+            adminDeferredPrompt.prompt();
+            adminDeferredPrompt.userChoice.then(function() {
+              adminDeferredPrompt = null;
+              var el = document.getElementById('admin-pwa-banner');
+              if (el) el.remove();
+            });
+          }
+        };
+
+        window.dismissAdminPWA = function() {
+          localStorage.setItem('admin-pwa-dismissed', 'true');
+          var el = document.getElementById('admin-pwa-banner');
+          if (el) el.remove();
+        };
+
+        // Register service worker
+        if ('serviceWorker' in navigator) {
+          navigator.serviceWorker.register('/sw.js').catch(function() {});
+        }
+      </script>
     </>
   ) : (
     <script is:inline>

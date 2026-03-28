@@ -1,4 +1,12 @@
 ---
+interface Episode {
+  episode_number: number;
+  season_number: number;
+  name: string;
+  air_date?: string;
+  overview?: string;
+}
+
 interface Props {
   series: {
     title: string;
@@ -13,13 +21,25 @@ interface Props {
     cast_data?: { name: string }[];
   };
   tmdbId: number;
+  episodes?: Episode[];
 }
 
-const { series, tmdbId } = Astro.props;
+const { series, tmdbId, episodes = [] } = Astro.props;
 
 const ogImage = series.poster_path
   ? `https://image.tmdb.org/t/p/w780${series.poster_path}`
   : 'https://trendimovies.com/images/og-default.jpg';
+
+// Build episode list for schema
+const episodeSchema = episodes.slice(0, 50).map((ep) => ({
+  "@type": "TVEpisode",
+  "episodeNumber": ep.episode_number,
+  "seasonNumber": ep.season_number,
+  "name": ep.name,
+  "datePublished": ep.air_date || undefined,
+  "description": ep.overview || undefined,
+  "url": `https://trendimovies.com/tv/${tmdbId}?season=${ep.season_number}&episode=${ep.episode_number}`
+}));
 
 const jsonLd = {
   "@context": "https://schema.org",
@@ -41,6 +61,12 @@ const jsonLd = {
     "bestRating": 10,
     "ratingCount": series.vote_count || 1
   } : undefined,
+  "containsSeason": series.number_of_seasons ? Array.from({ length: series.number_of_seasons }, (_, i) => ({
+    "@type": "TVSeason",
+    "seasonNumber": i + 1,
+    "url": `https://trendimovies.com/tv/${tmdbId}?season=${i + 1}`
+  })) : undefined,
+  "episode": episodeSchema.length > 0 ? episodeSchema : undefined,
   "url": `https://trendimovies.com/tv/${tmdbId}`
 };
 

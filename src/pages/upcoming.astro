@@ -1,0 +1,9 @@
+---
+// Redirect to current month's upcoming page
+const today = new Date();
+const monthName = today.toLocaleDateString('en-US', { month: 'long' }).toLowerCase();
+const year = today.getFullYear();
+const slug = `${monthName}-${year}`;
+
+return Astro.redirect(`/upcoming/${slug}`);
+---

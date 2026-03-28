@@ -1,3 +1,13 @@
+import jwt from 'jsonwebtoken';
+import { readFileSync } from 'fs';
+let _apiJwt = '';
+try { _apiJwt = readFileSync('/etc/trendimovies/jwt_secret', 'utf-8').trim(); } catch {}
+function _apiAuth(extra?: Record<string, string>): Record<string, string> {
+  const h: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (_apiJwt) h['Authorization'] = 'Bearer ' + jwt.sign({ role: 'web_auth' }, _apiJwt, { expiresIn: '5m' });
+  if (extra) Object.assign(h, extra);
+  return h;
+}
 import type { APIRoute } from 'astro';
 
 const POSTGREST_URL = import.meta.env.PUBLIC_SUPABASE_URL || 'http://localhost:3001';

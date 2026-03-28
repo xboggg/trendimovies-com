@@ -154,8 +154,7 @@ function getPosterUrl(path: string | null): string {
                   href={entry.tmdb_id ? `/movie/${entry.tmdb_id}` : '#'}
                   class="flex items-center gap-3 group"
                 >
-                  <img
-                    src={getPosterUrl(entry.poster_path)}
+                  <img loading="lazy" src={getPosterUrl(entry.poster_path)}
                     alt={entry.movie_title}
                     class="w-10 h-15 rounded object-cover hidden sm:block"
                   />

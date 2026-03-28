@@ -1,3 +1,5 @@
+import { getCache, setCache } from './cache';
+
 const TMDB_API_KEY = import.meta.env.TMDB_API_KEY || '';
 const TMDB_BASE_URL = 'https://api.themoviedb.org/3';
 
@@ -9,6 +11,12 @@ interface TMDBResponse<T> {
 }
 
 export async function fetchFromTMDB<T>(endpoint: string, params: Record<string, string> = {}): Promise<T> {
+  // Check cache first
+  const cached = getCache<T>(endpoint, params);
+  if (cached) {
+    return cached;
+  }
+
   const url = new URL(`${TMDB_BASE_URL}${endpoint}`);
   url.searchParams.set('api_key', TMDB_API_KEY);
 
@@ -24,7 +32,12 @@ export async function fetchFromTMDB<T>(endpoint: string, params: Record<string, 
     throw new Error(`TMDB API error: ${response.status}`);
   }
 
-  return response.json();
+  const data = await response.json();
+
+  // Store in cache
+  setCache(endpoint, params, data);
+
+  return data;
 }
 
 // Movie endpoints
@@ -59,7 +72,6 @@ export async function getMovieDetails(tmdbId: number): Promise<any | null> {
       append_to_response: 'credits,videos,keywords,watch/providers,similar'
     });
   } catch (error) {
-    // Return null for 404 errors so page can redirect properly
     console.error(`Failed to fetch movie ${tmdbId}:`, error);
     return null;
   }
@@ -97,10 +109,9 @@ export async function getOnTheAirTVPaginated(page: number = 1): Promise<TMDBResp
 export async function getTVDetails(tmdbId: number): Promise<any | null> {
   try {
     return await fetchFromTMDB(`/tv/${tmdbId}`, {
-      append_to_response: 'credits,videos,keywords,watch/providers,similar'
+      append_to_response: 'credits,videos,keywords,watch/providers,similar,external_ids'
     });
   } catch (error) {
-    // Return null for 404 errors so page can redirect properly
     console.error(`Failed to fetch TV series ${tmdbId}:`, error);
     return null;
   }
@@ -143,6 +154,18 @@ export async function getTVGenres(): Promise<{ id: number; name: string }[]> {
 export async function getWatchProviders(type: 'movie' | 'tv', tmdbId: number, region: string = 'US'): Promise<any> {
   const data = await fetchFromTMDB(`/${type}/${tmdbId}/watch/providers`);
   return data.results?.[region] || null;
+}
+
+// Person details
+export async function getPersonDetails(personId: number): Promise<any | null> {
+  try {
+    return await fetchFromTMDB(`/person/${personId}`, {
+      append_to_response: 'combined_credits,external_ids,images'
+    });
+  } catch (error) {
+    console.error(`Failed to fetch person ${personId}:`, error);
+    return null;
+  }
 }
 
 // Transform TMDB data to our schema
@@ -222,7 +245,6 @@ export function transformSeriesData(tmdbSeries: any) {
 function getTrailerKey(videos: any[]): string | null {
   if (!videos || videos.length === 0) return null;
 
-  // Prefer official trailers from YouTube
   const trailer = videos.find(v =>
     v.type === 'Trailer' && v.site === 'YouTube' && v.official
   ) || videos.find(v =>
@@ -247,4 +269,48 @@ function generateSlug(title: string, year: number | null): string {
   }
 
   return slug;
+}
+
+// Get movie recommendations
+export async function getMovieRecommendations(movieId: number): Promise<any[]> {
+  try {
+    const data = await fetchFromTMDB<TMDBResponse<any>>(`/movie/${movieId}/recommendations`);
+    return data.results || [];
+  } catch (error) {
+    console.error('Failed to fetch movie recommendations:', error);
+    return [];
+  }
+}
+
+// Get similar movies
+export async function getSimilarMovies(movieId: number): Promise<any[]> {
+  try {
+    const data = await fetchFromTMDB<TMDBResponse<any>>(`/movie/${movieId}/similar`);
+    return data.results || [];
+  } catch (error) {
+    console.error('Failed to fetch similar movies:', error);
+    return [];
+  }
+}
+
+// Get TV series recommendations
+export async function getTVRecommendations(seriesId: number): Promise<any[]> {
+  try {
+    const data = await fetchFromTMDB<TMDBResponse<any>>(`/tv/${seriesId}/recommendations`);
+    return data.results || [];
+  } catch (error) {
+    console.error('Failed to fetch TV recommendations:', error);
+    return [];
+  }
+}
+
+// Get similar TV series
+export async function getSimilarTV(seriesId: number): Promise<any[]> {
+  try {
+    const data = await fetchFromTMDB<TMDBResponse<any>>(`/tv/${seriesId}/similar`);
+    return data.results || [];
+  } catch (error) {
+    console.error('Failed to fetch similar TV:', error);
+    return [];
+  }
 }

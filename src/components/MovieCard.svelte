@@ -16,8 +16,6 @@
     runtime?: number;
     release_date?: string | null;
     episode_info?: string;
-    number_of_seasons?: number;
-    number_of_episodes?: number;
   };
 
   // Format release date as "Feb 14, 2026"
@@ -43,6 +41,21 @@
     const mins = minutes % 60;
     return hours > 0 ? `${hours}h ${mins}m` : `${mins}m`;
   }
+
+  // Calculate days until release for upcoming movies
+  function getDaysUntilRelease(dateStr: string | null | undefined): number | null {
+    if (!dateStr) return null;
+    const releaseDate = new Date(dateStr);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    releaseDate.setHours(0, 0, 0, 0);
+    const diffTime = releaseDate.getTime() - today.getTime();
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    return diffDays > 0 ? diffDays : null;
+  }
+
+  $: daysUntil = getDaysUntilRelease(item.release_date);
+  $: isUpcoming = daysUntil !== null && daysUntil > 0;
 </script>
 
 <a {href} class="group relative block rounded-xl overflow-hidden movie-card">
@@ -51,6 +64,8 @@
     <img
       src={posterUrl}
       alt={item.title}
+      width="500"
+      height="750"
       class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
       loading="lazy"
     />
@@ -67,6 +82,13 @@
       <div class="absolute top-2 right-2 z-10">
         <span class="px-2 py-0.5 rounded text-[10px] font-bold episode-badge">
           {item.episode_info}
+        </span>
+      </div>
+    {:else if isUpcoming}
+      <!-- Countdown Badge -->
+      <div class="absolute top-2 right-2 z-10">
+        <span class="px-2 py-0.5 rounded text-[10px] font-bold countdown-badge">
+          {daysUntil === 1 ? 'Tomorrow' : `${daysUntil} days`}
         </span>
       </div>
     {:else if item.has_downloads}
@@ -134,21 +156,6 @@
         <span style="color: var(--text-secondary);">{item.vote_average.toFixed(1)}</span>
       </div>
     </div>
-
-    <!-- Series: seasons + episodes -->
-    {#if item.type === 'series' && (item.number_of_seasons || item.number_of_episodes)}
-      <div class="flex items-center gap-2 mt-1.5 text-xs" style="color: var(--text-secondary);">
-        {#if item.number_of_seasons}
-          <span class="series-stat">{item.number_of_seasons} Season{item.number_of_seasons !== 1 ? 's' : ''}</span>
-        {/if}
-        {#if item.number_of_seasons && item.number_of_episodes}
-          <span class="opacity-40">·</span>
-        {/if}
-        {#if item.number_of_episodes}
-          <span class="series-stat">{item.number_of_episodes} Eps</span>
-        {/if}
-      </div>
-    {/if}
   </div>
 
   <!-- Hover Border Effect -->
@@ -183,6 +190,12 @@
     letter-spacing: 0.05em;
   }
 
+  .countdown-badge {
+    background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);
+    color: white;
+    letter-spacing: 0.05em;
+  }
+
   .rating-circle {
     position: relative;
   }
@@ -205,14 +218,5 @@
 
   .info-section {
     background: var(--bg-card);
-  }
-
-  .series-stat {
-    background: rgba(239, 68, 68, 0.15);
-    color: #fca5a5;
-    padding: 1px 6px;
-    border-radius: 4px;
-    font-size: 10px;
-    font-weight: 600;
   }
 </style>

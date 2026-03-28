@@ -4,6 +4,28 @@ import { TMDB_API_KEY } from '../../../../lib/env';
 
 const TMDB_BASE_URL = 'https://api.themoviedb.org/3';
 
+// Normalize query to handle & vs and, special characters, etc.
+function normalizeQuery(q: string): string[] {
+  const queries: string[] = [q];
+  
+  // If contains "and", also try with "&"
+  if (/\band\b/i.test(q)) {
+    queries.push(q.replace(/\band\b/gi, '&'));
+  }
+  
+  // If contains "&", also try with "and"
+  if (q.includes('&')) {
+    queries.push(q.replace(/&/g, 'and'));
+  }
+  
+  // Also try without & or and entirely (just spaces)
+  if (/\band\b/i.test(q) || q.includes('&')) {
+    queries.push(q.replace(/\s*&\s*/g, ' ').replace(/\s+and\s+/gi, ' '));
+  }
+  
+  return [...new Set(queries)]; // Remove duplicates
+}
+
 export const GET: APIRoute = async ({ request, url }) => {
   // Auth check
   const authError = requireAuth(request);
@@ -30,7 +52,53 @@ export const GET: APIRoute = async ({ request, url }) => {
     });
   }
 
-  // Extract year from query (e.g., "kill 2024" -> query="kill", year=2024)
+  // Check if query looks like an IMDb ID (tt followed by numbers)
+  const imdbMatch = query.match(/^tt\d{6,}$/i);
+  if (imdbMatch) {
+    try {
+      const findUrl = `${TMDB_BASE_URL}/find/${query}?api_key=${TMDB_API_KEY}&external_source=imdb_id`;
+      const findResponse = await fetch(findUrl, { signal: AbortSignal.timeout(10000) });
+      
+      if (findResponse.ok) {
+        const findData = await findResponse.json();
+        const movieResults = findData.movie_results || [];
+        const tvResults = findData.tv_results || [];
+        
+        const formattedResults = [
+          ...movieResults.map((item: any) => ({
+            id: item.id,
+            title: item.title,
+            original_title: item.original_title,
+            year: item.release_date?.substring(0, 4) || null,
+            poster_path: item.poster_path ? `https://image.tmdb.org/t/p/w92${item.poster_path}` : null,
+            overview: item.overview?.substring(0, 150) || '',
+            vote_average: item.vote_average || 0,
+            media_type: 'movie'
+          })),
+          ...tvResults.map((item: any) => ({
+            id: item.id,
+            title: item.name,
+            original_title: item.original_name,
+            year: item.first_air_date?.substring(0, 4) || null,
+            poster_path: item.poster_path ? `https://image.tmdb.org/t/p/w92${item.poster_path}` : null,
+            overview: item.overview?.substring(0, 150) || '',
+            vote_average: item.vote_average || 0,
+            media_type: 'tv'
+          }))
+        ];
+        
+        if (formattedResults.length > 0) {
+          return new Response(JSON.stringify({ results: formattedResults }), {
+            headers: { 'Content-Type': 'application/json' }
+          });
+        }
+      }
+    } catch (e) {
+      console.error('IMDb lookup failed:', e);
+    }
+  }
+
+  // Extract year from query (e.g., "shelter 2026" -> query="shelter", year=2026)
   let year: string | null = null;
   const yearMatch = query.match(/\b(19\d{2}|20\d{2})\b/);
   if (yearMatch) {
@@ -47,36 +115,65 @@ export const GET: APIRoute = async ({ request, url }) => {
 
   try {
     const endpoint = type === 'tv' ? 'search/tv' : 'search/movie';
-    let apiUrl = `${TMDB_BASE_URL}/${endpoint}?api_key=${TMDB_API_KEY}&query=${encodeURIComponent(query)}&include_adult=false`;
+    
+    // Get all query variations (and vs &)
+    const queryVariations = normalizeQuery(query);
+    
+    let allResults: any[] = [];
+    const seenIds = new Set<number>();
+    
+    // Try each query variation
+    for (const q of queryVariations) {
+      let apiUrl = `${TMDB_BASE_URL}/${endpoint}?api_key=${TMDB_API_KEY}&query=${encodeURIComponent(q)}&include_adult=false`;
 
-    // Add year filter if extracted
-    if (year) {
-      apiUrl += type === 'tv' ? `&first_air_date_year=${year}` : `&year=${year}`;
+      // Add year filter if extracted
+      if (year) {
+        apiUrl += type === 'tv' ? `&first_air_date_year=${year}` : `&year=${year}`;
+      }
+
+      const response = await fetch(apiUrl, { signal: AbortSignal.timeout(10000) });
+
+      if (response.ok) {
+        const data = await response.json();
+        const results = (data.results || []);
+        
+        // Add unique results
+        for (const item of results) {
+          if (!seenIds.has(item.id)) {
+            seenIds.add(item.id);
+            allResults.push(item);
+          }
+        }
+      }
+      
+      // If we found results, no need to try more variations
+      if (allResults.length > 0) break;
     }
 
-    const response = await fetch(apiUrl, { signal: AbortSignal.timeout(10000) });
-
-    if (!response.ok) {
-      throw new Error(`TMDB API returned ${response.status}`);
-    }
-
-    const data = await response.json();
-    let results = (data.results || []);
-
-    // If year filter returned few results, also search without year and merge
-    if (year && results.length < 5) {
-      const fallbackUrl = `${TMDB_BASE_URL}/${endpoint}?api_key=${TMDB_API_KEY}&query=${encodeURIComponent(query)}&include_adult=false`;
-      const fallbackRes = await fetch(fallbackUrl, { signal: AbortSignal.timeout(10000) });
-      if (fallbackRes.ok) {
-        const fallbackData = await fallbackRes.json();
-        const existingIds = new Set(results.map((r: any) => r.id));
-        const additionalResults = (fallbackData.results || []).filter((r: any) => !existingIds.has(r.id));
-        results = [...results, ...additionalResults];
+    // If no results with year filter, try without year
+    if (allResults.length === 0 && year) {
+      for (const q of queryVariations) {
+        const noYearUrl = `${TMDB_BASE_URL}/${endpoint}?api_key=${TMDB_API_KEY}&query=${encodeURIComponent(q)}&include_adult=false`;
+        const noYearResponse = await fetch(noYearUrl, { signal: AbortSignal.timeout(10000) });
+        
+        if (noYearResponse.ok) {
+          const noYearData = await noYearResponse.json();
+          const results = (noYearData.results || []);
+          
+          for (const item of results) {
+            if (!seenIds.has(item.id)) {
+              seenIds.add(item.id);
+              allResults.push(item);
+            }
+          }
+        }
+        
+        if (allResults.length > 0) break;
       }
     }
 
-    // Format and sort results (prioritize matching year)
-    const formattedResults = results.slice(0, 20).map((item: any) => {
+    // Format results
+    let formattedResults = allResults.slice(0, 20).map((item: any) => {
       const itemYear = (type === 'tv' ? item.first_air_date : item.release_date)?.substring(0, 4) || null;
       return {
         id: item.id,
@@ -86,21 +183,21 @@ export const GET: APIRoute = async ({ request, url }) => {
         poster_path: item.poster_path ? `https://image.tmdb.org/t/p/w92${item.poster_path}` : null,
         overview: item.overview?.substring(0, 150) || '',
         vote_average: item.vote_average || 0,
-        media_type: type,
-        _yearMatch: year && itemYear === year ? 1 : 0
+        media_type: type
       };
     });
 
-    // Sort: year matches first, then by vote_average
-    formattedResults.sort((a: any, b: any) => {
-      if (a._yearMatch !== b._yearMatch) return b._yearMatch - a._yearMatch;
-      return (b.vote_average || 0) - (a.vote_average || 0);
-    });
+    // If year was specified, prefer exact matches but include others
+    if (year) {
+      const exactMatches = formattedResults.filter((item: any) => item.year === year);
+      const otherMatches = formattedResults.filter((item: any) => item.year !== year);
+      formattedResults = [...exactMatches, ...otherMatches.slice(0, 5)];
+    }
 
-    // Remove internal sorting field
-    const cleanResults = formattedResults.map(({ _yearMatch, ...rest }: any) => rest);
+    // Sort by vote_average
+    formattedResults.sort((a: any, b: any) => (b.vote_average || 0) - (a.vote_average || 0));
 
-    return new Response(JSON.stringify({ results: cleanResults }), {
+    return new Response(JSON.stringify({ results: formattedResults }), {
       headers: { 'Content-Type': 'application/json' }
     });
   } catch (error: any) {

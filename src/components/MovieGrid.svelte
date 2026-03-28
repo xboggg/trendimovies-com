@@ -16,6 +16,7 @@
 
   function getPosterUrl(path: string | null): string {
     if (!path) return '/images/no-poster.svg';
+    if (path.startsWith('/images/')) return path;
     return `https://image.tmdb.org/t/p/w342${path}`;
   }
 

@@ -1,0 +1,103 @@
+import type { APIRoute } from 'astro';
+import { requireAuth } from '../../../../lib/admin-auth';
+import { TMDB_API_KEY } from '../../../../lib/env';
+
+const TMDB_BASE_URL = 'https://api.themoviedb.org/3';
+
+export const GET: APIRoute = async ({ request, url }) => {
+  // Auth check
+  const authError = requireAuth(request);
+  if (authError) return authError;
+
+  let query = url.searchParams.get('query') || url.searchParams.get('q') || '';
+  const type = url.searchParams.get('type') || 'movie';
+
+  if (!query || query.length < 2) {
+    return new Response(JSON.stringify({ results: [], message: 'Query too short' }), {
+      headers: { 'Content-Type': 'application/json' }
+    });
+  }
+
+  // Limit query length to prevent abuse
+  if (query.length > 100) {
+    query = query.substring(0, 100);
+  }
+
+  if (!TMDB_API_KEY) {
+    return new Response(JSON.stringify({ results: [], error: 'TMDB API not configured' }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' }
+    });
+  }
+
+  // Extract year from query (e.g., "shelter 2026" -> query="shelter", year=2026)
+  let year: string | null = null;
+  const yearMatch = query.match(/\b(19\d{2}|20\d{2})\b/);
+  if (yearMatch) {
+    year = yearMatch[1];
+    query = query.replace(yearMatch[0], '').trim();
+  }
+
+  // If query becomes empty after removing year, return empty
+  if (!query || query.length < 1) {
+    return new Response(JSON.stringify({ results: [], message: 'Query too short after extracting year' }), {
+      headers: { 'Content-Type': 'application/json' }
+    });
+  }
+
+  try {
+    const endpoint = type === 'tv' ? 'search/tv' : 'search/movie';
+    let apiUrl = `${TMDB_BASE_URL}/${endpoint}?api_key=${TMDB_API_KEY}&query=${encodeURIComponent(query)}&include_adult=false`;
+
+    // Add year filter if extracted
+    if (year) {
+      apiUrl += type === 'tv' ? `&first_air_date_year=${year}` : `&year=${year}`;
+    }
+
+    const response = await fetch(apiUrl, { signal: AbortSignal.timeout(10000) });
+
+    if (!response.ok) {
+      throw new Error(`TMDB API returned ${response.status}`);
+    }
+
+    const data = await response.json();
+    let results = (data.results || []);
+
+    // Format results - filter strictly by year if specified
+    const formattedResults = results.slice(0, 20).map((item: any) => {
+      const itemYear = (type === 'tv' ? item.first_air_date : item.release_date)?.substring(0, 4) || null;
+      return {
+        id: item.id,
+        title: type === 'tv' ? item.name : item.title,
+        original_title: type === 'tv' ? item.original_name : item.original_title,
+        year: itemYear,
+        poster_path: item.poster_path ? `https://image.tmdb.org/t/p/w92${item.poster_path}` : null,
+        overview: item.overview?.substring(0, 150) || '',
+        vote_average: item.vote_average || 0,
+        media_type: type
+      };
+    }).filter((item: any) => {
+      // If year was specified, only return exact matches
+      if (year) {
+        return item.year === year;
+      }
+      return true;
+    });
+
+    // Sort by vote_average
+    formattedResults.sort((a: any, b: any) => (b.vote_average || 0) - (a.vote_average || 0));
+
+    return new Response(JSON.stringify({ results: formattedResults }), {
+      headers: { 'Content-Type': 'application/json' }
+    });
+  } catch (error: any) {
+    console.error('TMDB search error:', error);
+    return new Response(JSON.stringify({
+      error: 'Failed to search TMDB',
+      results: []
+    }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' }
+    });
+  }
+};

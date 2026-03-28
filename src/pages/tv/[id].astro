@@ -1,7 +1,9 @@
 ---
 import BaseLayout from '../../layouts/BaseLayout.astro';
+import TVJsonLd from '../../components/TVJsonLd.astro';
 import SeasonTabs from '../../components/SeasonTabs.svelte';
 import ContentRow from '../../components/ContentRow.svelte';
+import UserActions from '../../components/UserActions.svelte';
 import { getTVDetails, getSeasonDetails, transformSeriesData } from '../../lib/tmdb';
 import { Star, Clock, Calendar, Globe, Tv, Play } from 'lucide-svelte';
 
@@ -28,6 +30,17 @@ const seasonNumbers = (tmdbData.seasons || [])
 const seasonDataPromises = seasonNumbers.map((num: number) => getSeasonDetails(tmdbId, num));
 const seasonDataResults = await Promise.all(seasonDataPromises);
 
+// Collect all episodes for JSON-LD schema
+const allEpisodes = seasonDataResults.flatMap((season: any) => 
+  (season?.episodes || []).map((ep: any) => ({
+    episode_number: ep.episode_number,
+    season_number: ep.season_number,
+    name: ep.name,
+    air_date: ep.air_date,
+    overview: ep.overview
+  }))
+);
+
 const episodesBySeason: Record<number, any[]> = {};
 seasonDataResults.forEach((seasonData: any) => {
   if (seasonData && seasonData.episodes) {
@@ -47,12 +60,13 @@ seasonDataResults.forEach((seasonData: any) => {
 
 // Check PostgreSQL for episode downloads
 let downloadsByEpisode: Record<number, any[]> = {};
+let subtitlesByEpisode: Record<number, any[]> = {};
 const POSTGREST_URL = import.meta.env.PUBLIC_SUPABASE_URL || 'http://localhost:3001';
 
 try {
   // Find this series in PostgreSQL by TMDB ID
   const seriesResp = await fetch(
-    `${POSTGREST_URL}/series?tmdb_id=eq.${tmdbId}&select=id`,
+    `${POSTGREST_URL}/series?tmdb_id=eq.${tmdbId}&select=id,poster_path`,
     { headers: { 'Accept-Profile': 'public' }, signal: AbortSignal.timeout(5000) }
   );
 
@@ -60,6 +74,11 @@ try {
     const seriesData = await seriesResp.json();
     if (seriesData.length > 0) {
       const dbSeriesId = seriesData[0].id;
+      // Override poster with local image if DB has one
+      const dbPoster = seriesData[0].poster_path;
+      if (dbPoster && dbPoster.startsWith('/images/')) {
+        series.poster_path = dbPoster;
+      }
 
       // Load DB episodes for this series (to map season/episode numbers to DB IDs)
       const epResp = await fetch(
@@ -118,6 +137,21 @@ try {
             }
           }
         }
+
+        // Fetch subtitle links for episodes
+        if (dbEpIds.length > 0) {
+          const subResp = await fetch(
+            `${POSTGREST_URL}/subtitle_links?content_type=eq.episode&is_active=eq.true&content_id=in.(${dbEpIds.join(',')})&select=id,file_name,file_size,telegram_file_id`,
+            { headers: { 'Accept-Profile': 'public' }, signal: AbortSignal.timeout(10000) }
+          );
+          if (subResp.ok) {
+            const subData = await subResp.json();
+            for (const sub of subData) {
+              if (!subtitlesByEpisode[sub.content_id]) subtitlesByEpisode[sub.content_id] = [];
+              subtitlesByEpisode[sub.content_id].push(sub);
+            }
+          }
+        }
       }
     }
   }
@@ -126,20 +160,146 @@ try {
 }
 
 // Transform seasons for SeasonTabs component
-const seasons = (tmdbData.seasons || [])
-  .filter((s: any) => s.season_number > 0)
-  .map((s: any) => ({
-    id: s.id,
-    season_number: s.season_number,
-    name: s.name,
-    overview: s.overview,
-    poster_path: s.poster_path,
-    episode_count: s.episode_count
-  }));
+// Prefer PostgreSQL seasons over TMDB when available (TMDB sometimes has wrong episode counts)
+let seasons: any[] = [];
+let dbSeasonsUsed = false;
+
+try {
+  const POSTGREST_SEASONS_URL = import.meta.env.PUBLIC_SUPABASE_URL || 'http://localhost:3001';
+  const seriesCheckResp = await fetch(
+    `${POSTGREST_SEASONS_URL}/series?tmdb_id=eq.${tmdbId}&select=id`,
+    { headers: { 'Accept-Profile': 'public' }, signal: AbortSignal.timeout(5000) }
+  );
+  if (seriesCheckResp.ok) {
+    const seriesCheckData = await seriesCheckResp.json();
+    if (seriesCheckData.length > 0) {
+      const checkDbId = seriesCheckData[0].id;
+      const dbSeasonsResp = await fetch(
+        `${POSTGREST_SEASONS_URL}/seasons?series_id=eq.${checkDbId}&order=season_number&select=id,season_number,name,overview,poster_path,episode_count`,
+        { headers: { 'Accept-Profile': 'public' }, signal: AbortSignal.timeout(5000) }
+      );
+      if (dbSeasonsResp.ok) {
+        const dbSeasonsData = await dbSeasonsResp.json();
+        if (dbSeasonsData.length > 0) {
+          // Check if DB season structure differs from TMDB
+          const tmdbSeasonNums = (tmdbData.seasons || []).filter((s: any) => s.season_number > 0).map((s: any) => s.season_number);
+          const dbSeasonNums = dbSeasonsData.map((s: any) => s.season_number);
+          const structureDiffers = dbSeasonNums.length !== tmdbSeasonNums.length || 
+            dbSeasonsData.some((ds: any) => {
+              const tmdbMatch = (tmdbData.seasons || []).find((ts: any) => ts.season_number === ds.season_number);
+              return tmdbMatch && tmdbMatch.episode_count !== ds.episode_count;
+            });
+          
+          if (structureDiffers) {
+            // Use DB seasons and rebuild episodesBySeason from DB episodes
+            seasons = dbSeasonsData.map((s: any) => ({
+              id: s.id,
+              season_number: s.season_number,
+              name: s.name || 'Season ' + s.season_number,
+              overview: s.overview,
+              poster_path: s.poster_path,
+              episode_count: s.episode_count
+            }));
+
+            // Fetch DB episodes grouped by season
+            const dbAllEpsResp = await fetch(
+              `${POSTGREST_SEASONS_URL}/episodes?series_id=eq.${checkDbId}&order=episode_number&select=id,season_id,episode_number,name,overview,still_path,air_date,runtime,vote_average,has_downloads`,
+              { headers: { 'Accept-Profile': 'public' }, signal: AbortSignal.timeout(10000) }
+            );
+            if (dbAllEpsResp.ok) {
+              const dbAllEps = await dbAllEpsResp.json();
+              const seasonIdToNum: Record<number, number> = {};
+              for (const s of dbSeasonsData) seasonIdToNum[s.id] = s.season_number;
+              
+              // Rebuild episodesBySeason from DB
+              const newEpsBySeason: Record<number, any[]> = {};
+              const allDbEpIds: number[] = [];
+              for (const ep of dbAllEps) {
+                const sNum = seasonIdToNum[ep.season_id];
+                if (sNum) {
+                  if (!newEpsBySeason[sNum]) newEpsBySeason[sNum] = [];
+                  newEpsBySeason[sNum].push({
+                    id: ep.id,
+                    episode_number: ep.episode_number,
+                    name: ep.name || 'Episode ' + ep.episode_number,
+                    overview: ep.overview || '',
+                    still_path: ep.still_path,
+                    air_date: ep.air_date,
+                    runtime: ep.runtime,
+                    vote_average: ep.vote_average,
+                    has_downloads: ep.has_downloads || false
+                  });
+                  allDbEpIds.push(ep.id);
+                }
+              }
+              // Override the TMDB-based episodesBySeason
+              for (const key of Object.keys(episodesBySeason)) delete episodesBySeason[parseInt(key)];
+              Object.assign(episodesBySeason, newEpsBySeason);
+
+              // Rebuild downloadsByEpisode from DB episode IDs
+              downloadsByEpisode = {};
+              if (allDbEpIds.length > 0) {
+                const dlResp2 = await fetch(
+                  POSTGREST_SEASONS_URL + '/download_links?content_type=eq.episode&is_active=eq.true&content_id=in.(' + allDbEpIds.join(',') + ')',
+                  { headers: { 'Accept-Profile': 'public' }, signal: AbortSignal.timeout(10000) }
+                );
+                if (dlResp2.ok) {
+                  const dlData2 = await dlResp2.json();
+                  for (const link of dlData2) {
+                    if (!downloadsByEpisode[link.content_id]) downloadsByEpisode[link.content_id] = [];
+                    downloadsByEpisode[link.content_id].push(link);
+                  }
+                  // Update has_downloads on episodes
+                  for (const [sNum, eps] of Object.entries(newEpsBySeason)) {
+                    for (const ep of eps as any[]) {
+                      if (downloadsByEpisode[ep.id] && downloadsByEpisode[ep.id].length > 0) {
+                        ep.has_downloads = true;
+                      }
+                    }
+                  }
+                }
+                // Also rebuild subtitlesByEpisode
+                subtitlesByEpisode = {};
+                const subResp2 = await fetch(
+                  POSTGREST_SEASONS_URL + '/subtitle_links?content_type=eq.episode&is_active=eq.true&content_id=in.(' + allDbEpIds.join(',') + ')&select=id,file_name,file_size,telegram_file_id',
+                  { headers: { 'Accept-Profile': 'public' }, signal: AbortSignal.timeout(10000) }
+                );
+                if (subResp2.ok) {
+                  const subData2 = await subResp2.json();
+                  for (const sub of subData2) {
+                    if (!subtitlesByEpisode[sub.content_id]) subtitlesByEpisode[sub.content_id] = [];
+                    subtitlesByEpisode[sub.content_id].push(sub);
+                  }
+                }
+              }
+              dbSeasonsUsed = true;
+            }
+          }
+        }
+      }
+    }
+  }
+} catch (e) {
+  // Fall through to TMDB seasons
+}
+
+if (!dbSeasonsUsed) {
+  seasons = (tmdbData.seasons || [])
+    .filter((s: any) => s.season_number > 0)
+    .map((s: any) => ({
+      id: s.id,
+      season_number: s.season_number,
+      name: s.name,
+      overview: s.overview,
+      poster_path: s.poster_path,
+      episode_count: s.episode_count
+    }));
+}
 
 // Helper functions
 function getPosterUrl(path: string | null): string {
   if (!path) return '/images/no-poster.svg';
+  if (path.startsWith('/images/')) return path;
   return `https://image.tmdb.org/t/p/w500${path}`;
 }
 
@@ -182,25 +342,16 @@ const similar = (tmdbData.similar?.results || []).slice(0, 12).map((s: any) => (
   type: 'series' as const
 }));
 
-// Build enhanced OG description for WhatsApp/social sharing
+// Build OG description for WhatsApp/social sharing - Title (Year) and Synopsis only
 const ogYear = series.year ? `(${series.year})` : '';
-const ogRating = series.vote_average ? `⭐ ${series.vote_average.toFixed(1)}` : '';
-const ogGenres = series.genres?.length > 0
-  ? series.genres.map((g: any) => g.name).join(', ')
-  : '';
 const ogSynopsis = series.overview || `Watch ${series.title} online for free in HD quality.`;
 
-// Format: "Rating\nGenres\n\nSynopsis"
-const ogDescription = [
-  ogRating,
-  ogGenres,
-  '',
-  ogSynopsis
-].filter(Boolean).join('\n');
+// Only synopsis - no rating or genres
+const ogDescription = ogSynopsis;
 
 // Use poster for OG image (better for WhatsApp preview)
 const ogImage = series.poster_path
-  ? `https://image.tmdb.org/t/p/w780${series.poster_path}`
+  ? (series.poster_path.startsWith('/images/') ? series.poster_path : `https://image.tmdb.org/t/p/w780${series.poster_path}`)
   : '/images/og-default.jpg';
 
 const ogTitle = `${series.title} ${ogYear}`.trim();
@@ -212,6 +363,7 @@ const ogTitle = `${series.title} ${ogYear}`.trim();
   image={ogImage}
   type="video.tv_show"
 >
+  <TVJsonLd series={series} tmdbId={tmdbId} episodes={allEpisodes} />
   <!-- Backdrop Header -->
   <section class="relative">
     <div class="absolute inset-0 h-[500px]">
@@ -279,6 +431,14 @@ const ogTitle = `${series.title} ${ogYear}`.trim();
             </div>
           )}
 
+          <!-- User Actions -->
+          <UserActions
+            client:load
+            contentType="series"
+            tmdbId={series.tmdb_id}
+            title={series.title}
+            posterPath={series.poster_path}
+          />
           <div class="mb-6">
             <h3 class="font-semibold mb-2 text-white">Synopsis</h3>
             <p class="leading-relaxed text-gray-300">
@@ -306,7 +466,7 @@ const ogTitle = `${series.title} ${ogYear}`.trim();
   </section>
 
   <!-- Episodes -->
-  <section class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+  <section class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 mt-4">
     <h2 class="text-2xl font-bold mb-6 flex items-center gap-2" style="color: var(--text-primary);">
       <Play size={24} />
       Episodes
@@ -319,12 +479,13 @@ const ogTitle = `${series.title} ${ogYear}`.trim();
       {seasons}
       {episodesBySeason}
       {downloadsByEpisode}
+      {subtitlesByEpisode}
     />
   </section>
 
   <!-- Cast -->
   {series.cast_data && series.cast_data.length > 0 && (
-    <section class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <section class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 mt-4">
       <h2 class="text-2xl font-bold mb-4" style="color: var(--text-primary);">Cast</h2>
       <div class="flex gap-4 overflow-x-auto hide-scrollbar pb-4">
         {series.cast_data.slice(0, 12).map((actor: any) => (
@@ -344,7 +505,7 @@ const ogTitle = `${series.title} ${ogYear}`.trim();
 
   <!-- Trailer -->
   {series.trailer_key && (
-    <section class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <section class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 mt-4">
       <h2 class="text-2xl font-bold mb-4" style="color: var(--text-primary);">Trailer</h2>
       <div class="video-container rounded-lg overflow-hidden">
         <iframe
@@ -358,7 +519,7 @@ const ogTitle = `${series.title} ${ogYear}`.trim();
   )}
 
   <!-- Details -->
-  <section class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+  <section class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 mt-4">
     <h2 class="text-2xl font-bold mb-4" style="color: var(--text-primary);">Details</h2>
     <div class="grid grid-cols-2 md:grid-cols-4 gap-4 p-6 rounded-lg" style="background-color: var(--bg-card);">
       <div>

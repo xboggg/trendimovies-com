@@ -2,13 +2,12 @@
 import BaseLayout from '../layouts/BaseLayout.astro';
 import { searchMovies, getMovieDetails } from '../lib/tmdb';
 
-// Complete 2026 Oscar Categories and Nominees
+// Complete 2026 Oscar Categories - Winners & Nominees
 const oscarCategories = [
   {
     name: 'Best Picture',
+    winner: { title: 'One Battle after Another', note: 'Adam Somner, Sara Murphy and Paul Thomas Anderson, Producers' },
     nominees: [
-      { title: 'Sinners', note: '16 nominations' },
-      { title: 'One Battle After Another', note: '13 nominations' },
       { title: 'Bugonia' },
       { title: 'F1' },
       { title: 'Frankenstein' },
@@ -16,215 +15,249 @@ const oscarCategories = [
       { title: 'Marty Supreme' },
       { title: 'The Secret Agent' },
       { title: 'Sentimental Value' },
+      { title: 'Sinners' },
       { title: 'Train Dreams' }
     ]
   },
   {
     name: 'Best Director',
+    winner: { person: 'Paul Thomas Anderson', title: 'One Battle after Another' },
     nominees: [
-      { person: 'Ryan Coogler', title: 'Sinners' },
-      { person: 'Paul Thomas Anderson', title: 'One Battle After Another' },
+      { person: 'Chlo\u00e9 Zhao', title: 'Hamnet' },
       { person: 'Josh Safdie', title: 'Marty Supreme' },
       { person: 'Joachim Trier', title: 'Sentimental Value' },
-      { person: 'Chloé Zhao', title: 'Hamnet' }
+      { person: 'Ryan Coogler', title: 'Sinners' }
     ]
   },
   {
     name: 'Best Actor',
+    winner: { person: 'Michael B. Jordan', title: 'Sinners' },
     nominees: [
-      { person: 'Michael B. Jordan', title: 'Sinners' },
-      { person: 'Leonardo DiCaprio', title: 'One Battle After Another' },
-      { person: 'Timothée Chalamet', title: 'Marty Supreme' },
+      { person: 'Timoth\u00e9e Chalamet', title: 'Marty Supreme' },
+      { person: 'Leonardo DiCaprio', title: 'One Battle after Another' },
       { person: 'Ethan Hawke', title: 'Blue Moon' },
       { person: 'Wagner Moura', title: 'The Secret Agent' }
     ]
   },
   {
     name: 'Best Actress',
+    winner: { person: 'Jessie Buckley', title: 'Hamnet' },
     nominees: [
-      { person: 'Emma Stone', title: 'Bugonia' },
-      { person: 'Jessie Buckley', title: 'Hamnet' },
+      { person: 'Rose Byrne', title: "If I Had Legs I\'d Kick You" },
+      { person: 'Kate Hudson', title: 'Song Sung Blue' },
       { person: 'Renate Reinsve', title: 'Sentimental Value' },
-      { person: 'Rose Byrne', title: 'If I Had Legs I\'d Kick You' },
-      { person: 'Kate Hudson', title: 'Song Sung Blue' }
+      { person: 'Emma Stone', title: 'Bugonia' }
     ]
   },
   {
     name: 'Best Supporting Actor',
+    winner: { person: 'Sean Penn', title: 'One Battle after Another' },
     nominees: [
-      { person: 'Delroy Lindo', title: 'Sinners' },
-      { person: 'Benicio Del Toro', title: 'One Battle After Another' },
-      { person: 'Sean Penn', title: 'One Battle After Another' },
+      { person: 'Benicio Del Toro', title: 'One Battle after Another' },
       { person: 'Jacob Elordi', title: 'Frankenstein' },
-      { person: 'Stellan Skarsgård', title: 'Sentimental Value' }
+      { person: 'Delroy Lindo', title: 'Sinners' },
+      { person: 'Stellan Skarsg\u00e5rd', title: 'Sentimental Value' }
     ]
   },
   {
     name: 'Best Supporting Actress',
+    winner: { person: 'Amy Madigan', title: 'Weapons' },
     nominees: [
-      { person: 'Wunmi Mosaku', title: 'Sinners' },
       { person: 'Elle Fanning', title: 'Sentimental Value' },
       { person: 'Inga Ibsdotter Lilleaas', title: 'Sentimental Value' },
-      { person: 'Teyana Taylor', title: 'One Battle After Another' },
-      { person: 'Amy Madigan', title: 'Weapons' }
+      { person: 'Wunmi Mosaku', title: 'Sinners' },
+      { person: 'Teyana Taylor', title: 'One Battle after Another' }
     ]
   },
   {
     name: 'Best Original Screenplay',
+    winner: { person: 'Ryan Coogler', title: 'Sinners' },
     nominees: [
-      { person: 'Ryan Coogler', title: 'Sinners' },
-      { person: 'Joachim Trier & Eskil Vogt', title: 'Sentimental Value' },
-      { person: 'Ronald Bronstein & Josh Safdie', title: 'Marty Supreme' },
       { person: 'Robert Kaplow', title: 'Blue Moon' },
-      { person: 'Jafar Panahi', title: 'It Was Just an Accident' }
+      { person: 'Jafar Panahi', title: 'It Was Just an Accident' },
+      { person: 'Ronald Bronstein & Josh Safdie', title: 'Marty Supreme' },
+      { person: 'Eskil Vogt & Joachim Trier', title: 'Sentimental Value' }
     ]
   },
   {
     name: 'Best Adapted Screenplay',
+    winner: { person: 'Paul Thomas Anderson', title: 'One Battle after Another' },
     nominees: [
-      { person: 'Paul Thomas Anderson', title: 'One Battle After Another' },
-      { person: 'Chloé Zhao & Maggie O\'Farrell', title: 'Hamnet' },
-      { person: 'Guillermo del Toro', title: 'Frankenstein' },
       { person: 'Will Tracy', title: 'Bugonia' },
+      { person: 'Guillermo del Toro', title: 'Frankenstein' },
+      { person: 'Chlo\u00e9 Zhao & Maggie O\'Farrell', title: 'Hamnet' },
       { person: 'Clint Bentley & Greg Kwedar', title: 'Train Dreams' }
     ]
   },
   {
     name: 'Best Animated Feature',
+    winner: { title: 'KPop Demon Hunters', note: 'Maggie Kang, Chris Appelhans and Michelle L.M. Wong' },
     nominees: [
-      { title: 'Zootopia 2' },
-      { title: 'Elio' },
-      { title: 'KPop Demon Hunters' },
       { title: 'Arco' },
-      { title: 'Little Amélie or the Character of Rain' }
+      { title: 'Elio' },
+      { title: 'Little Am\u00e9lie or the Character of Rain' },
+      { title: 'Zootopia 2' }
     ]
   },
   {
     name: 'Best International Feature',
+    winner: { title: 'Sentimental Value', note: 'Norway' },
     nominees: [
-      { title: 'Sentimental Value', note: 'Norway' },
       { title: 'The Secret Agent', note: 'Brazil' },
-      { title: 'It Was Just an Accident', note: 'Iran' },
-      { title: 'Sirât', note: 'Saudi Arabia' },
-      { title: 'The Voice of Hind Rajab', note: 'Palestine' }
+      { title: 'It Was Just an Accident', note: 'France' },
+      { title: 'Sir\u0101t', note: 'Spain' },
+      { title: 'The Voice of Hind Rajab', note: 'Tunisia' }
     ]
   },
   {
     name: 'Best Documentary Feature',
+    winner: { title: 'Mr. Nobody against Putin', note: 'David Borenstein, Pavel Talankin, Helle Faber and Al\u017eb\u011bta Kar\u00e1skov\u00e1' },
     nominees: [
       { title: 'The Alabama Solution' },
       { title: 'Come See Me in the Good Light' },
-      { title: 'Cutting Through Rocks' },
-      { title: 'Mr. Nobody Against Putin' },
+      { title: 'Cutting through Rocks' },
       { title: 'The Perfect Neighbor' }
     ]
   },
   {
     name: 'Best Cinematography',
+    winner: { title: 'Sinners', note: 'Autumn Durald Arkapaw' },
     nominees: [
-      { title: 'Sinners' },
-      { title: 'One Battle After Another' },
-      { title: 'Sentimental Value' },
-      { title: 'Marty Supreme' },
-      { title: 'Frankenstein' }
+      { title: 'Frankenstein', note: 'Dan Laustsen' },
+      { title: 'Marty Supreme', note: 'Darius Khondji' },
+      { title: 'One Battle after Another', note: 'Michael Bauman' },
+      { title: 'Train Dreams', note: 'Adolpho Veloso' }
     ]
   },
   {
     name: 'Best Film Editing',
+    winner: { title: 'One Battle after Another', note: 'Andy Jurgensen' },
     nominees: [
-      { person: 'Michael Shawver', title: 'Sinners' },
-      { person: 'Andy Jurgensen', title: 'One Battle After Another' },
-      { person: 'Olivier Bugge Coutté', title: 'Sentimental Value' },
-      { person: 'Ronald Bronstein & Josh Safdie', title: 'Marty Supreme' },
-      { person: 'Stephen Mirrione', title: 'F1' }
+      { title: 'F1', note: 'Stephen Mirrione' },
+      { title: 'Marty Supreme', note: 'Ronald Bronstein and Josh Safdie' },
+      { title: 'Sentimental Value', note: 'Olivier Bugge Coutt\u00e9' },
+      { title: 'Sinners', note: 'Michael P. Shawver' }
     ]
   },
   {
     name: 'Best Production Design',
+    winner: { title: 'Frankenstein', note: 'Tamara Deverell; Set Decoration: Shane Vieau' },
     nominees: [
-      { title: 'Sinners' },
-      { title: 'One Battle After Another' },
-      { title: 'Marty Supreme' },
-      { title: 'Hamnet' },
-      { title: 'Frankenstein' }
+      { title: 'Hamnet', note: 'Fiona Crombie; Set Decoration: Alice Felton' },
+      { title: 'Marty Supreme', note: 'Jack Fisk; Set Decoration: Adam Willis' },
+      { title: 'One Battle after Another', note: 'Florencia Martin; Set Decoration: Anthony Carlino' },
+      { title: 'Sinners', note: 'Hannah Beachler; Set Decoration: Monique Champagne' }
     ]
   },
   {
     name: 'Best Costume Design',
+    winner: { title: 'Frankenstein', note: 'Kate Hawley' },
     nominees: [
-      { title: 'Sinners' },
-      { title: 'Marty Supreme' },
-      { title: 'Hamnet' },
-      { title: 'Frankenstein' },
-      { title: 'Avatar: Fire and Ash' }
+      { title: 'Avatar: Fire and Ash', note: 'Deborah L. Scott' },
+      { title: 'Hamnet', note: 'Malgosia Turzanska' },
+      { title: 'Marty Supreme', note: 'Miyako Bellizzi' },
+      { title: 'Sinners', note: 'Ruth E. Carter' }
     ]
   },
   {
     name: 'Best Makeup and Hairstyling',
+    winner: { title: 'Frankenstein', note: 'Mike Hill, Jordan Samuel and Cliona Furey' },
     nominees: [
-      { title: 'Sinners' },
-      { title: 'Frankenstein' },
-      { title: 'The Smashing Machine' },
       { title: 'Kokuho' },
+      { title: 'Sinners' },
+      { title: 'The Smashing Machine' },
       { title: 'The Ugly Stepsister' }
     ]
   },
   {
     name: 'Best Original Score',
+    winner: { title: 'Sinners', note: 'Ludwig Goransson' },
     nominees: [
-      { title: 'Sinners' },
-      { title: 'One Battle After Another' },
-      { title: 'Hamnet' },
-      { title: 'Frankenstein' },
-      { title: 'Bugonia' }
+      { title: 'Bugonia', note: 'Jerskin Fendrix' },
+      { title: 'Frankenstein', note: 'Alexandre Desplat' },
+      { title: 'Hamnet', note: 'Max Richter' },
+      { title: 'One Battle after Another', note: 'Jonny Greenwood' }
     ]
   },
   {
     name: 'Best Original Song',
+    winner: { title: 'KPop Demon Hunters', note: '"Golden"' },
     nominees: [
+      { title: 'Diane Warren: Relentless', note: '"Dear Me"' },
       { title: 'Sinners', note: '"I Lied To You"' },
       { title: 'Train Dreams', note: '"Train Dreams"' },
-      { title: 'KPop Demon Hunters', note: '"Golden"' },
-      { title: 'Highest 2 Lowest', note: '"Highest 2 Lowest"' },
-      { title: 'Diane Warren: Relentless', note: '"Dear Me"' }
+      { title: 'Viva Verdi!', note: '"Sweet Dreams Of Joy"' }
     ]
   },
   {
     name: 'Best Sound',
+    winner: { title: 'F1', note: 'Gareth John, Al Nelson, Gwendolyn Yates Whittle, Gary A. Rizzo and Juan Peralta' },
     nominees: [
-      { title: 'Sinners' },
-      { title: 'One Battle After Another' },
-      { title: 'F1' },
       { title: 'Frankenstein' },
-      { title: 'Sirât' }
+      { title: 'One Battle after Another' },
+      { title: 'Sinners' },
+      { title: 'Sir\u0101t' }
     ]
   },
   {
     name: 'Best Visual Effects',
+    winner: { title: 'Avatar: Fire and Ash', note: 'Joe Letteri, Richard Baneham, Eric Saindon and Daniel Barrett' },
     nominees: [
-      { title: 'Sinners' },
-      { title: 'Avatar: Fire and Ash' },
       { title: 'F1' },
       { title: 'Jurassic World Rebirth' },
-      { title: 'The Lost Bus' }
+      { title: 'The Lost Bus' },
+      { title: 'Sinners' }
     ]
   },
   {
     name: 'Best Casting',
     note: 'New Category',
+    winner: { title: 'One Battle after Another', note: 'Cassandra Kulukundis' },
     nominees: [
-      { title: 'Sinners' },
-      { title: 'One Battle After Another' },
-      { title: 'Marty Supreme' },
-      { title: 'Hamnet' },
-      { title: 'The Secret Agent' }
+      { title: 'Hamnet', note: 'Nina Gold' },
+      { title: 'Marty Supreme', note: 'Jennifer Venditti' },
+      { title: 'The Secret Agent', note: 'Gabriel Domingues' },
+      { title: 'Sinners', note: 'Francine Maisler' }
     ]
   }
 ];
 
-// Best Picture nominees for the poster grid
+// Short film categories
+const shortFilmCategories = [
+  {
+    name: 'Best Animated Short Film',
+    winner: { title: 'The Girl Who Cried Pearls', note: 'Chris Lavis and Maciek Szczerbowski' },
+    nominees: [
+      { title: 'Butterfly' },
+      { title: 'Forevergreen' },
+      { title: 'Retirement Plan' },
+      { title: 'The Three Sisters' }
+    ]
+  },
+  {
+    name: 'Best Documentary Short Film',
+    winner: { title: 'All the Empty Rooms', note: 'Joshua Seftel and Conall Jones' },
+    nominees: [
+      { title: 'Armed Only with a Camera' },
+      { title: 'Children No More' },
+      { title: 'The Devil Is Busy' },
+      { title: 'Perfectly a Strangeness' }
+    ]
+  },
+  {
+    name: 'Best Live Action Short Film',
+    winner: { title: 'The Singers / Two People Exchanging Saliva', note: 'Tie' },
+    nominees: [
+      { title: "Butcher\'s Stain" },
+      { title: 'A Friend of Dorothy' },
+      { title: "Jane Austen\'s Period Drama" }
+    ]
+  }
+];
+
+// Best Picture nominees for the poster grid — winner first
 const bestPictureTitles = [
-  'Sinners', 'One Battle After Another', 'Bugonia', 'F1', 'Frankenstein',
+  'One Battle After Another', 'Sinners', 'Bugonia', 'F1', 'Frankenstein',
   'Hamnet', 'Marty Supreme', 'The Secret Agent', 'Sentimental Value', 'Train Dreams'
 ];
 
@@ -273,10 +306,23 @@ function getBackdropUrl(path: string | null): string {
   return `https://image.tmdb.org/t/p/original${path}`;
 }
 
-// Get nomination count for a title
+// Count wins for a title
+function getWinCount(title: string): number {
+  let count = 0;
+  for (const cat of oscarCategories) {
+    if (cat.winner && cat.winner.title === title) count++;
+  }
+  for (const cat of shortFilmCategories) {
+    if (cat.winner && cat.winner.title && cat.winner.title.includes(title)) count++;
+  }
+  return count;
+}
+
+// Count nominations for a title
 function getNominationCount(title: string): number {
   let count = 0;
   for (const cat of oscarCategories) {
+    if (cat.winner && cat.winner.title === title) count++;
     for (const nom of cat.nominees) {
       if (nom.title === title) count++;
     }
@@ -286,14 +332,13 @@ function getNominationCount(title: string): number {
 ---
 
 <BaseLayout
-  title="2026 Oscar Nominations - Academy Awards"
-  description="Complete list of 2026 Oscar nominated films. The 98th Academy Awards ceremony - March 15, 2026."
+  title="2026 Oscar Winners - 98th Academy Awards"
+  description="Complete list of 2026 Oscar winners and nominees. The 98th Academy Awards ceremony - March 15, 2026."
 >
   <!-- Hero Section -->
   <section class="relative h-[50vh] min-h-[400px] overflow-hidden">
     <div class="absolute inset-0">
-      <img
-        src={validNominees[0]?.tmdb?.backdrop_path ? getBackdropUrl(validNominees[0].tmdb.backdrop_path) : '/images/oscars-bg.jpg'}
+      <img loading="lazy" src={validNominees[0]?.tmdb?.backdrop_path ? getBackdropUrl(validNominees[0].tmdb.backdrop_path) : '/images/oscars-bg.jpg'}
         alt="Oscars 2026"
         class="w-full h-full object-cover"
       />
@@ -303,14 +348,52 @@ function getNominationCount(title: string): number {
     <div class="relative h-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center">
       <div class="text-center w-full">
         <div class="inline-flex items-center gap-2 mb-4">
-          <span class="text-4xl">🏆</span>
+          <span class="text-4xl">&#127942;</span>
         </div>
         <h1 class="text-4xl md:text-6xl font-black text-white mb-4">
-          2026 Oscar Nominations
+          2026 Oscar Winners
         </h1>
         <p class="text-xl text-gray-300 mb-2">98th Academy Awards</p>
-        <p class="text-amber-400 font-semibold">March 15, 2026</p>
-        <p class="text-gray-400 mt-2 text-sm">Sinners leads with 16 nominations • One Battle After Another follows with 13</p>
+        <p class="text-amber-400 font-semibold">March 15, 2026 &bull; Dolby Theatre, Hollywood</p>
+        <p class="text-gray-400 mt-2 text-sm">Best Picture: One Battle after Another &bull; Most wins: Sinners & One Battle after Another</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- Best Picture Winner Highlight -->
+  <section class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+    <div class="rounded-2xl overflow-hidden relative" style="background: linear-gradient(135deg, #d4af37 0%, #b8860b 50%, #d4af37 100%);">
+      <div class="p-1">
+        <div class="rounded-xl overflow-hidden" style="background-color: var(--bg-card);">
+          <div class="flex flex-col md:flex-row gap-6 p-6">
+            {validNominees[0]?.tmdb && (
+              <>
+                <div class="w-full md:w-48 flex-shrink-0">
+                  <img loading="lazy" src={getPosterUrl(validNominees[0].tmdb.poster_path)} alt={validNominees[0].title} class="w-full rounded-lg" />
+                </div>
+                <div class="flex-1">
+                  <div class="flex items-center gap-2 mb-2">
+                    <span class="text-2xl">&#127942;</span>
+                    <span class="px-3 py-1 rounded-full text-sm font-bold bg-amber-500 text-black">Best Picture Winner</span>
+                  </div>
+                  <h2 class="text-3xl font-black mb-3" style="color: var(--text-primary);">One Battle after Another</h2>
+                  <p class="text-sm mb-4" style="color: var(--text-secondary);">Directed by Paul Thomas Anderson</p>
+                  <p class="text-sm mb-4" style="color: var(--text-muted);">{validNominees[0].tmdb.overview}</p>
+                  <div class="flex flex-wrap gap-2">
+                    <span class="px-3 py-1 rounded-full text-xs font-medium bg-amber-500/20 text-amber-400">Best Picture</span>
+                    <span class="px-3 py-1 rounded-full text-xs font-medium bg-amber-500/20 text-amber-400">Best Director</span>
+                    <span class="px-3 py-1 rounded-full text-xs font-medium bg-amber-500/20 text-amber-400">Best Adapted Screenplay</span>
+                    <span class="px-3 py-1 rounded-full text-xs font-medium bg-amber-500/20 text-amber-400">Best Film Editing</span>
+                    <span class="px-3 py-1 rounded-full text-xs font-medium bg-amber-500/20 text-amber-400">Best Casting</span>
+                  </div>
+                  <a href={`/movie/${validNominees[0].tmdb.id}`} class="inline-block mt-4 px-6 py-2 rounded-lg bg-amber-500 text-black font-semibold text-sm hover:bg-amber-400 transition-colors">
+                    Watch Now &rarr;
+                  </a>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
       </div>
     </div>
   </section>
@@ -318,29 +401,42 @@ function getNominationCount(title: string): number {
   <!-- Best Picture Nominees with Posters -->
   <section class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
     <h2 class="text-2xl md:text-3xl font-bold mb-8 flex items-center gap-3" style="color: var(--text-primary);">
-      <span class="text-amber-400">🎬</span>
+      <span class="text-amber-400">&#127916;</span>
       Best Picture Nominees
     </h2>
 
     <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 md:gap-6">
       {validNominees.map((nominee) => {
+        const winCount = getWinCount(nominee.title);
         const nomCount = getNominationCount(nominee.title);
+        const isWinner = nominee.title === 'One Battle after Another' || nominee.title === 'One Battle After Another';
         return (
           <a
             href={`/movie/${nominee.tmdb.id}`}
             class="group relative rounded-lg overflow-hidden transition-transform hover:scale-105"
-            style="background-color: var(--bg-card);"
+            style={isWinner ? "background-color: var(--bg-card); ring: 2px solid #d4af37;" : "background-color: var(--bg-card);"}
           >
             <div class="aspect-[2/3] relative">
-              <img
-                src={getPosterUrl(nominee.tmdb.poster_path)}
+              <img loading="lazy" src={getPosterUrl(nominee.tmdb.poster_path)}
                 alt={nominee.title}
                 class="w-full h-full object-cover"
               />
               <div class="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent"></div>
 
-              {nomCount > 1 && (
+              {isWinner && (
+                <div class="absolute top-2 left-2 px-2 py-1 rounded-full text-xs font-bold bg-amber-500 text-black flex items-center gap-1">
+                  &#127942; Winner
+                </div>
+              )}
+
+              {winCount > 0 && !isWinner && (
                 <div class="absolute top-2 left-2 px-2 py-1 rounded-full text-xs font-bold bg-amber-500 text-black">
+                  {winCount} win{winCount > 1 ? 's' : ''}
+                </div>
+              )}
+
+              {winCount === 0 && nomCount > 1 && (
+                <div class="absolute top-2 left-2 px-2 py-1 rounded-full text-xs font-bold" style="background-color: var(--bg-hover); color: var(--text-secondary);">
                   {nomCount} noms
                 </div>
               )}
@@ -355,7 +451,7 @@ function getNominationCount(title: string): number {
                   {nominee.tmdb.release_date ? new Date(nominee.tmdb.release_date).getFullYear() : 'TBA'}
                 </p>
                 <div class="flex items-center gap-1 text-amber-400 text-xs">
-                  <span>⭐</span>
+                  <span>&#11088;</span>
                   <span>{nominee.tmdb.vote_average?.toFixed(1)}</span>
                 </div>
               </div>
@@ -369,8 +465,8 @@ function getNominationCount(title: string): number {
   <!-- All Categories -->
   <section class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
     <h2 class="text-2xl md:text-3xl font-bold mb-8 flex items-center gap-3" style="color: var(--text-primary);">
-      <span class="text-amber-400">📋</span>
-      All Categories & Nominees
+      <span class="text-amber-400">&#128203;</span>
+      All Categories &mdash; Winners &amp; Nominees
     </h2>
 
     <div class="grid md:grid-cols-2 gap-6">
@@ -380,7 +476,7 @@ function getNominationCount(title: string): number {
           style="background-color: var(--bg-card); border: 1px solid var(--border);"
         >
           <h3 class="text-lg font-bold mb-4 flex items-center gap-2" style="color: var(--text-primary);">
-            <span class="text-amber-400">🏆</span>
+            <span class="text-amber-400">&#127942;</span>
             {category.name}
             {category.note && (
               <span class="text-xs px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-400">
@@ -388,6 +484,29 @@ function getNominationCount(title: string): number {
               </span>
             )}
           </h3>
+
+          {/* Winner */}
+          {category.winner && (
+            <div class="mb-3 p-3 rounded-lg" style="background: linear-gradient(135deg, rgba(212,175,55,0.15), rgba(184,134,11,0.1)); border: 1px solid rgba(212,175,55,0.3);">
+              <div class="flex items-center gap-2 mb-1">
+                <span class="text-amber-400 text-sm">&#127942;</span>
+                <span class="text-xs font-bold text-amber-400 uppercase">Winner</span>
+              </div>
+              {category.winner.person ? (
+                <>
+                  <p class="font-bold" style="color: var(--text-primary);">{category.winner.person}</p>
+                  <p class="text-sm" style="color: var(--text-muted);">{category.winner.title}</p>
+                </>
+              ) : (
+                <>
+                  <p class="font-bold" style="color: var(--text-primary);">{category.winner.title}</p>
+                  {category.winner.note && (
+                    <p class="text-sm" style="color: var(--text-muted);">{category.winner.note}</p>
+                  )}
+                </>
+              )}
+            </div>
+          )}
 
           <ul class="space-y-2">
             {category.nominees.map((nominee, index) => (
@@ -434,46 +553,35 @@ function getNominationCount(title: string): number {
   <!-- Short Films Section -->
   <section class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
     <h2 class="text-2xl md:text-3xl font-bold mb-8 flex items-center gap-3" style="color: var(--text-primary);">
-      <span class="text-amber-400">🎞️</span>
+      <span class="text-amber-400">&#127902;</span>
       Short Film Categories
     </h2>
 
     <div class="grid md:grid-cols-3 gap-6">
-      <!-- Live Action Short -->
-      <div class="rounded-xl p-5" style="background-color: var(--bg-card); border: 1px solid var(--border);">
-        <h3 class="text-lg font-bold mb-4" style="color: var(--text-primary);">Best Live Action Short</h3>
-        <ul class="space-y-2 text-sm" style="color: var(--text-secondary);">
-          <li>• Butcher's Stain</li>
-          <li>• A Friend of Dorothy</li>
-          <li>• Jane Austen's Period Drama</li>
-          <li>• The Singers</li>
-          <li>• Two People Exchanging Saliva</li>
-        </ul>
-      </div>
+      {shortFilmCategories.map((category) => (
+        <div class="rounded-xl p-5" style="background-color: var(--bg-card); border: 1px solid var(--border);">
+          <h3 class="text-lg font-bold mb-4" style="color: var(--text-primary);">{category.name}</h3>
 
-      <!-- Animated Short -->
-      <div class="rounded-xl p-5" style="background-color: var(--bg-card); border: 1px solid var(--border);">
-        <h3 class="text-lg font-bold mb-4" style="color: var(--text-primary);">Best Animated Short</h3>
-        <ul class="space-y-2 text-sm" style="color: var(--text-secondary);">
-          <li>• Butterfly</li>
-          <li>• Forevergreen</li>
-          <li>• The Girl Who Cried Pearls</li>
-          <li>• Retirement Plan</li>
-          <li>• The Three Sisters</li>
-        </ul>
-      </div>
+          {category.winner && (
+            <div class="mb-3 p-3 rounded-lg" style="background: linear-gradient(135deg, rgba(212,175,55,0.15), rgba(184,134,11,0.1)); border: 1px solid rgba(212,175,55,0.3);">
+              <div class="flex items-center gap-2 mb-1">
+                <span class="text-amber-400 text-sm">&#127942;</span>
+                <span class="text-xs font-bold text-amber-400 uppercase">Winner</span>
+              </div>
+              <p class="font-bold text-sm" style="color: var(--text-primary);">{category.winner.title}</p>
+              {category.winner.note && (
+                <p class="text-xs" style="color: var(--text-muted);">{category.winner.note}</p>
+              )}
+            </div>
+          )}
 
-      <!-- Documentary Short -->
-      <div class="rounded-xl p-5" style="background-color: var(--bg-card); border: 1px solid var(--border);">
-        <h3 class="text-lg font-bold mb-4" style="color: var(--text-primary);">Best Documentary Short</h3>
-        <ul class="space-y-2 text-sm" style="color: var(--text-secondary);">
-          <li>• All the Empty Rooms</li>
-          <li>• Armed Only With a Camera</li>
-          <li>• Children No More</li>
-          <li>• The Devil Is Busy</li>
-          <li>• Perfectly a Strangeness</li>
-        </ul>
-      </div>
+          <ul class="space-y-2 text-sm" style="color: var(--text-secondary);">
+            {category.nominees.map((nominee) => (
+              <li>&bull; {nominee.title}</li>
+            ))}
+          </ul>
+        </div>
+      ))}
     </div>
   </section>
 
@@ -484,7 +592,7 @@ function getNominationCount(title: string): number {
         98th Academy Awards
       </h3>
       <p class="text-sm mb-4" style="color: var(--text-secondary);">
-        The ceremony will be held on March 15, 2026 at the Dolby Theatre in Hollywood, Los Angeles.
+        The ceremony was held on March 15, 2026 at the Dolby Theatre in Hollywood, Los Angeles.
       </p>
       <div class="flex flex-wrap justify-center gap-4 text-sm">
         <div class="px-4 py-2 rounded-lg" style="background-color: var(--bg-hover);">
@@ -496,8 +604,8 @@ function getNominationCount(title: string): number {
           <span style="color: var(--text-muted);"> Best Picture Nominees</span>
         </div>
         <div class="px-4 py-2 rounded-lg" style="background-color: var(--bg-hover);">
-          <span class="font-bold text-amber-400">16</span>
-          <span style="color: var(--text-muted);"> Nominations for Sinners</span>
+          <span class="font-bold text-amber-400">&#127942;</span>
+          <span style="color: var(--text-muted);"> One Battle after Another &mdash; Best Picture</span>
         </div>
       </div>
     </div>

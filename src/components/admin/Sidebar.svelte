@@ -9,7 +9,8 @@
     LogOut,
     ChevronRight,
     Activity,
-    MessageSquare
+    MessageSquare,
+    X
   } from 'lucide-svelte';
 
   export let activeTab: string = 'dashboard';
@@ -22,26 +23,45 @@
     { id: 'requests', label: 'Requests', href: '/admin/requests', icon: MessageSquare },
     { id: 'crons', label: 'Cron Jobs', href: '/admin/crons', icon: Clock },
     { id: 'assign', label: 'Manual Assign', href: '/admin/manual-assign', icon: Link2 },
+    { id: 'analytics', label: 'Analytics', href: '/admin/analytics', icon: Activity },
   ];
 
   function logout() {
-    // Navigate to server-side logout page (handles HttpOnly cookie clearing)
     window.location.href = '/admin/logout';
+  }
+
+  function closeMobileSidebar() {
+    const sidebar = document.querySelector('.admin-sidebar');
+    const overlay = document.getElementById('sidebar-overlay');
+    if (sidebar) {
+      sidebar.classList.remove('mobile-open');
+    }
+    if (overlay) {
+      overlay.classList.remove('active');
+    }
   }
 </script>
 
-<aside class="fixed left-0 top-0 h-screen w-64 bg-[#141414] border-r border-[#2a2a2a] flex flex-col z-50">
+<aside class="admin-sidebar fixed left-0 top-0 h-screen w-64 bg-[#141414] border-r border-[#2a2a2a] flex flex-col z-50">
   <!-- Logo -->
-  <div class="p-5 border-b border-[#2a2a2a]">
+  <div class="p-4 border-b border-[#2a2a2a] flex items-center justify-between">
     <a href="/admin" class="flex items-center gap-2">
-      <div class="w-10 h-10 rounded-lg bg-gradient-to-br from-[#e50914] to-[#b20710] flex items-center justify-center">
-        <Activity size={22} class="text-white" />
+      <div class="w-9 h-9 rounded-lg bg-gradient-to-br from-[#e50914] to-[#b20710] flex items-center justify-center flex-shrink-0">
+        <Activity size={20} class="text-white" />
       </div>
-      <div>
-        <h2 class="text-lg font-bold text-white">TrendiMovies</h2>
+      <div class="min-w-0">
+        <h2 class="text-base font-bold text-white truncate">TrendiMovies</h2>
         <p class="text-xs text-[#666]">Admin Panel</p>
       </div>
     </a>
+    <!-- Close button for mobile -->
+    <button
+      class="mobile-close-btn p-2 rounded-lg hover:bg-[#1f1f1f] text-[#666] hover:text-white transition-colors"
+      on:click={closeMobileSidebar}
+      aria-label="Close menu"
+    >
+      <X size={20} />
+    </button>
   </div>
 
   <!-- Navigation -->
@@ -57,6 +77,7 @@
         class:text-[#a0a0a0]={activeTab !== item.id}
         class:hover:bg-[#1f1f1f]={activeTab !== item.id}
         class:hover:text-white={activeTab !== item.id}
+        on:click={closeMobileSidebar}
       >
         <svelte:component this={item.icon} size={20} />
         <span class="font-medium">{item.label}</span>
@@ -91,3 +112,26 @@
     </button>
   </div>
 </aside>
+
+<style>
+  /* Mobile close button - hidden on desktop */
+  .mobile-close-btn {
+    display: none;
+  }
+
+  /* Mobile styles */
+  @media (max-width: 1024px) {
+    .admin-sidebar {
+      transform: translateX(-100%);
+      transition: transform 0.3s ease;
+    }
+
+    .admin-sidebar:global(.mobile-open) {
+      transform: translateX(0);
+    }
+
+    .mobile-close-btn {
+      display: flex;
+    }
+  }
+</style>

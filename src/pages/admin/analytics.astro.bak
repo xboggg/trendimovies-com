@@ -1,0 +1,201 @@
+---
+import AdminLayout from '../../layouts/AdminLayout.astro';
+---
+
+<AdminLayout title="Analytics Dashboard" activeTab="analytics">
+  <div class="space-y-6">
+    <div class="flex items-center justify-between">
+      <div></div>
+      <select id="periodSelect" class="px-4 py-2 rounded-lg bg-gray-800 border border-gray-700 text-white">
+        <option value="24h">Last 24 Hours</option>
+        <option value="7d" selected>Last 7 Days</option>
+        <option value="30d">Last 30 Days</option>
+        <option value="90d">Last 90 Days</option>
+      </select>
+    </div>
+
+    <!-- Stats Cards -->
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div class="bg-zinc-900 rounded-xl p-6 border border-zinc-800">
+        <h3 class="text-zinc-400 text-sm font-medium mb-2">Page Views</h3>
+        <p id="pageViews" class="text-3xl font-bold text-red-500">-</p>
+      </div>
+      <div class="bg-zinc-900 rounded-xl p-6 border border-zinc-800">
+        <h3 class="text-zinc-400 text-sm font-medium mb-2">Searches</h3>
+        <p id="searches" class="text-3xl font-bold text-red-500">-</p>
+      </div>
+      <div class="bg-zinc-900 rounded-xl p-6 border border-zinc-800">
+        <h3 class="text-zinc-400 text-sm font-medium mb-2">Downloads</h3>
+        <p id="downloads" class="text-3xl font-bold text-red-500">-</p>
+      </div>
+    </div>
+
+    <!-- Top Content -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <!-- Top Pages -->
+      <div class="bg-zinc-900 rounded-xl p-6 border border-zinc-800">
+        <h3 class="text-lg font-semibold text-white mb-4">Top Pages</h3>
+        <div id="topPages" class="space-y-2 max-h-[400px] overflow-y-auto pr-2">
+          <p class="text-zinc-500">Loading...</p>
+        </div>
+      </div>
+
+      <!-- Top Searches -->
+      <div class="bg-zinc-900 rounded-xl p-6 border border-zinc-800">
+        <h3 class="text-lg font-semibold text-white mb-4">Top Searches</h3>
+        <div id="topSearches" class="space-y-2 max-h-[400px] overflow-y-auto pr-2">
+          <p class="text-zinc-500">Loading...</p>
+        </div>
+      </div>
+
+      <!-- Top Downloads -->
+      <div class="bg-zinc-900 rounded-xl p-6 border border-zinc-800">
+        <h3 class="text-lg font-semibold text-white mb-4">Top Downloads</h3>
+        <div id="topDownloads" class="space-y-2 max-h-[400px] overflow-y-auto pr-2">
+          <p class="text-zinc-500">Loading...</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Cache Stats -->
+    <div class="bg-zinc-900 rounded-xl p-6 border border-zinc-800">
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="text-lg font-semibold text-white">TMDB Cache</h3>
+        <div class="flex gap-2">
+          <button id="cleanupCache" class="px-4 py-2 rounded-lg bg-amber-600 text-white text-sm hover:bg-amber-700">
+            Cleanup Expired
+          </button>
+          <button id="clearCache" class="px-4 py-2 rounded-lg bg-red-600 text-white text-sm hover:bg-red-700">
+            Clear All
+          </button>
+        </div>
+      </div>
+      <div id="cacheStats" class="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div>
+          <p class="text-zinc-400 text-sm">Files</p>
+          <p id="cacheFiles" class="text-xl font-bold text-white">-</p>
+        </div>
+        <div>
+          <p class="text-zinc-400 text-sm">Size</p>
+          <p id="cacheSize" class="text-xl font-bold text-white">-</p>
+        </div>
+        <div>
+          <p class="text-zinc-400 text-sm">Oldest Entry</p>
+          <p id="cacheOldest" class="text-xl font-bold text-white">-</p>
+        </div>
+        <div>
+          <p class="text-zinc-400 text-sm">Newest Entry</p>
+          <p id="cacheNewest" class="text-xl font-bold text-white">-</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</AdminLayout>
+
+<script>
+  function formatPagePath(path: string): string {
+    const movieMatch = path.match(/^\/movie\/(\d+)/);
+    if (movieMatch) return `🎬 Movie #${movieMatch[1]}`;
+    const tvMatch = path.match(/^\/tv\/(\d+)/);
+    if (tvMatch) return `📺 TV #${tvMatch[1]}`;
+    if (path === "/") return "🏠 Home";
+    if (path === "/movies") return "🎬 Movies";
+    if (path === "/movies/latest") return "🎬 Latest Movies";
+    if (path === "/tv") return "📺 TV Shows";
+    if (path === "/search") return "🔍 Search";
+    if (path.startsWith("/genre/")) return `🏷️ ${path.replace("/genre/", "").replace(/-/g, " ")}`;
+    return path;
+  }
+
+  async function loadAnalytics() {
+    const period = (document.getElementById("periodSelect") as HTMLSelectElement).value;
+    try {
+      const res = await fetch(`/api/analytics/stats?period=${period}`);
+      const data = await res.json();
+      if (data.success) {
+        document.getElementById("pageViews")!.textContent = data.stats.pageViews.toLocaleString();
+        document.getElementById("searches")!.textContent = data.stats.searches.toLocaleString();
+        document.getElementById("downloads")!.textContent = data.stats.downloads.toLocaleString();
+
+        const topPagesEl = document.getElementById("topPages")!;
+        if (data.topPages.length > 0) {
+          topPagesEl.innerHTML = data.topPages.slice(0, 20).map((p: any) => {
+            const displayName = formatPagePath(p.page_path);
+            return `<div class="flex justify-between items-center py-1.5 border-b border-gray-700/50">
+              <a href="${p.page_path}" target="_blank" class="text-gray-300 text-sm truncate mr-2 hover:text-red-400" title="${p.page_path}">${displayName}</a>
+              <span class="text-red-400 font-semibold text-sm">${p.view_count}</span>
+            </div>`;
+          }).join("");
+        } else {
+          topPagesEl.innerHTML = "<p class=\"text-gray-500\">No data yet</p>";
+        }
+
+        const topSearchesEl = document.getElementById("topSearches")!;
+        if (data.topSearches.length > 0) {
+          topSearchesEl.innerHTML = data.topSearches.slice(0, 20).map((s: any) => `
+            <div class="flex justify-between items-center py-1.5 border-b border-gray-700/50">
+              <span class="text-gray-300 text-sm truncate mr-2">${s.query}</span>
+              <span class="text-red-400 font-semibold text-sm">${s.search_count}</span>
+            </div>
+          `).join("");
+        } else {
+          topSearchesEl.innerHTML = "<p class=\"text-gray-500\">No data yet</p>";
+        }
+
+        const topDownloadsEl = document.getElementById("topDownloads")!;
+        if (data.topDownloads.length > 0) {
+          topDownloadsEl.innerHTML = data.topDownloads.slice(0, 20).map((d: any) => `
+            <div class="flex justify-between items-center py-1.5 border-b border-gray-700/50">
+              <span class="text-gray-300 text-sm truncate mr-2">${d.title}</span>
+              <span class="text-red-400 font-semibold text-sm">${d.download_count}</span>
+            </div>
+          `).join("");
+        } else {
+          topDownloadsEl.innerHTML = "<p class=\"text-gray-500\">No data yet</p>";
+        }
+      }
+    } catch (err) {
+      console.error("Failed to load analytics:", err);
+    }
+  }
+
+  async function loadCacheStats() {
+    try {
+      const res = await fetch("/api/admin/cache");
+      const data = await res.json();
+      if (data.success) {
+        document.getElementById("cacheFiles")!.textContent = data.cache.files.toLocaleString();
+        document.getElementById("cacheSize")!.textContent = data.cache.sizeMB + " MB";
+        document.getElementById("cacheOldest")!.textContent = data.cache.oldestAge;
+        document.getElementById("cacheNewest")!.textContent = data.cache.newestAge;
+      }
+    } catch (err) {
+      console.error("Failed to load cache stats:", err);
+    }
+  }
+
+  document.getElementById("periodSelect")?.addEventListener("change", loadAnalytics);
+  document.getElementById("cleanupCache")?.addEventListener("click", async () => {
+    const res = await fetch("/api/admin/cache?action=cleanup");
+    const data = await res.json();
+    alert(data.message);
+    loadCacheStats();
+  });
+  document.getElementById("clearCache")?.addEventListener("click", async () => {
+    if (confirm("Are you sure you want to clear all cache?")) {
+      const res = await fetch("/api/admin/cache?action=clear");
+      const data = await res.json();
+      alert(data.message);
+      loadCacheStats();
+    }
+  });
+
+  loadAnalytics();
+  loadCacheStats();
+</script>
+
+<style>
+  #topPages::-webkit-scrollbar, #topSearches::-webkit-scrollbar, #topDownloads::-webkit-scrollbar { width: 6px; }
+  #topPages::-webkit-scrollbar-track, #topSearches::-webkit-scrollbar-track, #topDownloads::-webkit-scrollbar-track { background: transparent; }
+  #topPages::-webkit-scrollbar-thumb, #topSearches::-webkit-scrollbar-thumb, #topDownloads::-webkit-scrollbar-thumb { background-color: #4B5563; border-radius: 3px; }
+</style>
