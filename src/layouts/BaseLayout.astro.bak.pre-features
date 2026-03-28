@@ -264,31 +264,5 @@ const canonicalUrl = new URL(Astro.url.pathname, Astro.site || 'https://trendimo
       });
     }
   </script>
-
-  <!-- Continue Watching tracker -->
-  <script is:inline>
-    (function() {
-      var path = window.location.pathname;
-      var match = path.match(/^\/(movie|tv)\/(\d+)/);
-      if (!match) return;
-      var type = match[1] === "movie" ? "movie" : "series";
-      var id = parseInt(match[2]);
-      var ogTitle = document.querySelector("meta[property=\"og:title\"]");
-      var ogImage = document.querySelector("meta[property=\"og:image\"]");
-      if (!ogTitle) return;
-      var title = ogTitle.getAttribute("content") || "";
-      var image = ogImage ? ogImage.getAttribute("content") || "" : "";
-      var posterMatch = image.match(/\/t\/p\/\w+(\/[^"]+)$/);
-      var poster_path = posterMatch ? posterMatch[1] : null;
-      var KEY = "tm_continue_watching";
-      try {
-        var items = JSON.parse(localStorage.getItem(KEY) || "[]");
-        items = items.filter(function(i) { return i.id !== id; });
-        items.unshift({ id: id, title: title, poster_path: poster_path, backdrop_path: poster_path, type: type, href: path, visited_at: Date.now() });
-        if (items.length > 12) items = items.slice(0, 12);
-        localStorage.setItem(KEY, JSON.stringify(items));
-      } catch(e) {}
-    })();
-  </script>
 </body>
 </html>
