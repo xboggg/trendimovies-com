@@ -30,11 +30,11 @@
   $: currentItem = carouselItems[currentIndex] || featured;
 
   $: backdropUrl = currentItem?.backdrop_path
-    ? `https://image.tmdb.org/t/p/original${currentItem.backdrop_path}`
+    ? (currentItem.backdrop_path.startsWith('/images/') ? currentItem.backdrop_path : `https://image.tmdb.org/t/p/original${currentItem.backdrop_path}`)
     : '/images/no-backdrop.svg';
 
   $: posterUrl = currentItem?.poster_path
-    ? `https://image.tmdb.org/t/p/w500${currentItem.poster_path}`
+    ? (currentItem.poster_path.startsWith('/images/') ? currentItem.poster_path : `https://image.tmdb.org/t/p/w500${currentItem.poster_path}`)
     : '/images/no-poster.svg';
 
   onMount(() => {
@@ -99,7 +99,7 @@
         <img
           src={backdropUrl}
           alt={currentItem?.title || 'Featured'}
-          class="w-full h-full object-cover"
+          class="w-full h-full object-cover" fetchpriority="high"
         />
       </div>
     {/key}
@@ -233,6 +233,8 @@
                 <img
                   src={posterUrl}
                   alt={currentItem.title}
+                  width="500"
+                  height="750"
                   class="w-72 h-auto rounded-2xl shadow-2xl"
                 />
                 <div class="absolute -bottom-4 -right-4 w-24 h-24 rounded-full rating-circle flex items-center justify-center flex-col">

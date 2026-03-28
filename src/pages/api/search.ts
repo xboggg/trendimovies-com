@@ -1,6 +1,33 @@
 import type { APIRoute } from 'astro';
 import { searchMulti, searchMovies, searchTV } from '../../lib/tmdb';
 
+const POSTGREST_URL = import.meta.env.PUBLIC_SUPABASE_URL || 'http://localhost:3001';
+
+async function searchLocalDB(query: string, type: string = 'all'): Promise<any[]> {
+  try {
+    const response = await fetch(`${POSTGREST_URL}/rpc/search_local`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ search_query: query, search_type: type, result_limit: 20 }),
+      signal: AbortSignal.timeout(5000),
+    });
+    if (!response.ok) return [];
+    const data = await response.json();
+    return (data || []).map((item: any) => ({
+      id: item.tmdb_id,
+      tmdb_id: item.tmdb_id,
+      title: item.title,
+      poster_path: item.poster_path,
+      vote_average: item.vote_average || 0,
+      year: item.year,
+      type: item.media_type === 'series' ? 'series' : 'movie',
+      _local: true,
+    }));
+  } catch {
+    return [];
+  }
+}
+
 export const GET: APIRoute = async ({ url }) => {
   const query = url.searchParams.get('q') || '';
   const type = url.searchParams.get('type') || 'all';
@@ -18,13 +45,26 @@ export const GET: APIRoute = async ({ url }) => {
     let total = 0;
     let totalPages = 1;
 
-    if (type === 'all') {
-      // Use multi search for combined results
-      const response = await searchMulti(query, page);
-      total = response.total_results || 0;
-      totalPages = response.total_pages || 1;
+    // Run TMDB and local DB searches in parallel
+    const [tmdbData, localResults] = await Promise.all([
+      (async () => {
+        try {
+          if (type === 'all') return await searchMulti(query, page);
+          if (type === 'movie') return await searchMovies(query, page);
+          if (type === 'series') return await searchTV(query, page);
+          return { results: [], total_results: 0, total_pages: 1 };
+        } catch {
+          return { results: [], total_results: 0, total_pages: 1 };
+        }
+      })(),
+      page === 1 ? searchLocalDB(query, type) : Promise.resolve([]),
+    ]);
 
-      results = (response.results || [])
+    total = tmdbData.total_results || 0;
+    totalPages = tmdbData.total_pages || 1;
+
+    if (type === 'all') {
+      results = (tmdbData.results || [])
         .filter((item: any) => item.media_type === 'movie' || item.media_type === 'tv')
         .map((item: any) => {
           if (item.media_type === 'movie') {
@@ -50,11 +90,7 @@ export const GET: APIRoute = async ({ url }) => {
           }
         });
     } else if (type === 'movie') {
-      const response = await searchMovies(query, page);
-      total = response.total_results || 0;
-      totalPages = response.total_pages || 1;
-
-      results = (response.results || []).map((movie: any) => ({
+      results = (tmdbData.results || []).map((movie: any) => ({
         id: movie.id,
         tmdb_id: movie.id,
         title: movie.title,
@@ -64,11 +100,7 @@ export const GET: APIRoute = async ({ url }) => {
         type: 'movie'
       }));
     } else if (type === 'series') {
-      const response = await searchTV(query, page);
-      total = response.total_results || 0;
-      totalPages = response.total_pages || 1;
-
-      results = (response.results || []).map((show: any) => ({
+      results = (tmdbData.results || []).map((show: any) => ({
         id: show.id,
         tmdb_id: show.id,
         title: show.name,
@@ -77,6 +109,17 @@ export const GET: APIRoute = async ({ url }) => {
         year: show.first_air_date ? new Date(show.first_air_date).getFullYear() : null,
         type: 'series'
       }));
+    }
+
+    // Merge local DB results: add any that are not already in TMDB results
+    if (localResults.length > 0) {
+      const tmdbIds = new Set(results.map((r: any) => r.tmdb_id));
+      const newLocal = localResults.filter((r: any) => !tmdbIds.has(r.tmdb_id));
+      if (newLocal.length > 0) {
+        // Prepend local results (they matched fuzzy search on our DB)
+        results = [...newLocal, ...results];
+        total = total + newLocal.length;
+      }
     }
 
     const hasMore = page < totalPages;

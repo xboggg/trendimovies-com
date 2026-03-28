@@ -1,0 +1,256 @@
+---
+import Layout from '../layouts/BaseLayout.astro';
+import { validateSession } from '../lib/auth';
+
+// Check if already logged in
+const sessionToken = Astro.cookies.get('session')?.value;
+if (sessionToken) {
+  const { valid } = await validateSession(sessionToken);
+  if (valid) {
+    return Astro.redirect('/profile');
+  }
+}
+---
+
+<Layout title="Login | TrendiMovies" description="Login to your TrendiMovies account">
+  <main class="min-h-screen flex items-center justify-center px-4 py-12" style="background: var(--bg-primary);">
+    <div class="w-full max-w-md">
+      <div class="auth-card rounded-2xl p-8" style="background: var(--bg-secondary); border: 1px solid var(--border-color);">
+        <!-- Tabs -->
+        <div class="flex mb-8 rounded-lg overflow-hidden" style="background: var(--bg-tertiary);">
+          <button id="loginTab" class="flex-1 py-3 text-center font-semibold transition-all tab-active" style="color: var(--text-primary);">
+            Login
+          </button>
+          <button id="signupTab" class="flex-1 py-3 text-center font-semibold transition-all" style="color: var(--text-secondary);">
+            Sign Up
+          </button>
+        </div>
+
+        <!-- Login Form -->
+        <form id="loginForm" class="space-y-5">
+          <div>
+            <label class="block text-sm font-medium mb-2" style="color: var(--text-secondary);">Email</label>
+            <input
+              type="email"
+              name="email"
+              required
+              class="w-full px-4 py-3 rounded-lg transition-all focus:outline-none focus:ring-2 focus:ring-red-500"
+              style="background: var(--bg-tertiary); color: var(--text-primary); border: 1px solid var(--border-color);"
+              placeholder="Enter your email"
+            />
+          </div>
+          <div>
+            <label class="block text-sm font-medium mb-2" style="color: var(--text-secondary);">Password</label>
+            <input
+              type="password"
+              name="password"
+              required
+              class="w-full px-4 py-3 rounded-lg transition-all focus:outline-none focus:ring-2 focus:ring-red-500"
+              style="background: var(--bg-tertiary); color: var(--text-primary); border: 1px solid var(--border-color);"
+              placeholder="Enter your password"
+            />
+          </div>
+          <div id="loginError" class="hidden text-red-500 text-sm"></div>
+          <button
+            type="submit"
+            class="w-full py-3 rounded-lg font-semibold text-white transition-all hover:opacity-90 disabled:opacity-50"
+            style="background: linear-gradient(135deg, #dc2626, #991b1b);"
+          >
+            Login
+          </button>
+        </form>
+
+        <!-- Signup Form -->
+        <form id="signupForm" class="space-y-5 hidden">
+          <div>
+            <label class="block text-sm font-medium mb-2" style="color: var(--text-secondary);">Display Name</label>
+            <input
+              type="text"
+              name="displayName"
+              class="w-full px-4 py-3 rounded-lg transition-all focus:outline-none focus:ring-2 focus:ring-red-500"
+              style="background: var(--bg-tertiary); color: var(--text-primary); border: 1px solid var(--border-color);"
+              placeholder="Choose a display name"
+            />
+          </div>
+          <div>
+            <label class="block text-sm font-medium mb-2" style="color: var(--text-secondary);">Email</label>
+            <input
+              type="email"
+              name="email"
+              required
+              class="w-full px-4 py-3 rounded-lg transition-all focus:outline-none focus:ring-2 focus:ring-red-500"
+              style="background: var(--bg-tertiary); color: var(--text-primary); border: 1px solid var(--border-color);"
+              placeholder="Enter your email"
+            />
+          </div>
+          <div>
+            <label class="block text-sm font-medium mb-2" style="color: var(--text-secondary);">Password</label>
+            <input
+              type="password"
+              name="password"
+              required
+              minlength="6"
+              class="w-full px-4 py-3 rounded-lg transition-all focus:outline-none focus:ring-2 focus:ring-red-500"
+              style="background: var(--bg-tertiary); color: var(--text-primary); border: 1px solid var(--border-color);"
+              placeholder="Min 6 characters"
+            />
+          </div>
+          <div>
+            <label class="block text-sm font-medium mb-2" style="color: var(--text-secondary);">Confirm Password</label>
+            <input
+              type="password"
+              name="confirmPassword"
+              required
+              class="w-full px-4 py-3 rounded-lg transition-all focus:outline-none focus:ring-2 focus:ring-red-500"
+              style="background: var(--bg-tertiary); color: var(--text-primary); border: 1px solid var(--border-color);"
+              placeholder="Confirm your password"
+            />
+          </div>
+          <div id="signupError" class="hidden text-red-500 text-sm"></div>
+          <button
+            type="submit"
+            class="w-full py-3 rounded-lg font-semibold text-white transition-all hover:opacity-90 disabled:opacity-50"
+            style="background: linear-gradient(135deg, #dc2626, #991b1b);"
+          >
+            Create Account
+          </button>
+        </form>
+
+        <p class="mt-6 text-center text-sm" style="color: var(--text-secondary);">
+          By continuing, you agree to our Terms of Service and Privacy Policy.
+        </p>
+      </div>
+    </div>
+  </main>
+</Layout>
+
+<style>
+  .tab-active {
+    background: var(--bg-secondary);
+    color: var(--text-primary) !important;
+  }
+</style>
+
+<script>
+  const loginTab = document.getElementById('loginTab');
+  const signupTab = document.getElementById('signupTab');
+  const loginForm = document.getElementById('loginForm') as HTMLFormElement;
+  const signupForm = document.getElementById('signupForm') as HTMLFormElement;
+  const loginError = document.getElementById('loginError');
+  const signupError = document.getElementById('signupError');
+
+  // Tab switching
+  loginTab?.addEventListener('click', () => {
+    loginTab.classList.add('tab-active');
+    signupTab?.classList.remove('tab-active');
+    loginForm?.classList.remove('hidden');
+    signupForm?.classList.add('hidden');
+  });
+
+  signupTab?.addEventListener('click', () => {
+    signupTab.classList.add('tab-active');
+    loginTab?.classList.remove('tab-active');
+    signupForm?.classList.remove('hidden');
+    loginForm?.classList.add('hidden');
+  });
+
+  // Login form
+  loginForm?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const formData = new FormData(loginForm);
+    const email = formData.get('email');
+    const password = formData.get('password');
+
+    const btn = loginForm.querySelector('button[type="submit"]') as HTMLButtonElement;
+    btn.disabled = true;
+    btn.textContent = 'Logging in...';
+    loginError?.classList.add('hidden');
+
+    try {
+      const res = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password })
+      });
+
+      const data = await res.json();
+
+      if (data.success) {
+        window.location.href = '/profile';
+      } else {
+        if (loginError) {
+          loginError.textContent = data.error || 'Login failed';
+          loginError.classList.remove('hidden');
+        }
+      }
+    } catch (err) {
+      if (loginError) {
+        loginError.textContent = 'Network error. Please try again.';
+        loginError.classList.remove('hidden');
+      }
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Login';
+    }
+  });
+
+  // Signup form
+  signupForm?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const formData = new FormData(signupForm);
+    const displayName = formData.get('displayName');
+    const email = formData.get('email');
+    const password = formData.get('password');
+    const confirmPassword = formData.get('confirmPassword');
+
+    if (password !== confirmPassword) {
+      if (signupError) {
+        signupError.textContent = 'Passwords do not match';
+        signupError.classList.remove('hidden');
+      }
+      return;
+    }
+
+    const btn = signupForm.querySelector('button[type="submit"]') as HTMLButtonElement;
+    btn.disabled = true;
+    btn.textContent = 'Creating account...';
+    signupError?.classList.add('hidden');
+
+    try {
+      const res = await fetch('/api/auth/signup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password, displayName })
+      });
+
+      const data = await res.json();
+
+      if (data.success) {
+        // Auto login after signup
+        const loginRes = await fetch('/api/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password })
+        });
+
+        const loginData = await loginRes.json();
+        if (loginData.success) {
+          window.location.href = '/profile';
+        }
+      } else {
+        if (signupError) {
+          signupError.textContent = data.error || 'Signup failed';
+          signupError.classList.remove('hidden');
+        }
+      }
+    } catch (err) {
+      if (signupError) {
+        signupError.textContent = 'Network error. Please try again.';
+        signupError.classList.remove('hidden');
+      }
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Create Account';
+    }
+  });
+</script>

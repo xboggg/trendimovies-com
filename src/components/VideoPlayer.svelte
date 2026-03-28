@@ -1,13 +1,14 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { STREAMING_SERVERS, type ServerKey } from '../lib/streaming';
-  import { Maximize2, Minimize2, Loader2, AlertCircle, Monitor } from 'lucide-svelte';
+  import { Maximize2, Minimize2, Loader2, AlertCircle, Monitor, Calendar } from 'lucide-svelte';
 
   export let tmdbId: number;
   export let imdbId: string | null = null;
   export let type: 'movie' | 'tv' = 'movie';
   export let season: number = 1;
   export let episode: number = 1;
+  export let releaseDate: string | null = null;
 
   let activeServer: ServerKey = 'server1';
   let isTheaterMode = false;
@@ -100,6 +101,7 @@
     }
   }
 
+  $: isUnreleased = releaseDate ? new Date(releaseDate) > new Date() : false;
   $: currentUrl = getStreamUrl(activeServer);
   $: if (currentUrl) {
     isLoading = true;
@@ -143,48 +145,62 @@
 
   <!-- Video Container -->
   <div class="video-container relative">
-    {#if isLoading}
+    {#if isUnreleased}
       <div class="absolute inset-0 flex items-center justify-center z-10" style="background-color: var(--bg-secondary);">
-        <div class="flex flex-col items-center gap-3">
-          <Loader2 size={40} class="animate-spin text-[#e50914]" />
-          <p class="text-sm" style="color: var(--text-secondary);">Loading player...</p>
+        <div class="flex flex-col items-center gap-4 text-center px-4">
+          <Calendar size={48} class="text-yellow-500" />
+          <div>
+            <p class="text-lg font-semibold" style="color: var(--text-primary);">Not Yet Available</p>
+            <p class="text-sm mt-1" style="color: var(--text-secondary);">
+              This movie hasn't been released yet. Streaming will be available after release on {new Date(releaseDate).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}.
+            </p>
+          </div>
         </div>
       </div>
-    {/if}
-
-    {#if hasError}
-      <div class="absolute inset-0 flex items-center justify-center z-10" style="background-color: var(--bg-secondary);">
-        <div class="flex flex-col items-center gap-3 text-center px-4">
-          <AlertCircle size={40} class="text-red-500" />
-          <p class="text-sm" style="color: var(--text-secondary);">Server not responding</p>
-          <button
-            on:click={tryNextServer}
-            class="px-4 py-2 bg-[#e50914] text-white rounded-lg text-sm font-medium hover:bg-[#b20710] transition-colors"
-          >
-            Try Next Server
-          </button>
-        </div>
-      </div>
-    {/if}
-
-    {#if currentUrl}
-      <iframe
-        bind:this={iframeRef}
-        src={currentUrl}
-        allowfullscreen
-        scrolling="no"
-        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-        title="Video Player"
-        style="overflow: hidden;"
-        on:load={handleIframeLoad}
-        on:error={handleIframeError}
-      ></iframe>
     {:else}
-      <div class="absolute inset-0 flex items-center justify-center" style="background-color: var(--bg-secondary);">
-        <p style="color: var(--text-secondary);">
-          This server requires an IMDb ID which is not available.
-        </p>
-      </div>
+      {#if isLoading}
+        <div class="absolute inset-0 flex items-center justify-center z-10" style="background-color: var(--bg-secondary);">
+          <div class="flex flex-col items-center gap-3">
+            <Loader2 size={40} class="animate-spin text-[#e50914]" />
+            <p class="text-sm" style="color: var(--text-secondary);">Loading player...</p>
+          </div>
+        </div>
+      {/if}
+
+      {#if hasError}
+        <div class="absolute inset-0 flex items-center justify-center z-10" style="background-color: var(--bg-secondary);">
+          <div class="flex flex-col items-center gap-3 text-center px-4">
+            <AlertCircle size={40} class="text-red-500" />
+            <p class="text-sm" style="color: var(--text-secondary);">Server not responding</p>
+            <button
+              on:click={tryNextServer}
+              class="px-4 py-2 bg-[#e50914] text-white rounded-lg text-sm font-medium hover:bg-[#b20710] transition-colors"
+            >
+              Try Next Server
+            </button>
+          </div>
+        </div>
+      {/if}
+
+      {#if currentUrl}
+        <iframe
+          bind:this={iframeRef}
+          src={currentUrl}
+          allowfullscreen
+          scrolling="no"
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+          title="Video Player"
+          style="overflow: hidden;"
+          on:load={handleIframeLoad}
+          on:error={handleIframeError}
+        ></iframe>
+      {:else}
+        <div class="absolute inset-0 flex items-center justify-center" style="background-color: var(--bg-secondary);">
+          <p style="color: var(--text-secondary);">
+            This server requires an IMDb ID which is not available.
+          </p>
+        </div>
+      {/if}
     {/if}
   </div>
 

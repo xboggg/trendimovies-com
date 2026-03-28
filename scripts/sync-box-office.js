@@ -80,19 +80,32 @@ async function scrapeBoxOffice() {
     const $ = cheerio.load(html);
 
     // Find the current weekend dates from the page
-    const weekendText = $('h1').text() || '';
-    const dateMatch = weekendText.match(/(\w+\s+\d+)[-–](\d+),\s*(\d{4})/);
+    // Try h2 first, then h1, then title
+    const weekendText = $('h2').first().text() || $('h1').text() || $('title').text() || '';
 
     let weekStart, weekEnd;
-    if (dateMatch) {
-      const month = dateMatch[1].split(' ')[0];
-      const startDay = parseInt(dateMatch[1].split(' ')[1]);
-      const endDay = parseInt(dateMatch[2]);
-      const year = parseInt(dateMatch[3]);
+    // Try range format: "March 5-7, 2026"
+    const rangeMatch = weekendText.match(/(\w+\s+\d+)[-–](\d+),\s*(\d{4})/);
+    // Try single date: "March 6, 2026"
+    const singleMatch = weekendText.match(/(\w+)\s+(\d+),\s*(\d{4})/);
 
+    if (rangeMatch) {
+      const month = rangeMatch[1].split(' ')[0];
+      const startDay = parseInt(rangeMatch[1].split(' ')[1]);
+      const endDay = parseInt(rangeMatch[2]);
+      const year = parseInt(rangeMatch[3]);
       const monthNum = new Date(`${month} 1, 2000`).getMonth();
       weekStart = new Date(year, monthNum, startDay);
       weekEnd = new Date(year, monthNum, endDay);
+    } else if (singleMatch) {
+      // Single date — assume it's the Sunday, weekend starts Friday (2 days before)
+      const month = singleMatch[1];
+      const day = parseInt(singleMatch[2]);
+      const year = parseInt(singleMatch[3]);
+      const monthNum = new Date(`${month} 1, 2000`).getMonth();
+      weekEnd = new Date(year, monthNum, day);
+      weekStart = new Date(weekEnd);
+      weekStart.setDate(weekEnd.getDate() - 2);
     } else {
       // Default to last weekend
       const now = new Date();
@@ -111,18 +124,19 @@ async function scrapeBoxOffice() {
     const entries = [];
 
     // Parse the table rows
-    $('table tbody tr').each((i, row) => {
-      if (i >= 10) return; // Top 10 only
-
+    // Columns: Rank, Prev, Title, Weekend Gross, Weekly Change, Theaters, Total Gross, Days in Release
+    $('table tr').each((i, row) => {
       const cells = $(row).find('td');
-      if (cells.length < 7) return;
+      if (cells.length < 7) return; // Skip header rows
+      if (entries.length >= 10) return; // Top 10 only
 
-      const rank = parseInt($(cells[0]).text().trim()) || (i + 1);
-      const title = $(cells[2]).text().trim();
-      const weekendGross = parseCurrency($(cells[4]).text());
+      const rank = parseInt($(cells[0]).text().trim()) || (entries.length + 1);
+      const title = $(cells[2]).text().trim().replace(/^["']+|["']+$/g, '');
+      const weekendGross = parseCurrency($(cells[3]).text());
       const totalGross = parseCurrency($(cells[6]).text());
-      const weeksText = $(cells[7]).text().trim();
-      const weeks = parseInt(weeksText) || 1;
+      const daysText = $(cells[7]).text().trim();
+      const days = parseInt(daysText) || 1;
+      const weeks = Math.ceil(days / 7);
 
       if (title) {
         entries.push({

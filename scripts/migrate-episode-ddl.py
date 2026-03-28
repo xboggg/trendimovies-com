@@ -644,12 +644,21 @@ def migrate(args):
         if not pg_series:
             pg_series = series_by_title.get(norm_series)
 
-        # Try partial matching if exact fails
+        # Try fuzzy matching if exact fails (strict: >=0.90 similarity, same word count)
         if not pg_series:
+            from difflib import SequenceMatcher
+            best_ratio = 0
+            best_candidate = None
             for title_key, series_data in series_by_title.items():
-                if norm_series in title_key or title_key in norm_series:
-                    pg_series = series_data
-                    break
+                # Require same word count to prevent "The Beauty" matching "True Beauty"
+                if abs(len(norm_series.split()) - len(title_key.split())) > 0:
+                    continue
+                ratio = SequenceMatcher(None, norm_series, title_key).ratio()
+                if ratio >= 0.90 and ratio > best_ratio:
+                    best_ratio = ratio
+                    best_candidate = series_data
+            if best_candidate:
+                pg_series = best_candidate
 
         if not pg_series:
             if norm_series not in unmatched_series:

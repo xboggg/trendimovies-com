@@ -32,7 +32,7 @@ export const GET: APIRoute = async ({ url }) => {
       const lastmod = show.updated_at ? new Date(show.updated_at).toISOString().split('T')[0] : new Date().toISOString().split('T')[0];
       return `
   <url>
-    <loc>${SITE_URL}/series/${show.tmdb_id}</loc>
+    <loc>${SITE_URL}/tv/${show.tmdb_id}</loc>
     <lastmod>${lastmod}</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>

@@ -18,7 +18,7 @@ import { execSync, exec } from 'child_process';
 
 const SQLITE_DB = '/opt/trendimovies/bot/database/movies.db';
 const SQLITE_HOST = '38.242.195.0';
-const SSH_PORT = 80;
+const SSH_PORT = 2222;
 
 const args = process.argv.slice(2);
 const isLive = args.includes('--live');

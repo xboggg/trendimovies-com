@@ -179,8 +179,7 @@ function getBackdropUrl(path: string | null): string {
         >
           <!-- Franchise Header -->
           <div class="relative h-48 md:h-64">
-            <img
-              src={getBackdropUrl(franchise.backdrop_path)}
+            <img loading="lazy" src={getBackdropUrl(franchise.backdrop_path)}
               alt={franchise.name}
               class="w-full h-full object-cover"
             />
@@ -216,8 +215,7 @@ function getBackdropUrl(path: string | null): string {
                   class="group"
                 >
                   <div class="relative aspect-[2/3] rounded-lg overflow-hidden mb-2">
-                    <img
-                      src={getPosterUrl(movie.poster_path)}
+                    <img loading="lazy" src={getPosterUrl(movie.poster_path)}
                       alt={movie.title}
                       class="w-full h-full object-cover transition-transform group-hover:scale-110"
                       loading="lazy"

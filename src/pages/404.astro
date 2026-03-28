@@ -1,0 +1,53 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import { Search, Home, Film, Tv, TrendingUp } from 'lucide-svelte';
+---
+
+<BaseLayout title="Page Not Found" noIndex={true}>
+  <div class="min-h-[70vh] flex items-center justify-center px-4">
+    <div class="text-center max-w-lg">
+      <h1 class="text-6xl md:text-8xl font-black mb-4" style="color: var(--accent);">404</h1>
+      <h2 class="text-2xl md:text-3xl font-bold mb-4" style="color: var(--text-primary);">Page Not Found</h2>
+      <p class="text-lg mb-8" style="color: var(--text-secondary);">
+        The page you're looking for doesn't exist or may have been moved. 
+        Try searching for what you need or browse our collection.
+      </p>
+
+      <!-- Search Bar -->
+      <form action="/search" method="get" class="mb-8">
+        <div class="flex max-w-md mx-auto rounded-lg overflow-hidden" style="border: 1px solid var(--border);">
+          <input
+            type="text"
+            name="q"
+            placeholder="Search movies & TV series..."
+            class="flex-1 px-4 py-3 text-sm outline-none"
+            style="background-color: var(--bg-card); color: var(--text-primary);"
+          />
+          <button type="submit" class="px-4 py-3 bg-red-600 hover:bg-red-700 text-white transition-colors">
+            <Search size={20} client:load />
+          </button>
+        </div>
+      </form>
+
+      <!-- Quick Links -->
+      <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 max-w-lg mx-auto">
+        <a href="/" class="flex flex-col items-center gap-2 p-4 rounded-lg transition-colors hover:bg-[var(--bg-hover)]" style="background-color: var(--bg-card); border: 1px solid var(--border);">
+          <Home size={24} style="color: var(--accent);" client:load />
+          <span class="text-sm font-medium" style="color: var(--text-primary);">Home</span>
+        </a>
+        <a href="/movies" class="flex flex-col items-center gap-2 p-4 rounded-lg transition-colors hover:bg-[var(--bg-hover)]" style="background-color: var(--bg-card); border: 1px solid var(--border);">
+          <Film size={24} style="color: var(--accent);" client:load />
+          <span class="text-sm font-medium" style="color: var(--text-primary);">Movies</span>
+        </a>
+        <a href="/series" class="flex flex-col items-center gap-2 p-4 rounded-lg transition-colors hover:bg-[var(--bg-hover)]" style="background-color: var(--bg-card); border: 1px solid var(--border);">
+          <Tv size={24} style="color: var(--accent);" client:load />
+          <span class="text-sm font-medium" style="color: var(--text-primary);">TV Series</span>
+        </a>
+        <a href="/trending" class="flex flex-col items-center gap-2 p-4 rounded-lg transition-colors hover:bg-[var(--bg-hover)]" style="background-color: var(--bg-card); border: 1px solid var(--border);">
+          <TrendingUp size={24} style="color: var(--accent);" client:load />
+          <span class="text-sm font-medium" style="color: var(--text-primary);">Trending</span>
+        </a>
+      </div>
+    </div>
+  </div>
+</BaseLayout>

@@ -20,15 +20,18 @@ const ongoingResponse = await discoverTV({
 const series = ongoingResponse.results || [];
 const totalPages = Math.min(ongoingResponse.total_pages || 1, 50);
 
+// Transform TMDB data to MovieCard item format
 function transformToItem(show: any) {
   return {
     id: show.id,
     tmdb_id: show.id,
-    title: show.name,
-    poster_path: show.poster_path,
-    vote_average: show.vote_average,
+    title: show.name || 'Unknown',
+    poster_path: show.poster_path || null,
+    vote_average: show.vote_average || 0,
     year: show.first_air_date ? new Date(show.first_air_date).getFullYear() : null,
-    type: 'series' as const
+    type: 'series' as const,
+    popularity: show.popularity || 0,
+    release_date: show.first_air_date || null
   };
 }
 ---
@@ -45,14 +48,7 @@ function transformToItem(show: any) {
     {series.length > 0 ? (
       <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4 md:gap-6">
         {series.map((show: any) => (
-          <MovieCard
-            id={show.id}
-            title={show.name}
-            posterPath={show.poster_path}
-            year={show.first_air_date ? new Date(show.first_air_date).getFullYear() : null}
-            rating={show.vote_average}
-            type="series"
-          />
+          <MovieCard client:visible item={transformToItem(show)} />
         ))}
       </div>
     ) : (

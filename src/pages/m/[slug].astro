@@ -45,6 +45,14 @@ const [downloadResult, similarResult] = await Promise.all([
 const downloadLinks = downloadResult.data;
 const similarMovies = similarResult.data;
 
+// Fetch subtitle links
+const { data: subtitleLinks } = await supabase
+  .from('subtitle_links')
+  .select('id, file_name, file_size, telegram_file_id')
+  .eq('content_type', 'movie')
+  .eq('content_id', movie.id)
+  .eq('is_active', true);
+
 // Transform similar movies
 const similar = (similarMovies || []).map(m => ({ ...m, type: 'movie' as const }));
 
@@ -197,6 +205,7 @@ function formatMoney(amount: number | null): string {
       tmdbId={movie.tmdb_id}
       imdbId={movie.imdb_id}
       type="movie"
+      releaseDate={movie.release_date}
     />
   </section>
 
@@ -205,6 +214,7 @@ function formatMoney(amount: number | null): string {
     <DownloadSection
       client:load
       links={downloadLinks || []}
+      subtitles={subtitleLinks || []}
       contentId={movie.id}
       contentType="movie"
     />

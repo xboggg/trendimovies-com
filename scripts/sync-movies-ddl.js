@@ -25,7 +25,7 @@ function log(msg) {
 function sqliteQuery(sql) {
   // Escape single quotes for shell
   const escapedSql = sql.replace(/'/g, "'\\''");
-  const cmd = `ssh -p 80 root@${SQLITE_HOST} "sqlite3 -json ${SQLITE_DB} '${escapedSql}'"`;
+  const cmd = `ssh -p 2222 root@${SQLITE_HOST} "sqlite3 -json ${SQLITE_DB} '${escapedSql}'"`;
   try {
     const result = execSync(cmd, { maxBuffer: 100 * 1024 * 1024, timeout: 30000 });
     const output = result.toString().trim();

@@ -78,7 +78,7 @@ This document explains how files uploaded to Telegram become searchable in the T
 │  144 server executes SSH command to query 38 server's SQLite directly:         │
 │                                                                                 │
 │  Command:                                                                       │
-│  ssh -p 80 root@38.242.195.0 "sqlite3 -json                                    │
+│  ssh -p 2222 root@38.242.195.0 "sqlite3 -json                                    │
 │      /opt/trendimovies/bot/database/movies.db                                  │
 │      \"SELECT id, message_id, file_name, file_size, quality, year              │
 │        FROM movies                                                              │
@@ -135,7 +135,7 @@ This document explains how files uploaded to Telegram become searchable in the T
 
 | Property | Value |
 |----------|-------|
-| **SSH Port** | 80 |
+| **SSH Port** | 2222 |
 | **Primary Role** | Index files from Telegram into SQLite |
 | **Database** | `/opt/trendimovies/bot/database/movies.db` |
 | **Size** | ~900 MB, 800,000+ files |
@@ -169,7 +169,7 @@ This document explains how files uploaded to Telegram become searchable in the T
 | **Site Path** | `/var/www/trendimovies/` |
 | **Framework** | Astro (SSR mode) |
 | **Process Manager** | PM2 (trendimovies-astro) |
-| **Port** | 3000 |
+| **Port** | 4000 |
 
 **What runs on this server:**
 ```
@@ -231,8 +231,8 @@ POSSIBLE CAUSE 1: Too early (file not indexed yet)
 └── The indexer polls every 30 seconds
 
 POSSIBLE CAUSE 2: Auto-indexer not running
-├── Check: ssh -p 80 root@38.242.195.0 "ps aux | grep auto_indexer"
-├── Fix: ssh -p 80 root@38.242.195.0 "pm2 restart auto_indexer"
+├── Check: ssh -p 2222 root@38.242.195.0 "ps aux | grep auto_indexer"
+├── Fix: ssh -p 2222 root@38.242.195.0 "pm2 restart auto_indexer"
 └── Then wait 30 seconds and search again
 
 POSSIBLE CAUSE 3: Search term doesn't match
@@ -244,7 +244,7 @@ POSSIBLE CAUSE 3: Search term doesn't match
 └── Solution: Use keywords that appear in the actual filename
 
 POSSIBLE CAUSE 4: SSH connection failed
-├── Check: ssh -p 80 root@38.242.195.0 "echo OK"
+├── Check: ssh -p 2222 root@38.242.195.0 "echo OK"
 ├── If fails: Network issue between 144 and 38 servers
 └── Fix: Check firewall rules, server status
 ```
@@ -338,7 +338,7 @@ USER INPUT: "fathers miracle 2026"
 │  STEP 3: Execute via SSH                                    │
 │  ───────────────────────                                    │
 │  144 server runs:                                           │
-│  ssh -p 80 root@38.242.195.0 "sqlite3 -json                │
+│  ssh -p 2222 root@38.242.195.0 "sqlite3 -json                │
 │      /opt/trendimovies/bot/database/movies.db              │
 │      \"<SQL QUERY>\""                                       │
 └─────────────────────────────────────────────────────────────┘
@@ -364,7 +364,7 @@ USER INPUT: "fathers miracle 2026"
 
 ```bash
 # SSH to 38 server
-ssh -p 80 root@38.242.195.0
+ssh -p 2222 root@38.242.195.0
 
 # Search for a specific file
 sqlite3 /opt/trendimovies/bot/database/movies.db \
@@ -405,7 +405,7 @@ pm2 restart auto_indexer
 curl -s 'https://trendimovies.com/api/admin/assign/search-telegram?query=movie%20name'
 
 # Test SSH connection to 38
-ssh -p 80 root@38.242.195.0 "echo 'Connection OK'"
+ssh -p 2222 root@38.242.195.0 "echo 'Connection OK'"
 
 # Check Astro server
 pm2 status trendimovies-astro

@@ -1,5 +1,30 @@
 // Direct PostgREST client (bypassing Kong for performance)
+import jwt from 'jsonwebtoken';
+import { readFileSync } from 'fs';
+
 const POSTGREST_URL = import.meta.env.PUBLIC_SUPABASE_URL || 'http://localhost:3001';
+
+// JWT for PostgREST authenticated write operations
+let _jwtSecret: string = '';
+try {
+  _jwtSecret = readFileSync('/etc/trendimovies/jwt_secret', 'utf-8').trim();
+} catch {
+  _jwtSecret = '';
+}
+
+function _getWriteHeaders(extra?: Record<string, string>): Record<string, string> {
+  const headers: Record<string, string> = {
+    'Accept-Profile': 'public',
+    'Content-Profile': 'public',
+    'Content-Type': 'application/json',
+  };
+  if (_jwtSecret) {
+    const token = jwt.sign({ role: 'web_auth' }, _jwtSecret, { expiresIn: '5m' });
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+  if (extra) Object.assign(headers, extra);
+  return headers;
+}
 const API_KEY = import.meta.env.PUBLIC_SUPABASE_ANON_KEY || '';
 
 interface QueryOptions {
@@ -67,12 +92,7 @@ async function insert(table: string, data: any): Promise<{ data: any; error: any
   try {
     const response = await fetch(url, {
       method: 'POST',
-      headers: {
-        'Accept-Profile': 'public',
-        'Content-Profile': 'public',
-        'Content-Type': 'application/json',
-        'Prefer': 'return=representation'
-      },
+      headers: _getWriteHeaders({ 'Prefer': 'return=representation' }),
       body: JSON.stringify(data),
       signal: AbortSignal.timeout(10000)
     });
@@ -95,12 +115,7 @@ async function update(table: string, id: number, data: any): Promise<{ data: any
   try {
     const response = await fetch(url, {
       method: 'PATCH',
-      headers: {
-        'Accept-Profile': 'public',
-        'Content-Profile': 'public',
-        'Content-Type': 'application/json',
-        'Prefer': 'return=representation'
-      },
+      headers: _getWriteHeaders({ 'Prefer': 'return=representation' }),
       body: JSON.stringify(data),
       signal: AbortSignal.timeout(10000)
     });
@@ -262,6 +277,8 @@ export interface DownloadLink {
   telegram_file_id: string | null;
   is_active: boolean;
   click_count: number;
+  language?: string;
+  language_tag?: string | null;
 }
 
 export interface Collection {
@@ -279,11 +296,13 @@ export interface Collection {
 // Helper functions
 export function getPosterUrl(path: string | null, size: string = 'w500'): string {
   if (!path) return '/images/no-poster.svg';
+  if (path.startsWith("/images/")) return path;
   return `https://image.tmdb.org/t/p/${size}${path}`;
 }
 
 export function getBackdropUrl(path: string | null, size: string = 'w1280'): string {
   if (!path) return '/images/no-backdrop.svg';
+  if (path.startsWith("/images/")) return path;
   return `https://image.tmdb.org/t/p/${size}${path}`;
 }
 

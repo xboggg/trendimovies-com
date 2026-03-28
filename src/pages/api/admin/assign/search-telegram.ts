@@ -11,7 +11,7 @@ const TELEGRAM_API = 'http://127.0.0.1:8765';
 // Direct SQLite access via SSH
 const SQLITE_DB = '/opt/trendimovies/bot/database/movies.db';
 const SQLITE_HOST = '38.242.195.0';
-const SSH_PORT = 80;
+const SSH_PORT = 2222;
 
 export const GET: APIRoute = async ({ request, url }) => {
   // Auth check
@@ -61,7 +61,8 @@ export const GET: APIRoute = async ({ request, url }) => {
       if (response.ok) {
         const data = await response.json();
         let files = (data.results || data.files || []).map((f: any) => ({
-          id: f.message_id || f.id,
+          id: f.id,
+          telegram_file_id: f.file_id || f.id,
           message_id: f.message_id,
           file_name: f.file_name || f.filename,
           file_size: formatFileSize(f.file_size),
@@ -105,7 +106,10 @@ async function searchSQLiteDirect(query: string, year?: string, quality?: string
   }
 
   // Build search term: replace separators with % wildcard for flexible matching
-  const searchTerm = sanitizedQuery
+  // Handle possessives: "mans" matches "man's", "mans", "man_s" etc.
+  const normalizedQuery = sanitizedQuery.replace(/mans(?=[\s]|$|[.\-_])/gi, "man%s");
+
+  const searchTerm = normalizedQuery
     .replace(/[\s.\-_]+/g, '%');
 
   // Validate year if provided
@@ -117,12 +121,23 @@ async function searchSQLiteDirect(query: string, year?: string, quality?: string
     }
   }
 
+  // Build quality filter for SQL
+  let qualityFilter = '';
+  if (quality) {
+    const validQualities = ['720p', '1080p', '2160p', 'hdrip'];
+    const cleanQuality = quality.toLowerCase();
+    if (validQualities.includes(cleanQuality)) {
+      qualityFilter = ` AND quality = '${cleanQuality}'`;
+    }
+  }
+
   // Build SQL query (values are sanitized above)
-  const sql = `SELECT id, message_id, file_name, file_size, quality, year
+  const sql = `SELECT id, message_id, file_id, file_name, file_size, quality, year
              FROM movies
-             WHERE file_name LIKE '%${searchTerm}%' ESCAPE '\\\\'
+             WHERE file_name LIKE '%${searchTerm}%'
              AND file_name NOT LIKE '%.srt'
-             AND file_name NOT LIKE '%.sub'${yearFilter}
+             AND file_name NOT LIKE '%.sub'${yearFilter}${qualityFilter}
+             GROUP BY file_name
              ORDER BY
              CASE quality
                WHEN '2160p' THEN 1
@@ -146,7 +161,8 @@ async function searchSQLiteDirect(query: string, year?: string, quality?: string
 
     // Format results
     let files = results.map((f: any) => ({
-      id: f.message_id || f.id,
+      id: f.id,
+      telegram_file_id: f.file_id,
       message_id: f.message_id,
       file_name: f.file_name,
       file_size: formatFileSize(f.file_size),
@@ -155,16 +171,6 @@ async function searchSQLiteDirect(query: string, year?: string, quality?: string
     }));
 
     // Filter by quality if specified
-    if (quality) {
-      const validQualities = ['720p', '1080p', '2160p', '4k', 'hdrip', 'bluray', 'webrip'];
-      const cleanQuality = quality.toLowerCase();
-      if (validQualities.some(q => cleanQuality.includes(q))) {
-        files = files.filter((f: any) =>
-          f.quality?.toLowerCase().includes(cleanQuality)
-        );
-      }
-    }
-
     return files;
   } catch (error: any) {
     console.error('SQLite SSH query error:', error.message);

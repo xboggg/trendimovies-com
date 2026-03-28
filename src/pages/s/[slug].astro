@@ -55,6 +55,27 @@ if (episodeIds.length > 0) {
   }
 }
 
+// Fetch subtitle links for episodes
+let subtitlesByEpisode: Record<number, any[]> = {};
+if (episodeIds.length > 0) {
+  const POSTGREST_URL_SUB = import.meta.env.PUBLIC_SUPABASE_URL || 'http://localhost:3001';
+  try {
+    const subResp = await fetch(
+      `${POSTGREST_URL_SUB}/subtitle_links?content_type=eq.episode&is_active=eq.true&content_id=in.(${episodeIds.join(',')})&select=id,file_name,file_size,telegram_file_id`,
+      { headers: { 'Accept-Profile': 'public' }, signal: AbortSignal.timeout(10000) }
+    );
+    if (subResp.ok) {
+      const subData = await subResp.json();
+      for (const sub of subData) {
+        if (!subtitlesByEpisode[sub.content_id]) subtitlesByEpisode[sub.content_id] = [];
+        subtitlesByEpisode[sub.content_id].push(sub);
+      }
+    }
+  } catch (e) {
+    console.error('Error fetching episode subtitles:', e);
+  }
+}
+
 // Fetch similar series
 const { data: similarSeries } = await supabase
   .from('series')
@@ -236,6 +257,7 @@ const avgRuntime = series.episode_run_time && series.episode_run_time.length > 0
       seasons={seasons || []}
       episodesBySeason={episodesBySeason}
       {downloadsByEpisode}
+      {subtitlesByEpisode}
     />
   </section>
 

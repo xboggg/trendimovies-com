@@ -3,6 +3,7 @@
 
   interface TelegramFile {
     id: number;
+    telegram_file_id: string;
     file_name: string;
     file_size: string;
     quality: string;
@@ -188,14 +189,17 @@
     try {
       const body: any = {
         content_type: contentType,
-        content_id: contentType === 'movie' ? selectedContent.id : selectedEpisode?.id,
+        content_id: contentType === "movie" ? selectedContent.id : selectedEpisode?.id,
+        show_id: contentType === "episode" ? selectedContent.id : undefined,
+        season_number: contentType === "episode" ? selectedSeason : undefined,
+        episode_number: contentType === "episode" ? selectedEpisode?.episode_number : undefined,
         source,
         quality: selectedQuality,
         file_size: fileSize || selectedFile?.file_size || null
       };
 
       if (source === 'telegram') {
-        body.telegram_file_id = selectedFile?.id;
+        body.telegram_file_id = String(selectedFile?.id); // Use SQLite row ID, not Telegram hash
       } else {
         body.url = customUrl;
       }
@@ -230,6 +234,7 @@
   }
 
   function getPosterUrl(path: string | null): string {
+    if (path && path.startsWith('/images/')) return path;
     return path ? `https://image.tmdb.org/t/p/w92${path}` : '/images/no-poster.jpg';
   }
 

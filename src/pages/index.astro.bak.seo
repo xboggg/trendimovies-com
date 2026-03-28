@@ -1,0 +1,451 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import HeroCarousel from '../components/HeroCarousel.svelte';
+import ContentRow from '../components/ContentRow.svelte';
+import FeaturedSection from '../components/FeaturedSection.svelte';
+import { getTrendingMovies, getNowPlayingMovies, getPopularMovies, getTopRatedMovies, getTrendingTV, getPopularTV, getOnTheAirTV, discoverMovies, getMovieDetails, getMovieGenres, getTVDetails, searchMovies } from '../lib/tmdb';
+
+const POSTGREST_URL = import.meta.env.PUBLIC_SUPABASE_URL || 'http://localhost:3001';
+
+// Fetch latest additions from our database (movies with downloads, sorted by created_at)
+async function getLatestAdditions() {
+  try {
+    const res = await fetch(
+      `${POSTGREST_URL}/movies?has_downloads=eq.true&order=created_at.desc&limit=20&select=tmdb_id,title,year,poster_path,backdrop_path,vote_average,vote_count,popularity,overview`
+    );
+    if (!res.ok) return [];
+    return await res.json();
+  } catch (e) {
+    console.error('Failed to fetch latest additions:', e);
+    return [];
+  }
+}
+
+// Calculate date range for upcoming movies (future releases only - start from tomorrow)
+const today = new Date();
+const tomorrow = new Date(today);
+tomorrow.setDate(tomorrow.getDate() + 1);
+const tomorrowStr = tomorrow.toISOString().split('T')[0];
+const threeMonthsLater = new Date(today);
+threeMonthsLater.setMonth(threeMonthsLater.getMonth() + 3);
+const futureStr = threeMonthsLater.toISOString().split('T')[0];
+
+// Fetch all data from TMDB and our database in parallel
+const [trending, nowPlaying, popular, topRatedRecent, upcomingData, trendingTV, popularTV, onTheAirTV, actionMovies, comedyMovies, romanceMovies, thrillerMovies, animeMovies, kDramaMovies, movieGenres, latestAdditions] = await Promise.all([
+  getTrendingMovies('week'),
+  getNowPlayingMovies(),
+  getPopularMovies(),
+  discoverMovies({ sort_by: 'vote_average.desc', 'vote_count.gte': '1000', 'primary_release_date.gte': '2015-01-01' }),
+  discoverMovies({
+    'primary_release_date.gte': tomorrowStr,
+    'primary_release_date.lte': futureStr,
+    sort_by: 'popularity.desc'
+  }),
+  getTrendingTV('week'),
+  getPopularTV(),
+  getOnTheAirTV(),
+  discoverMovies({ with_genres: '28', sort_by: 'popularity.desc' }),
+  discoverMovies({ with_genres: '35', sort_by: 'popularity.desc' }),
+  discoverMovies({ with_genres: '10749', sort_by: 'popularity.desc' }),
+  discoverMovies({ with_genres: '53', sort_by: 'popularity.desc' }),
+  discoverMovies({ with_genres: '16', with_original_language: 'ja', sort_by: 'vote_average.desc', 'vote_count.gte': '500' }),
+  discoverMovies({ with_original_language: 'ko', sort_by: 'vote_average.desc', 'vote_count.gte': '200' }),
+  getMovieGenres(),
+  getLatestAdditions()
+]);
+
+const upcoming = (upcomingData?.results || []).filter((m: any) => m.poster_path && m.release_date && new Date(m.release_date) > new Date());
+
+// Create a genre map for quick lookup
+const genreMap = new Map(movieGenres.map((g: any) => [g.id, g.name]));
+
+// Fetch detailed info for hero carousel items (top 8 trending)
+const heroMovieIds = (trending || []).slice(0, 8).map((m: any) => m.id);
+const heroDetailsPromises = heroMovieIds.map((id: number) => getMovieDetails(id).catch(() => null));
+const heroDetails = await Promise.all(heroDetailsPromises);
+
+// Transform for components
+function transformMovie(m: any) {
+  return {
+    id: m.id,
+    tmdb_id: m.id,
+    title: m.title,
+    poster_path: m.poster_path,
+    backdrop_path: m.backdrop_path,
+    vote_average: m.vote_average,
+    vote_count: m.vote_count,
+    popularity: m.popularity,
+    year: m.release_date ? new Date(m.release_date).getFullYear() : null,
+    release_date: m.release_date || null,
+    overview: m.overview,
+    genre_ids: m.genre_ids,
+    type: 'movie' as const
+  };
+}
+
+function transformTV(t: any) {
+  return {
+    id: t.id,
+    tmdb_id: t.id,
+    title: t.name,
+    poster_path: t.poster_path,
+    backdrop_path: t.backdrop_path,
+    vote_average: t.vote_average,
+    vote_count: t.vote_count,
+    popularity: t.popularity,
+    year: t.first_air_date ? new Date(t.first_air_date).getFullYear() : null,
+    overview: t.overview,
+    type: 'series' as const
+  };
+}
+
+// Transform database movies to component format
+function transformDbMovie(m: any) {
+  return {
+    id: m.tmdb_id,
+    tmdb_id: m.tmdb_id,
+    title: m.title,
+    poster_path: m.poster_path,
+    backdrop_path: m.backdrop_path,
+    vote_average: m.vote_average || 0,
+    vote_count: m.vote_count || 0,
+    popularity: m.popularity || 0,
+    year: m.year,
+    overview: m.overview,
+    type: 'movie' as const,
+    has_downloads: true
+  };
+}
+
+// Transform hero items with full details (tagline, runtime, genres)
+const heroItems = (trending || []).slice(0, 8).map((m: any, index: number) => {
+  const details = heroDetails[index];
+  return {
+    id: m.id,
+    tmdb_id: m.id,
+    title: m.title,
+    poster_path: m.poster_path,
+    backdrop_path: m.backdrop_path,
+    vote_average: m.vote_average,
+    vote_count: m.vote_count,
+    popularity: m.popularity,
+    year: m.release_date ? new Date(m.release_date).getFullYear() : null,
+    release_date: m.release_date || null,
+    overview: m.overview,
+    type: 'movie' as const,
+    // Full details from API
+    tagline: details?.tagline || null,
+    runtime: details?.runtime || null,
+    release_date: m.release_date || details?.release_date || null,
+    genres: details?.genres || (m.genre_ids || []).map((id: number) => ({ id, name: genreMap.get(id) || '' }))
+  };
+});
+
+const trendingItems = (trending || []).slice(0, 20).map(transformMovie);
+const featured = heroItems[0] || null;
+const nowPlayingItems = (nowPlaying || []).map(transformMovie);
+const popularItems = (popular || []).map(transformMovie);
+const topRatedItems = (topRatedRecent?.results || []).slice(0, 20).map(transformMovie);
+
+// Transform latest additions from database
+const latestAdditionItems = (latestAdditions || []).map(transformDbMovie);
+
+// Transform upcoming movies with full release date
+const upcomingItems = (upcoming || []).map((m: any) => ({
+  id: m.id,
+  tmdb_id: m.id,
+  title: m.title,
+  poster_path: m.poster_path,
+  vote_average: m.vote_average,
+  year: m.release_date ? new Date(m.release_date).getFullYear() : null,
+  release_date: m.release_date,
+  type: 'movie' as const
+}));
+
+const tvItems = (trendingTV || []).map(transformTV);
+const popularTVItems = (popularTV || []).map(transformTV);
+
+// Fetch TV details for on-the-air shows to get last_episode_to_air data
+const onTheAirFiltered = (onTheAirTV || []).filter((t: any) => t.poster_path);
+const onTheAirDetails = await Promise.all(
+  onTheAirFiltered.map((t: any) => getTVDetails(t.id).catch(() => null))
+);
+const onTheAirItems = onTheAirFiltered.map((t: any, index: number) => {
+  const base = transformTV(t);
+  const details = onTheAirDetails[index];
+  const lastEp = details?.last_episode_to_air;
+  if (lastEp && lastEp.season_number != null && lastEp.episode_number != null) {
+    const s = String(lastEp.season_number).padStart(2, '0');
+    const e = String(lastEp.episode_number).padStart(2, '0');
+    return { ...base, episode_info: `S${s}E${e}` };
+  }
+  return base;
+});
+const actionItems = (actionMovies?.results || []).slice(0, 15).map(transformMovie);
+const comedyItems = (comedyMovies?.results || []).slice(0, 15).map(transformMovie);
+const romanceItems = (romanceMovies?.results || []).slice(0, 15).map(transformMovie);
+const thrillerItems = (thrillerMovies?.results || []).slice(0, 15).map(transformMovie);
+const animeItems = (animeMovies?.results || []).slice(0, 15).map(transformMovie);
+const kDramaItems = (kDramaMovies?.results || []).slice(0, 15).map(transformMovie);
+
+// Oscar 2026 nominees - search TMDB for each
+const oscarTitles = [
+  'Sinners', 'One Battle After Another', 'Bugonia', 'F1', 'Frankenstein',
+  'Hamnet', 'Marty Supreme', 'The Secret Agent', 'Sentimental Value', 'Train Dreams'
+];
+
+async function searchOscarMovie(title: string) {
+  try {
+    const result = await searchMovies(title, 1);
+    if (result.results && result.results.length > 0) {
+      const movie = result.results.find((m: any) => {
+        const year = m.release_date ? new Date(m.release_date).getFullYear() : 0;
+        return year >= 2024 && year <= 2026;
+      }) || result.results[0];
+      return transformMovie(movie);
+    }
+  } catch (e) {
+    console.error(`Failed to search Oscar movie ${title}:`, e);
+  }
+  return null;
+}
+
+const oscarResults = await Promise.all(oscarTitles.map(searchOscarMovie));
+const oscarMovies = oscarResults.filter((m): m is NonNullable<typeof m> => m !== null);
+
+// Top movies by year ranges
+const [top2026Data, top2024_25Data, top2020_23Data] = await Promise.all([
+  discoverMovies({
+    'primary_release_date.gte': '2026-01-01',
+    'primary_release_date.lte': '2026-12-31',
+    sort_by: 'vote_average.desc',
+    'vote_count.gte': '50'
+  }),
+  discoverMovies({
+    'primary_release_date.gte': '2024-01-01',
+    'primary_release_date.lte': '2025-12-31',
+    sort_by: 'vote_average.desc',
+    'vote_count.gte': '200'
+  }),
+  discoverMovies({
+    'primary_release_date.gte': '2020-01-01',
+    'primary_release_date.lte': '2023-12-31',
+    sort_by: 'vote_average.desc',
+    'vote_count.gte': '500'
+  })
+]);
+
+const top2026 = (top2026Data?.results || []).slice(0, 20).map(transformMovie);
+const top2024_25 = (top2024_25Data?.results || []).slice(0, 20).map(transformMovie);
+const top2020_23 = (top2020_23Data?.results || []).slice(0, 20).map(transformMovie);
+
+// Fetch box office from database
+async function getBoxOfficeData() {
+  try {
+    const res = await fetch(
+      `${POSTGREST_URL}/box_office_weekly?order=week_start.desc,rank.asc&limit=15`
+    );
+    if (!res.ok) return [];
+    const data = await res.json();
+    if (data.length === 0) return [];
+    const latestWeek = data[0].week_start;
+    return data.filter(d => d.week_start === latestWeek).slice(0, 7).map(d => ({
+      rank: d.rank,
+      title: d.movie_title,
+      weekend_gross: d.three_day_gross ? `$${(d.three_day_gross / 1000000).toFixed(1)}M` : "-",
+      total_gross: d.total_gross > 100000 ? `$${(d.total_gross / 1000000).toFixed(1)}M` : (d.three_day_gross ? `$${(d.three_day_gross / 1000000).toFixed(1)}M` : "-"),
+      tmdb_id: d.tmdb_id || 0,
+      poster_path: d.poster_path || null
+    }));
+  } catch (e) {
+    console.error("Failed to fetch box office:", e);
+    return [];
+  }
+}
+const boxOfficeData = await getBoxOfficeData();
+
+// Search TMDB for box office movies to get posters
+const boxOfficeWithPosters = await Promise.all(boxOfficeData.map(async (entry) => {
+  try {
+    const result = await searchMovies(entry.title, 1);
+    if (result.results && result.results.length > 0) {
+      const movie = result.results[0];
+      return { ...entry, tmdb_id: movie.id, poster_path: movie.poster_path };
+    }
+  } catch (e) {}
+  return entry;
+}));
+---
+
+<BaseLayout title="Watch Movies & TV Series Online Free">
+  <!-- Hero Section -->
+  <HeroCarousel
+    client:load
+    featured={featured}
+    trending={heroItems}
+  />
+
+  <!-- Trending Movies -->
+  {trendingItems.length > 0 && (
+    <ContentRow
+      client:load
+      title="Trending This Week"
+      items={trendingItems}
+      seeAllLink="/trending"
+      autoScroll={true}
+    />
+  )}
+
+  <!-- Featured Section: Oscar + Tabs -->
+  <FeaturedSection
+    client:load
+    oscarMovies={oscarMovies}
+    top2026={top2026}
+    top2024_25={top2024_25}
+    top2020_23={top2020_23}
+    boxOffice={boxOfficeWithPosters}
+    comingSoon={upcoming.slice(0, 10).map(transformMovie)}
+  />
+
+  <!-- Latest Additions (from our database - movies with downloads) -->
+  {latestAdditionItems.length > 0 && (
+    <ContentRow
+      client:load
+      title="Latest Additions"
+      items={latestAdditionItems}
+      seeAllLink="/movies/latest"
+      autoScroll={false}
+    />
+  )}
+
+  <!-- Now Playing -->
+  {nowPlayingItems.length > 0 && (
+    <ContentRow
+      client:load
+      title="Now Playing in Theaters"
+      items={nowPlayingItems}
+      seeAllLink="/movies?filter=now_playing"
+      autoScroll={true}
+    />
+  )}
+
+  <!-- Upcoming Movies -->
+  {upcomingItems.length > 0 && (
+    <ContentRow
+      client:visible
+      title="Coming Soon"
+      items={upcomingItems}
+      seeAllLink="/movies/upcoming"
+    />
+  )}
+
+  <!-- Popular Movies -->
+  {popularItems.length > 0 && (
+    <ContentRow
+      client:visible
+      title="Popular Movies"
+      items={popularItems}
+      seeAllLink="/movies"
+    />
+  )}
+
+  <!-- Trending TV -->
+  {tvItems.length > 0 && (
+    <ContentRow
+      client:visible
+      title="Trending TV Series"
+      items={tvItems}
+      seeAllLink="/series"
+    />
+  )}
+
+  <!-- Popular TV -->
+  {popularTVItems.length > 0 && (
+    <ContentRow
+      client:visible
+      title="Popular TV Series"
+      items={popularTVItems}
+      seeAllLink="/series"
+    />
+  )}
+
+  <!-- New Episodes This Week -->
+  {onTheAirItems.length > 0 && (
+    <ContentRow
+      client:visible
+      title="New Episodes This Week"
+      items={onTheAirItems}
+      seeAllLink="/series/new-episodes"
+    />
+  )}
+
+  <!-- Action Movies -->
+  {actionItems.length > 0 && (
+    <ContentRow
+      client:visible
+      title="Action Movies"
+      items={actionItems}
+      seeAllLink="/genre/action"
+    />
+  )}
+
+  <!-- Comedy Movies -->
+  {comedyItems.length > 0 && (
+    <ContentRow
+      client:visible
+      title="Comedy Movies"
+      items={comedyItems}
+      seeAllLink="/genre/comedy"
+    />
+  )}
+
+  <!-- Romance Movies -->
+  {romanceItems.length > 0 && (
+    <ContentRow
+      client:visible
+      title="Romance Movies"
+      items={romanceItems}
+      seeAllLink="/genre/romance"
+    />
+  )}
+
+  <!-- Thriller Movies -->
+  {thrillerItems.length > 0 && (
+    <ContentRow
+      client:visible
+      title="Thriller Movies"
+      items={thrillerItems}
+      seeAllLink="/genre/thriller"
+    />
+  )}
+
+  <!-- Anime Movies -->
+  {animeItems.length > 0 && (
+    <ContentRow
+      client:visible
+      title="Top Anime Movies"
+      items={animeItems}
+      seeAllLink="/movies/anime"
+    />
+  )}
+
+  <!-- Korean Movies -->
+  {kDramaItems.length > 0 && (
+    <ContentRow
+      client:visible
+      title="Top Korean Movies"
+      items={kDramaItems}
+      seeAllLink="/movies/korean"
+    />
+  )}
+
+  <!-- Top Rated (last section) -->
+  {topRatedItems.length > 0 && (
+    <ContentRow
+      client:visible
+      title="Top Rated"
+      items={topRatedItems}
+      seeAllLink="/top-rated"
+    />
+  )}
+</BaseLayout>

@@ -5,6 +5,17 @@ import { discoverMovies } from '../../lib/tmdb';
 
 // Get query params
 const page = parseInt(Astro.url.searchParams.get('page') || '1');
+const sort = Astro.url.searchParams.get('sort') || 'popular';
+
+// Map sort options
+const sortMap: Record<string, string> = {
+  'date': 'primary_release_date.asc',
+  'popular': 'popularity.desc',
+  'rating': 'vote_average.desc',
+  'title': 'title.asc'
+};
+
+const sortBy = sortMap[sort] || 'primary_release_date.asc';
 
 // Calculate date range for upcoming movies
 const today = new Date();
@@ -23,13 +34,13 @@ const [response1, response2] = await Promise.all([
   discoverMovies({
     'primary_release_date.gte': tomorrowStr,
     'primary_release_date.lte': futureStr,
-    sort_by: 'popularity.desc',
+    sort_by: sortBy,
     page: tmdbPage1.toString()
   }),
   discoverMovies({
     'primary_release_date.gte': tomorrowStr,
     'primary_release_date.lte': futureStr,
-    sort_by: 'popularity.desc',
+    sort_by: sortBy,
     page: tmdbPage2.toString()
   })
 ]);
@@ -50,17 +61,29 @@ function transformToItem(movie: any) {
     type: 'movie' as const
   };
 }
-
-function formatReleaseDate(dateStr: string): string {
-  return new Date(dateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-}
 ---
 
 <BaseLayout title="Coming Soon" description="Browse upcoming movies coming to theaters">
   <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-    <div class="mb-8">
-      <h1 class="text-3xl font-bold mb-2" style="color: var(--text-primary);">Coming Soon</h1>
-      <p style="color: var(--text-secondary);">Upcoming movies releasing in theaters</p>
+    <div class="flex flex-col md:flex-row md:items-center md:justify-between mb-8">
+      <div>
+        <h1 class="text-3xl font-bold mb-2" style="color: var(--text-primary);">Coming Soon</h1>
+        <p style="color: var(--text-secondary);">Upcoming movies releasing in theaters</p>
+      </div>
+
+      <!-- Sort Filter -->
+      <div class="mt-4 md:mt-0">
+        <select
+          id="sort-select"
+          class="px-4 py-2 rounded-lg text-sm"
+          style="background-color: var(--bg-card); color: var(--text-primary); border: 1px solid var(--border);"
+        >
+          <option value="date" selected={sort === 'date'}>Release Date (Earliest)</option>
+          <option value="popular" selected={sort === 'popular'}>Most Popular</option>
+          <option value="rating" selected={sort === 'rating'}>Highest Rated</option>
+          <option value="title" selected={sort === 'title'}>Title A-Z</option>
+        </select>
+      </div>
     </div>
 
     <!-- Movie Grid -->
@@ -81,7 +104,7 @@ function formatReleaseDate(dateStr: string): string {
       <div class="flex justify-center mt-8 gap-2">
         {page > 1 && (
           <a
-            href={`/movies/upcoming?page=${page - 1}`}
+            href={`/movies/upcoming?sort=${sort}&page=${page - 1}`}
             class="px-4 py-2 rounded-lg"
             style="background-color: var(--bg-card); color: var(--text-primary); border: 1px solid var(--border);"
           >
@@ -95,7 +118,7 @@ function formatReleaseDate(dateStr: string): string {
 
         {page < totalPages && (
           <a
-            href={`/movies/upcoming?page=${page + 1}`}
+            href={`/movies/upcoming?sort=${sort}&page=${page + 1}`}
             class="px-4 py-2 rounded-lg"
             style="background-color: var(--bg-card); color: var(--text-primary); border: 1px solid var(--border);"
           >
@@ -105,4 +128,16 @@ function formatReleaseDate(dateStr: string): string {
       </div>
     )}
   </div>
+
+  <script>
+    const sortSelect = document.getElementById('sort-select') as HTMLSelectElement;
+    if (sortSelect) {
+      sortSelect.addEventListener('change', () => {
+        const url = new URL(window.location.href);
+        url.searchParams.set('sort', sortSelect.value);
+        url.searchParams.delete('page');
+        window.location.href = url.toString();
+      });
+    }
+  </script>
 </BaseLayout>

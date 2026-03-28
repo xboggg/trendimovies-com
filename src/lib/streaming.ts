@@ -3,25 +3,33 @@ export const STREAMING_SERVERS = {
   server1: {
     id: 'server1',
     name: 'Server 1',
-    getMovieUrl: (tmdbId: number) => `https://vidsrc.icu/embed/movie/${tmdbId}`,
+    getMovieUrl: (tmdbId: number) => `https://vidlink.pro/movie/${tmdbId}`,
     getTVUrl: (tmdbId: number, season: number, episode: number) =>
-      `https://vidsrc.icu/embed/tv/${tmdbId}/${season}/${episode}`,
+      `https://vidlink.pro/tv/${tmdbId}/${season}/${episode}`,
     idType: 'tmdb' as const
   },
   server2: {
     id: 'server2',
     name: 'Server 2',
-    getMovieUrl: (tmdbId: number) => `https://www.2embed.cc/embed/${tmdbId}`,
+    getMovieUrl: (tmdbId: number) => `https://cinesrc.st/embed/movie/${tmdbId}`,
     getTVUrl: (tmdbId: number, season: number, episode: number) =>
-      `https://www.2embed.cc/embedtv/${tmdbId}&s=${season}&e=${episode}`,
+      `https://cinesrc.st/embed/tv/${tmdbId}?s=${season}&e=${episode}`,
     idType: 'tmdb' as const
   },
   server3: {
     id: 'server3',
     name: 'Server 3',
-    getMovieUrl: (tmdbId: number) => `https://moviesapi.club/movie/${tmdbId}`,
+    getMovieUrl: (tmdbId: number) => `https://www.vidbinge.to/movie/${tmdbId}`,
     getTVUrl: (tmdbId: number, season: number, episode: number) =>
-      `https://moviesapi.club/tv/${tmdbId}/${season}/${episode}`,
+      `https://www.vidbinge.to/tv/${tmdbId}/${season}/${episode}`,
+    idType: 'tmdb' as const
+  },
+  server4: {
+    id: 'server4',
+    name: 'Server 4',
+    getMovieUrl: (tmdbId: number) => `https://vidfast.pro/movie/${tmdbId}`,
+    getTVUrl: (tmdbId: number, season: number, episode: number) =>
+      `https://vidfast.pro/tv/${tmdbId}/${season}/${episode}`,
     idType: 'tmdb' as const
   }
 };

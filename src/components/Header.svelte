@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { Search, Menu, X, Sun, Moon, Film, Tv, ChevronDown, Crown, Send } from 'lucide-svelte';
+  import { Search, Menu, X, Sun, Moon, Film, Tv, ChevronDown, Crown, Send, User } from 'lucide-svelte';
 
   let isMenuOpen = false;
   let isSearchOpen = false;
@@ -276,6 +276,11 @@
             </button>
           {/if}
         </div>
+
+        <!-- User Account -->
+        <a href="/login" class="action-btn" aria-label="Login">
+          <User size={20} />
+        </a>
 
         <!-- Theme Toggle -->
         <button on:click={toggleTheme} class="action-btn" aria-label="Toggle theme">

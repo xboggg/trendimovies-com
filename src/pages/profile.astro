@@ -1,0 +1,246 @@
+---
+import Layout from '../layouts/BaseLayout.astro';
+import { validateSession, getWatchlist, getFavorites, getWatchHistory } from '../lib/auth';
+
+// Check authentication
+const sessionToken = Astro.cookies.get('session')?.value;
+if (!sessionToken) {
+  return Astro.redirect('/login');
+}
+
+const { valid, user } = await validateSession(sessionToken);
+if (!valid || !user) {
+  Astro.cookies.delete('session', { path: '/' });
+  return Astro.redirect('/login');
+}
+
+// Get user data
+const watchlist = await getWatchlist(user.id);
+const favorites = await getFavorites(user.id);
+const history = await getWatchHistory(user.id, 10);
+
+const TMDB_IMAGE_BASE = 'https://image.tmdb.org/t/p/w185';
+---
+
+<Layout title="My Profile | TrendiMovies" description="Your TrendiMovies profile">
+  <main class="min-h-screen px-4 py-8" style="background: var(--bg-primary);">
+    <div class="max-w-6xl mx-auto">
+      <!-- Profile Header -->
+      <div class="flex items-center justify-between mb-8 p-6 rounded-2xl" style="background: var(--bg-secondary); border: 1px solid var(--border-color);">
+        <div class="flex items-center gap-4">
+          <div class="w-16 h-16 rounded-full flex items-center justify-center text-2xl font-bold text-white" style="background: linear-gradient(135deg, #dc2626, #991b1b);">
+            {user.display_name?.charAt(0).toUpperCase() || user.email.charAt(0).toUpperCase()}
+          </div>
+          <div>
+            <h1 class="text-2xl font-bold" style="color: var(--text-primary);">{user.display_name || 'User'}</h1>
+            <p class="text-sm" style="color: var(--text-secondary);">{user.email}</p>
+          </div>
+        </div>
+        <button
+          id="logoutBtn"
+          class="px-6 py-2 rounded-lg font-medium transition-all hover:opacity-90"
+          style="background: var(--bg-tertiary); color: var(--text-primary); border: 1px solid var(--border-color);"
+        >
+          Logout
+        </button>
+      </div>
+
+      <!-- Tabs -->
+      <div class="flex gap-2 mb-6 overflow-x-auto pb-2">
+        <button class="profile-tab active px-6 py-2 rounded-lg font-medium whitespace-nowrap" data-tab="watchlist">
+          Watchlist ({watchlist.length})
+        </button>
+        <button class="profile-tab px-6 py-2 rounded-lg font-medium whitespace-nowrap" data-tab="favorites">
+          Favorites ({favorites.length})
+        </button>
+        <button class="profile-tab px-6 py-2 rounded-lg font-medium whitespace-nowrap" data-tab="history">
+          History ({history.length})
+        </button>
+      </div>
+
+      <!-- Watchlist -->
+      <div id="watchlist-content" class="tab-content">
+        {watchlist.length === 0 ? (
+          <div class="text-center py-12 rounded-xl" style="background: var(--bg-secondary); border: 1px solid var(--border-color);">
+            <p class="text-lg mb-4" style="color: var(--text-secondary);">Your watchlist is empty</p>
+            <a href="/movies" class="inline-block px-6 py-2 rounded-lg text-white font-medium" style="background: linear-gradient(135deg, #dc2626, #991b1b);">
+              Browse Movies
+            </a>
+          </div>
+        ) : (
+          <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+            {watchlist.map((item: any) => (
+              <a href={`/${item.content_type === 'movie' ? 'movie' : 'tv'}/${item.tmdb_id}`} class="group relative rounded-lg overflow-hidden" style="background: var(--bg-secondary);">
+                <img
+                  src={item.poster_path ? `${TMDB_IMAGE_BASE}${item.poster_path}` : '/placeholder.jpg'}
+                  alt={item.title}
+                  class="w-full aspect-[2/3] object-cover transition-transform group-hover:scale-105"
+                  loading="lazy"
+                />
+                <div class="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity">
+                  <div class="absolute bottom-0 left-0 right-0 p-3">
+                    <p class="text-white text-sm font-medium line-clamp-2">{item.title}</p>
+                    <span class="text-xs text-gray-300 capitalize">{item.content_type}</span>
+                  </div>
+                </div>
+                <button
+                  class="remove-item absolute top-2 right-2 w-8 h-8 rounded-full bg-red-600 text-white opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"
+                  data-type="watchlist"
+                  data-content-type={item.content_type}
+                  data-tmdb-id={item.tmdb_id}
+                  title="Remove from watchlist"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </a>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <!-- Favorites -->
+      <div id="favorites-content" class="tab-content hidden">
+        {favorites.length === 0 ? (
+          <div class="text-center py-12 rounded-xl" style="background: var(--bg-secondary); border: 1px solid var(--border-color);">
+            <p class="text-lg mb-4" style="color: var(--text-secondary);">No favorites yet</p>
+            <a href="/movies" class="inline-block px-6 py-2 rounded-lg text-white font-medium" style="background: linear-gradient(135deg, #dc2626, #991b1b);">
+              Browse Movies
+            </a>
+          </div>
+        ) : (
+          <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+            {favorites.map((item: any) => (
+              <a href={`/${item.content_type === 'movie' ? 'movie' : 'tv'}/${item.tmdb_id}`} class="group relative rounded-lg overflow-hidden" style="background: var(--bg-secondary);">
+                <img
+                  src={item.poster_path ? `${TMDB_IMAGE_BASE}${item.poster_path}` : '/placeholder.jpg'}
+                  alt={item.title}
+                  class="w-full aspect-[2/3] object-cover transition-transform group-hover:scale-105"
+                  loading="lazy"
+                />
+                <div class="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity">
+                  <div class="absolute bottom-0 left-0 right-0 p-3">
+                    <p class="text-white text-sm font-medium line-clamp-2">{item.title}</p>
+                    <span class="text-xs text-gray-300 capitalize">{item.content_type}</span>
+                  </div>
+                </div>
+                <button
+                  class="remove-item absolute top-2 right-2 w-8 h-8 rounded-full bg-red-600 text-white opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"
+                  data-type="favorites"
+                  data-content-type={item.content_type}
+                  data-tmdb-id={item.tmdb_id}
+                  title="Remove from favorites"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </a>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <!-- History -->
+      <div id="history-content" class="tab-content hidden">
+        {history.length === 0 ? (
+          <div class="text-center py-12 rounded-xl" style="background: var(--bg-secondary); border: 1px solid var(--border-color);">
+            <p class="text-lg mb-4" style="color: var(--text-secondary);">No watch history yet</p>
+            <a href="/movies" class="inline-block px-6 py-2 rounded-lg text-white font-medium" style="background: linear-gradient(135deg, #dc2626, #991b1b);">
+              Start Watching
+            </a>
+          </div>
+        ) : (
+          <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+            {history.map((item: any) => (
+              <a href={`/${item.content_type === 'movie' ? 'movie' : 'tv'}/${item.tmdb_id}`} class="group relative rounded-lg overflow-hidden" style="background: var(--bg-secondary);">
+                <img
+                  src={item.poster_path ? `${TMDB_IMAGE_BASE}${item.poster_path}` : '/placeholder.jpg'}
+                  alt={item.title}
+                  class="w-full aspect-[2/3] object-cover transition-transform group-hover:scale-105"
+                  loading="lazy"
+                />
+                <div class="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity">
+                  <div class="absolute bottom-0 left-0 right-0 p-3">
+                    <p class="text-white text-sm font-medium line-clamp-2">{item.title}</p>
+                    <span class="text-xs text-gray-300">{new Date(item.watched_at).toLocaleDateString()}</span>
+                  </div>
+                </div>
+              </a>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  </main>
+</Layout>
+
+<style>
+  .profile-tab {
+    background: var(--bg-secondary);
+    color: var(--text-secondary);
+    border: 1px solid var(--border-color);
+    transition: all 0.2s;
+  }
+  .profile-tab:hover {
+    color: var(--text-primary);
+  }
+  .profile-tab.active {
+    background: linear-gradient(135deg, #dc2626, #991b1b);
+    color: white;
+    border-color: transparent;
+  }
+</style>
+
+<script>
+  // Tab switching
+  const tabs = document.querySelectorAll('.profile-tab');
+  const contents = document.querySelectorAll('.tab-content');
+
+  tabs.forEach(tab => {
+    tab.addEventListener('click', () => {
+      const tabName = tab.getAttribute('data-tab');
+
+      tabs.forEach(t => t.classList.remove('active'));
+      tab.classList.add('active');
+
+      contents.forEach(content => {
+        if (content.id === `${tabName}-content`) {
+          content.classList.remove('hidden');
+        } else {
+          content.classList.add('hidden');
+        }
+      });
+    });
+  });
+
+  // Logout
+  document.getElementById('logoutBtn')?.addEventListener('click', async () => {
+    await fetch('/api/auth/logout', { method: 'POST' });
+    window.location.href = '/';
+  });
+
+  // Remove items
+  document.querySelectorAll('.remove-item').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+
+      const type = btn.getAttribute('data-type');
+      const contentType = btn.getAttribute('data-content-type');
+      const tmdbId = btn.getAttribute('data-tmdb-id');
+
+      const endpoint = type === 'watchlist' ? '/api/user/watchlist' : '/api/user/favorites';
+
+      const res = await fetch(`${endpoint}?contentType=${contentType}&tmdbId=${tmdbId}`, {
+        method: 'DELETE'
+      });
+
+      if (res.ok) {
+        const card = btn.closest('a');
+        card?.remove();
+      }
+    });
+  });
+</script>
