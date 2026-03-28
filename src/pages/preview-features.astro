@@ -1,0 +1,156 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import Top10ThisWeek from '../components/Top10ThisWeek.svelte';
+import Collections from '../components/Collections.svelte';
+import ComingSoon from '../components/ComingSoon.svelte';
+import TrendingPulse from '../components/TrendingPulse.svelte';
+import PickYourMood from '../components/PickYourMood.svelte';
+import ContinueWatching from '../components/ContinueWatching.svelte';
+---
+
+<BaseLayout title="Feature Preview" noIndex={true}>
+  <div class="max-w-7xl mx-auto px-4 pt-8 pb-4">
+    <div class="text-center mb-8">
+      <h1 class="text-3xl md:text-4xl font-extrabold" style="color: var(--text-primary);">
+        Feature Preview
+      </h1>
+      <p class="text-sm mt-2" style="color: var(--text-muted);">
+        Review each section below. All use mock data — pick your favorites to replace Popular TV Series.
+      </p>
+    </div>
+
+    <!-- Feature Navigation -->
+    <div class="flex flex-wrap justify-center gap-2 mb-8">
+      <a href="#feature-6" class="feature-nav-btn">#6 Top 10 This Week</a>
+      <a href="#feature-7" class="feature-nav-btn">#7 Collections</a>
+      <a href="#feature-8" class="feature-nav-btn">#8 Coming Soon</a>
+      <a href="#feature-1" class="feature-nav-btn">#1 Trending Pulse</a>
+      <a href="#feature-2" class="feature-nav-btn">#2 Pick Your Mood</a>
+      <a href="#feature-3" class="feature-nav-btn">#3 Continue Watching</a>
+    </div>
+  </div>
+
+  <!-- Feature #6: Top 10 This Week -->
+  <div id="feature-6" class="feature-section">
+    <div class="feature-label">
+      <span class="feature-number">#6</span>
+      <span>Top 10 This Week — Ranked list with movement indicators & large numbers</span>
+    </div>
+    <Top10ThisWeek client:visible />
+  </div>
+
+  <div class="section-divider"></div>
+
+  <!-- Feature #7: Collections -->
+  <div id="feature-7" class="feature-section">
+    <div class="feature-label">
+      <span class="feature-number">#7</span>
+      <span>Collections — Curated thematic bundles with stacked poster art</span>
+    </div>
+    <Collections client:visible />
+  </div>
+
+  <div class="section-divider"></div>
+
+  <!-- Feature #8: Coming Soon -->
+  <div id="feature-8" class="feature-section">
+    <div class="feature-label">
+      <span class="feature-number">#8</span>
+      <span>Coming Soon — Live countdown timers with "Notify Me" buttons</span>
+    </div>
+    <ComingSoon client:visible />
+  </div>
+
+  <div class="section-divider"></div>
+
+  <!-- Feature #1: Trending Pulse -->
+  <div id="feature-1" class="feature-section">
+    <div class="feature-label">
+      <span class="feature-number">#1</span>
+      <span>Trending Right Now — Live viewer counts, heat scores & pulse animation</span>
+    </div>
+    <TrendingPulse client:visible />
+  </div>
+
+  <div class="section-divider"></div>
+
+  <!-- Feature #2: Pick Your Mood -->
+  <div id="feature-2" class="feature-section">
+    <div class="feature-label">
+      <span class="feature-number">#2</span>
+      <span>Pick Your Mood — Interactive mood buttons with curated results</span>
+    </div>
+    <PickYourMood client:visible />
+  </div>
+
+  <div class="section-divider"></div>
+
+  <!-- Feature #3: Continue Watching -->
+  <div id="feature-3" class="feature-section">
+    <div class="feature-label">
+      <span class="feature-number">#3</span>
+      <span>Continue Watching — Progress bars, episode tracking & resume</span>
+    </div>
+    <ContinueWatching client:visible />
+  </div>
+
+  <div class="py-16"></div>
+</BaseLayout>
+
+<style>
+  .feature-nav-btn {
+    display: inline-block;
+    padding: 6px 14px;
+    border-radius: 8px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    color: var(--text-secondary);
+    font-size: 13px;
+    font-weight: 600;
+    text-decoration: none;
+    transition: all 0.2s;
+  }
+  .feature-nav-btn:hover {
+    background: var(--accent);
+    color: white;
+    border-color: var(--accent);
+  }
+
+  .feature-section {
+    scroll-margin-top: 80px;
+  }
+
+  .feature-label {
+    max-width: 80rem;
+    margin: 0 auto;
+    padding: 0 1rem 0.5rem;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 13px;
+    color: var(--text-muted);
+    font-weight: 500;
+  }
+
+  .feature-number {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border-radius: 6px;
+    background: var(--accent);
+    color: white;
+    font-weight: 800;
+    font-size: 12px;
+    flex-shrink: 0;
+  }
+
+  .section-divider {
+    max-width: 80rem;
+    margin: 2rem auto;
+    padding: 0 1rem;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--border), transparent);
+  }
+</style>

@@ -16,6 +16,8 @@
     runtime?: number;
     release_date?: string | null;
     episode_info?: string;
+    number_of_seasons?: number;
+    number_of_episodes?: number;
   };
 
   // Format release date as "Feb 14, 2026"
@@ -132,6 +134,21 @@
         <span style="color: var(--text-secondary);">{item.vote_average.toFixed(1)}</span>
       </div>
     </div>
+
+    <!-- Series: seasons + episodes -->
+    {#if item.type === 'series' && (item.number_of_seasons || item.number_of_episodes)}
+      <div class="flex items-center gap-2 mt-1.5 text-xs" style="color: var(--text-secondary);">
+        {#if item.number_of_seasons}
+          <span class="series-stat">{item.number_of_seasons} Season{item.number_of_seasons !== 1 ? 's' : ''}</span>
+        {/if}
+        {#if item.number_of_seasons && item.number_of_episodes}
+          <span class="opacity-40">·</span>
+        {/if}
+        {#if item.number_of_episodes}
+          <span class="series-stat">{item.number_of_episodes} Eps</span>
+        {/if}
+      </div>
+    {/if}
   </div>
 
   <!-- Hover Border Effect -->
@@ -188,5 +205,14 @@
 
   .info-section {
     background: var(--bg-card);
+  }
+
+  .series-stat {
+    background: rgba(239, 68, 68, 0.15);
+    color: #fca5a5;
+    padding: 1px 6px;
+    border-radius: 4px;
+    font-size: 10px;
+    font-weight: 600;
   }
 </style>

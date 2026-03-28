@@ -3,7 +3,10 @@ import BaseLayout from '../layouts/BaseLayout.astro';
 import HeroCarousel from '../components/HeroCarousel.svelte';
 import ContentRow from '../components/ContentRow.svelte';
 import FeaturedSection from '../components/FeaturedSection.svelte';
-import { getTrendingMovies, getNowPlayingMovies, getPopularMovies, getTopRatedMovies, getTrendingTV, getPopularTV, getOnTheAirTV, discoverMovies, getMovieDetails, getMovieGenres, getTVDetails, searchMovies } from '../lib/tmdb';
+import Collections from '../components/Collections.svelte';
+import PickYourMood from '../components/PickYourMood.svelte';
+import ContinueWatching from '../components/ContinueWatching.svelte';
+import { getTrendingMovies, getNowPlayingMovies, getPopularMovies, getTopRatedMovies, getTrendingTV, getPopularTV, getOnTheAirTV, discoverMovies, getMovieDetails, getMovieGenres, getTVDetails, searchMovies, discoverTV } from '../lib/tmdb';
 
 const POSTGREST_URL = import.meta.env.PUBLIC_SUPABASE_URL || 'http://localhost:3001';
 
@@ -31,7 +34,7 @@ threeMonthsLater.setMonth(threeMonthsLater.getMonth() + 3);
 const futureStr = threeMonthsLater.toISOString().split('T')[0];
 
 // Fetch all data from TMDB and our database in parallel
-const [trending, nowPlaying, popular, topRated, upcomingData, trendingTV, popularTV, onTheAirTV, actionMovies, comedyMovies, movieGenres, latestAdditions] = await Promise.all([
+const [trending, nowPlaying, popular, topRated, upcomingData, trendingTV, popularTV, onTheAirTV, actionMovies, comedyMovies, romanceMovies, thrillerMovies, animeMovies, kDramaTV, movieGenres, latestAdditions] = await Promise.all([
   getTrendingMovies('week'),
   getNowPlayingMovies(),
   getPopularMovies(),
@@ -46,11 +49,15 @@ const [trending, nowPlaying, popular, topRated, upcomingData, trendingTV, popula
   getOnTheAirTV(),
   discoverMovies({ with_genres: '28', sort_by: 'popularity.desc' }),
   discoverMovies({ with_genres: '35', sort_by: 'popularity.desc' }),
+  discoverMovies({ with_genres: '10749', sort_by: 'popularity.desc' }),
+  discoverMovies({ with_genres: '53', sort_by: 'popularity.desc' }),
+  discoverMovies({ with_genres: '16', with_original_language: 'ja', sort_by: 'popularity.desc' }),
+  discoverTV({ with_original_language: 'ko', sort_by: 'popularity.desc' }),
   getMovieGenres(),
   getLatestAdditions()
 ]);
 
-const upcoming = (upcomingData?.results || []).filter((m: any) => m.poster_path);
+const upcoming = (upcomingData?.results || []).filter((m: any) => m.poster_path && m.release_date && new Date(m.release_date) > new Date());
 
 // Create a genre map for quick lookup
 const genreMap = new Map(movieGenres.map((g: any) => [g.id, g.name]));
@@ -72,6 +79,7 @@ function transformMovie(m: any) {
     vote_count: m.vote_count,
     popularity: m.popularity,
     year: m.release_date ? new Date(m.release_date).getFullYear() : null,
+    release_date: m.release_date || null,
     overview: m.overview,
     genre_ids: m.genre_ids,
     type: 'movie' as const
@@ -125,6 +133,7 @@ const heroItems = (trending || []).slice(0, 8).map((m: any, index: number) => {
     vote_count: m.vote_count,
     popularity: m.popularity,
     year: m.release_date ? new Date(m.release_date).getFullYear() : null,
+    release_date: m.release_date || null,
     overview: m.overview,
     type: 'movie' as const,
     // Full details from API
@@ -135,7 +144,7 @@ const heroItems = (trending || []).slice(0, 8).map((m: any, index: number) => {
   };
 });
 
-const trendingItems = (trending || []).slice(0, 10).map(transformMovie);
+const trendingItems = (trending || []).slice(0, 20).map(transformMovie);
 const featured = heroItems[0] || null;
 const nowPlayingItems = (nowPlaying || []).map(transformMovie);
 const popularItems = (popular || []).map(transformMovie);
@@ -152,6 +161,7 @@ const upcomingItems = (upcoming || []).map((m: any) => ({
   poster_path: m.poster_path,
   vote_average: m.vote_average,
   year: m.release_date ? new Date(m.release_date).getFullYear() : null,
+    release_date: m.release_date || null,
   release_date: m.release_date,
   type: 'movie' as const
 }));
@@ -177,6 +187,10 @@ const onTheAirItems = onTheAirFiltered.map((t: any, index: number) => {
 });
 const actionItems = (actionMovies?.results || []).slice(0, 15).map(transformMovie);
 const comedyItems = (comedyMovies?.results || []).slice(0, 15).map(transformMovie);
+const romanceItems = (romanceMovies?.results || []).slice(0, 15).map(transformMovie);
+const thrillerItems = (thrillerMovies?.results || []).slice(0, 15).map(transformMovie);
+const animeItems = (animeMovies?.results || []).slice(0, 15).map(transformMovie);
+const kDramaItems = (kDramaTV?.results || []).slice(0, 15).map(transformTV);
 
 // Oscar 2026 nominees - search TMDB for each
 const oscarTitles = [
@@ -225,19 +239,90 @@ const [top2026Data, top2024_25Data, top2020_23Data] = await Promise.all([
   })
 ]);
 
-const top2026 = (top2026Data?.results || []).slice(0, 10).map(transformMovie);
-const top2024_25 = (top2024_25Data?.results || []).slice(0, 10).map(transformMovie);
-const top2020_23 = (top2020_23Data?.results || []).slice(0, 10).map(transformMovie);
+const top2026 = (top2026Data?.results || []).slice(0, 20).map(transformMovie);
+const top2024_25 = (top2024_25Data?.results || []).slice(0, 20).map(transformMovie);
+const top2020_23 = (top2020_23Data?.results || []).slice(0, 20).map(transformMovie);
 
-// Box office data (hardcoded for now, will be automated later)
-const boxOfficeData = [
-  { rank: 1, title: 'Wuthering Heights', weekend_gross: '$34.8M', total_gross: '$40.0M', tmdb_id: 0, poster_path: null },
-  { rank: 2, title: 'GOAT', weekend_gross: '$26.0M', total_gross: '$32.0M', tmdb_id: 0, poster_path: null },
-  { rank: 3, title: 'Crime 101', weekend_gross: '$15.4M', total_gross: '$17.7M', tmdb_id: 0, poster_path: null },
-  { rank: 4, title: 'Send Help', weekend_gross: '$8.9M', total_gross: '$49.6M', tmdb_id: 0, poster_path: null },
-  { rank: 5, title: 'Solo Mio', weekend_gross: '$6.8M', total_gross: '$18.5M', tmdb_id: 0, poster_path: null },
-  { rank: 6, title: 'Zootopia 2', weekend_gross: '$3.7M', total_gross: '$420.6M', tmdb_id: 0, poster_path: null },
-  { rank: 7, title: 'Avatar: Fire and Ash', weekend_gross: '$3.3M', total_gross: '$396.5M', tmdb_id: 0, poster_path: null },
+// Fetch box office from database
+async function getBoxOfficeData() {
+  try {
+    const res = await fetch(
+      `${POSTGREST_URL}/box_office_weekly?order=week_start.desc,rank.asc&limit=15`
+    );
+    if (!res.ok) return [];
+    const data = await res.json();
+    if (data.length === 0) return [];
+    const latestWeek = data[0].week_start;
+    return data.filter(d => d.week_start === latestWeek).slice(0, 7).map(d => ({
+      rank: d.rank,
+      title: d.movie_title,
+      weekend_gross: d.three_day_gross ? `$${(d.three_day_gross / 1000000).toFixed(1)}M` : "-",
+      total_gross: d.total_gross > 100000 ? `$${(d.total_gross / 1000000).toFixed(1)}M` : (d.three_day_gross ? `$${(d.three_day_gross / 1000000).toFixed(1)}M` : "-"),
+      tmdb_id: d.tmdb_id || 0,
+      poster_path: d.poster_path || null
+    }));
+  } catch (e) {
+    console.error("Failed to fetch box office:", e);
+    return [];
+  }
+}
+const boxOfficeData = await getBoxOfficeData();
+
+// Fetch mood-specific genres (family/animation for chill, horror for thrilling/cry, sci-fi for mind-blown)
+const [familyMovies, horrorMovies, sciFiMovies, dramaMovies] = await Promise.all([
+  discoverMovies({ with_genres: '10751', sort_by: 'vote_average.desc', 'vote_count.gte': '200' }),
+  discoverMovies({ with_genres: '27', sort_by: 'popularity.desc' }),
+  discoverMovies({ with_genres: '878', sort_by: 'vote_average.desc', 'vote_count.gte': '300' }),
+  discoverMovies({ with_genres: '18', sort_by: 'vote_average.desc', 'vote_count.gte': '500' }),
+]);
+
+const familyItems = (familyMovies?.results || []).slice(0, 8).map(transformMovie);
+const horrorItems = (horrorMovies?.results || []).slice(0, 8).map(transformMovie);
+const sciFiItems = (sciFiMovies?.results || []).slice(0, 8).map(transformMovie);
+const dramaItems = (dramaMovies?.results || []).slice(0, 8).map(transformMovie);
+
+// Build mood data from real TMDB results
+const moodData = [
+  { id: 'chill', emoji: '😌', label: 'Chill', gradient: 'linear-gradient(135deg, #06b6d4, #0284c7)', items: familyItems.slice(0, 4) },
+  { id: 'thrilling', emoji: '😰', label: 'Thrilling', gradient: 'linear-gradient(135deg, #dc2626, #991b1b)', items: thrillerItems.slice(0, 4) },
+  { id: 'laugh', emoji: '😂', label: 'Laugh', gradient: 'linear-gradient(135deg, #f59e0b, #ea580c)', items: comedyItems.slice(0, 4) },
+  { id: 'cry', emoji: '😢', label: 'Cry', gradient: 'linear-gradient(135deg, #7c3aed, #4f46e5)', items: dramaItems.slice(0, 4) },
+  { id: 'mind-blown', emoji: '🤯', label: 'Mind-Blown', gradient: 'linear-gradient(135deg, #059669, #0d9488)', items: sciFiItems.slice(0, 4) },
+  { id: 'nostalgic', emoji: '🥹', label: 'Nostalgic', gradient: 'linear-gradient(135deg, #be185d, #e11d48)', items: romanceItems.slice(0, 4) },
+];
+
+// Build collections from real genre data
+const collectionsData = [
+  {
+    id: 'romance', title: 'Love Stories', subtitle: 'Romance that melts your heart',
+    link: '/genre/romance', gradient: 'linear-gradient(135deg, #ec4899 0%, #8b5cf6 100%)',
+    posters: romanceItems.slice(0, 4).map((i: any) => i.poster_path).filter(Boolean)
+  },
+  {
+    id: 'top-rated', title: 'Highest Rated of All Time', subtitle: 'The all-time greatest',
+    link: '/top-rated', gradient: 'linear-gradient(135deg, #f59e0b 0%, #ef4444 100%)',
+    posters: topRatedItems.slice(0, 4).map((i: any) => i.poster_path).filter(Boolean)
+  },
+  {
+    id: 'comedy', title: 'Comedy Gold', subtitle: 'Guaranteed laughs',
+    link: '/genre/comedy', gradient: 'linear-gradient(135deg, #06b6d4 0%, #3b82f6 100%)',
+    posters: comedyItems.slice(0, 4).map((i: any) => i.poster_path).filter(Boolean)
+  },
+  {
+    id: 'horror', title: 'Nightmare Fuel', subtitle: 'Sleep with the lights on',
+    link: '/genre/horror', gradient: 'linear-gradient(135deg, #1e1e1e 0%, #7f1d1d 100%)',
+    posters: horrorItems.slice(0, 4).map((i: any) => i.poster_path).filter(Boolean)
+  },
+  {
+    id: 'sci-fi', title: 'Mind-Bending Sci-Fi', subtitle: 'Beyond imagination',
+    link: '/genre/sci-fi', gradient: 'linear-gradient(135deg, #059669 0%, #0d9488 100%)',
+    posters: sciFiItems.slice(0, 4).map((i: any) => i.poster_path).filter(Boolean)
+  },
+  {
+    id: 'action', title: 'Non-Stop Action', subtitle: 'Explosions & adrenaline',
+    link: '/genre/action', gradient: 'linear-gradient(135deg, #dc2626 0%, #ea580c 100%)',
+    posters: actionItems.slice(0, 4).map((i: any) => i.poster_path).filter(Boolean)
+  },
 ];
 
 // Search TMDB for box office movies to get posters
@@ -280,6 +365,7 @@ const boxOfficeWithPosters = await Promise.all(boxOfficeData.map(async (entry) =
     top2024_25={top2024_25}
     top2020_23={top2020_23}
     boxOffice={boxOfficeWithPosters}
+    comingSoon={upcoming.slice(0, 10).map(transformMovie)}
   />
 
   <!-- Latest Additions (from our database - movies with downloads) -->
@@ -334,15 +420,14 @@ const boxOfficeWithPosters = await Promise.all(boxOfficeData.map(async (entry) =
     />
   )}
 
-  <!-- Popular TV -->
-  {popularTVItems.length > 0 && (
-    <ContentRow
-      client:visible
-      title="Popular TV Series"
-      items={popularTVItems}
-      seeAllLink="/series"
-    />
-  )}
+  <!-- Continue Watching (client-side, reads from localStorage) -->
+  <ContinueWatching client:load />
+
+  <!-- Collections -->
+  <Collections client:visible collections={collectionsData} />
+
+  <!-- Pick Your Mood -->
+  <PickYourMood client:visible moods={moodData} />
 
   <!-- New Episodes This Week -->
   {onTheAirItems.length > 0 && (
@@ -371,6 +456,46 @@ const boxOfficeWithPosters = await Promise.all(boxOfficeData.map(async (entry) =
       title="Comedy Movies"
       items={comedyItems}
       seeAllLink="/genre/comedy"
+    />
+  )}
+
+  <!-- Romance Movies -->
+  {romanceItems.length > 0 && (
+    <ContentRow
+      client:visible
+      title="Romance Movies"
+      items={romanceItems}
+      seeAllLink="/genre/romance"
+    />
+  )}
+
+  <!-- Thriller Movies -->
+  {thrillerItems.length > 0 && (
+    <ContentRow
+      client:visible
+      title="Thriller Movies"
+      items={thrillerItems}
+      seeAllLink="/genre/thriller"
+    />
+  )}
+
+  <!-- Anime Movies -->
+  {animeItems.length > 0 && (
+    <ContentRow
+      client:visible
+      title="Anime Movies"
+      items={animeItems}
+      seeAllLink="/genre/anime"
+    />
+  )}
+
+  <!-- K-Drama Series -->
+  {kDramaItems.length > 0 && (
+    <ContentRow
+      client:visible
+      title="K-Drama Series"
+      items={kDramaItems}
+      seeAllLink="/genre/k-drama"
     />
   )}
 

@@ -111,20 +111,36 @@
 </script>
 
 <div>
-  <!-- Season Tabs -->
-  <div class="flex flex-wrap gap-2 mb-6 border-b" style="border-color: var(--border);">
-    {#each seasons as season}
-      <button
-        on:click={() => { activeSeason = season.season_number; playingEpisode = null; }}
-        class="px-4 py-2 font-medium transition-colors border-b-2 -mb-px"
-        class:border-[var(--accent)]={activeSeason === season.season_number}
-        class:text-[var(--accent)]={activeSeason === season.season_number}
-        class:border-transparent={activeSeason !== season.season_number}
-        style="color: {activeSeason === season.season_number ? 'var(--accent)' : 'var(--text-secondary)'};"
+  <!-- Season Selector -->
+  <div class="flex items-center gap-3 mb-6">
+    <label for="season-select" class="text-sm font-semibold whitespace-nowrap" style="color: var(--text-secondary);">Season:</label>
+    <div class="relative flex-1 max-w-xs">
+      <select
+        id="season-select"
+        bind:value={activeSeason}
+        on:change={() => { playingEpisode = null; }}
+        class="season-select w-full appearance-none px-4 py-2.5 pr-10 rounded-lg text-sm font-medium cursor-pointer"
       >
-        {season.name || `Season ${season.season_number}`}
-      </button>
-    {/each}
+        {#each seasons as season}
+          <option value={season.season_number}>
+            {season.name || `Season ${season.season_number}`}
+            {season.episode_count ? ` (${season.episode_count} eps)` : ''}
+          </option>
+        {/each}
+      </select>
+      <!-- Chevron icon -->
+      <div class="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2" style="color: var(--text-secondary);">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+        </svg>
+      </div>
+    </div>
+    <!-- Episode count badge for active season -->
+    {#if currentEpisodes.length > 0}
+      <span class="text-xs px-3 py-1 rounded-full font-medium" style="background: var(--bg-card); color: var(--text-secondary); border: 1px solid var(--border);">
+        {currentEpisodes.length} Episode{currentEpisodes.length !== 1 ? 's' : ''}
+      </span>
+    {/if}
   </div>
 
   <!-- Video Player (when playing) -->
@@ -274,3 +290,20 @@
     {/if}
   </div>
 </div>
+
+<style>
+  .season-select {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    color: var(--text-primary);
+    transition: border-color 0.2s ease, background 0.2s ease;
+  }
+  .season-select:focus {
+    outline: none;
+    border-color: var(--accent);
+  }
+  .season-select option {
+    background: #1a1a1a;
+    color: #fff;
+  }
+</style>
