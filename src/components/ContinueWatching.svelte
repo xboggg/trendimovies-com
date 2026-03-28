@@ -13,7 +13,6 @@
   }
 
   const STORAGE_KEY = 'tm_continue_watching';
-  const MAX_ITEMS = 12;
 
   let items: WatchItem[] = [];
   let dismissed: Set<number> = new Set();
@@ -36,7 +35,6 @@
   function dismiss(id: number) {
     dismissed.add(id);
     dismissed = dismissed;
-    // Also remove from storage
     try {
       items = items.filter(i => i.id !== id);
       localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
@@ -60,17 +58,16 @@
 
   function scroll(dir: 'left' | 'right') {
     if (!scrollContainer) return;
-    scrollContainer.scrollBy({ left: dir === 'left' ? -300 : 300, behavior: 'smooth' });
+    scrollContainer.scrollBy({ left: dir === 'left' ? -220 : 220, behavior: 'smooth' });
   }
 </script>
 
 {#if loaded && visibleItems.length > 0}
-<section class="py-8">
+<section class="py-6 sm:py-8">
   <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-    <!-- Header -->
-    <div class="flex items-center justify-between mb-5">
-      <div class="flex items-center gap-3">
-        <h2 class="text-2xl md:text-3xl font-extrabold" style="color: var(--text-primary);">
+    <div class="flex items-center justify-between mb-4">
+      <div class="flex items-center gap-2 sm:gap-3">
+        <h2 class="text-lg sm:text-2xl md:text-3xl font-extrabold" style="color: var(--text-primary);">
           Continue Watching
         </h2>
         <span class="item-count">{visibleItems.length}</span>
@@ -81,11 +78,9 @@
       </div>
     </div>
 
-    <!-- Cards -->
-    <div bind:this={scrollContainer} class="flex gap-4 overflow-x-auto hide-scrollbar pb-4 scroll-smooth">
+    <div bind:this={scrollContainer} class="flex gap-3 overflow-x-auto hide-scrollbar pb-4 scroll-smooth snap-x snap-mandatory sm:snap-none">
       {#each visibleItems as item (item.id)}
-        <a href={item.href} class="cw-card group">
-          <!-- Backdrop/Poster as wide card -->
+        <a href={item.href} class="cw-card group snap-start">
           <div class="card-visual">
             <img
               src={item.backdrop_path
@@ -97,36 +92,29 @@
               class="visual-img"
               loading="lazy"
             />
-
-            <!-- Gradient overlay -->
             <div class="visual-gradient"></div>
 
-            <!-- Dismiss button -->
             <button
               class="dismiss-btn"
               on:click|preventDefault|stopPropagation={() => dismiss(item.id)}
               title="Remove from list"
             >
-              <X size={14} />
+              <X size={12} />
             </button>
 
-            <!-- Play button center -->
             <div class="play-center">
               <div class="play-ring">
-                <Play size={20} fill="white" class="text-white ml-0.5" />
+                <Play size={16} fill="white" class="text-white ml-0.5" />
               </div>
             </div>
 
-            <!-- Type badge -->
             <div class="type-badge">{item.type === 'movie' ? 'Movie' : 'Series'}</div>
 
-            <!-- Bottom info overlay -->
             <div class="bottom-info">
-              <h3 class="font-bold text-sm text-white line-clamp-1">{item.title}</h3>
+              <h3 class="font-bold text-xs sm:text-sm text-white line-clamp-1">{item.title}</h3>
             </div>
           </div>
 
-          <!-- Meta info -->
           <div class="card-meta">
             <div class="flex items-center gap-1">
               <Clock size={10} class="text-gray-400" />
@@ -142,12 +130,12 @@
 
 <style>
   .item-count {
-    font-size: 12px;
+    font-size: 11px;
     font-weight: 700;
     color: var(--text-muted);
     background: var(--bg-hover);
-    width: 24px;
-    height: 24px;
+    width: 22px;
+    height: 22px;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -155,8 +143,8 @@
   }
 
   .nav-btn {
-    width: 32px;
-    height: 32px;
+    width: 30px;
+    height: 30px;
     border-radius: 50%;
     background: var(--bg-card);
     border: 1px solid var(--border);
@@ -173,15 +161,29 @@
     color: var(--accent);
   }
 
+  /* Mobile-first: smaller cards */
   .cw-card {
     flex-shrink: 0;
-    width: 280px;
-    border-radius: 12px;
+    width: 180px;
+    border-radius: 10px;
     overflow: hidden;
     background: var(--bg-card);
     border: 1px solid var(--border);
     transition: all 0.3s ease;
     text-decoration: none;
+  }
+  /* Tablet+ */
+  @media (min-width: 640px) {
+    .cw-card {
+      width: 240px;
+      border-radius: 12px;
+    }
+  }
+  /* Desktop */
+  @media (min-width: 1024px) {
+    .cw-card {
+      width: 280px;
+    }
   }
   .cw-card:hover {
     transform: translateY(-4px);
@@ -210,26 +212,34 @@
     background: linear-gradient(0deg, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.2) 50%, rgba(0,0,0,0.1) 100%);
   }
 
+  /* Dismiss: always visible on mobile, hover on desktop */
   .dismiss-btn {
     position: absolute;
-    top: 8px;
-    right: 8px;
-    width: 24px;
-    height: 24px;
+    top: 6px;
+    right: 6px;
+    width: 22px;
+    height: 22px;
     border-radius: 50%;
-    background: rgba(0,0,0,0.5);
+    background: rgba(0,0,0,0.6);
     border: none;
     color: white;
     display: flex;
     align-items: center;
     justify-content: center;
     cursor: pointer;
-    opacity: 0;
+    opacity: 1;
     transition: all 0.3s;
     z-index: 5;
   }
-  .cw-card:hover .dismiss-btn {
-    opacity: 1;
+  @media (min-width: 640px) {
+    .dismiss-btn {
+      opacity: 0;
+      width: 24px;
+      height: 24px;
+    }
+    .cw-card:hover .dismiss-btn {
+      opacity: 1;
+    }
   }
   .dismiss-btn:hover {
     background: #ef4444;
@@ -250,8 +260,8 @@
   }
 
   .play-ring {
-    width: 48px;
-    height: 48px;
+    width: 36px;
+    height: 36px;
     border-radius: 50%;
     background: linear-gradient(135deg, #dc2626, #b91c1c);
     display: flex;
@@ -260,23 +270,33 @@
     box-shadow: 0 4px 20px rgba(220, 38, 38, 0.5);
     transition: transform 0.3s;
   }
-  .cw-card:hover .play-ring {
-    transform: scale(1.1);
+  @media (min-width: 640px) {
+    .play-ring {
+      width: 48px;
+      height: 48px;
+    }
   }
 
   .type-badge {
     position: absolute;
-    top: 8px;
-    left: 8px;
-    font-size: 10px;
+    top: 6px;
+    left: 6px;
+    font-size: 9px;
     font-weight: 700;
     text-transform: uppercase;
-    padding: 2px 8px;
-    border-radius: 4px;
+    padding: 2px 6px;
+    border-radius: 3px;
     background: linear-gradient(135deg, #fbbf24, #f59e0b);
     color: #000;
     z-index: 3;
     letter-spacing: 0.5px;
+  }
+  @media (min-width: 640px) {
+    .type-badge {
+      font-size: 10px;
+      padding: 2px 8px;
+      border-radius: 4px;
+    }
   }
 
   .bottom-info {
@@ -284,19 +304,33 @@
     bottom: 0;
     left: 0;
     right: 0;
-    padding: 8px 12px;
+    padding: 6px 8px;
     z-index: 2;
+  }
+  @media (min-width: 640px) {
+    .bottom-info {
+      padding: 8px 12px;
+    }
   }
 
   .card-meta {
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    padding: 8px 12px;
+    padding: 6px 8px;
+  }
+  @media (min-width: 640px) {
+    .card-meta {
+      padding: 8px 12px;
+    }
   }
   .meta-text {
-    font-size: 11px;
+    font-size: 10px;
     color: var(--text-muted);
+  }
+  @media (min-width: 640px) {
+    .meta-text {
+      font-size: 11px;
+    }
   }
 
   .hide-scrollbar {

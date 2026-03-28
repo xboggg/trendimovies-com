@@ -502,18 +502,69 @@ export const POST: APIRoute = async ({ request }) => {
       });
     }
 
+    // Auto-detect language from movie/series original_language
+    let detectedLanguage = 'en';
+    if (content_type === 'movie') {
+      try {
+        const langRes = await fetch(`${POSTGREST_URL}/movies?id=eq.${dbContentId}&select=original_language`, {
+          headers: { 'Accept-Profile': 'public' }
+        });
+        const langData = await langRes.json();
+        if (Array.isArray(langData) && langData.length > 0 && langData[0].original_language) {
+          detectedLanguage = langData[0].original_language;
+        }
+      } catch {}
+    } else if (content_type === 'episode') {
+      try {
+        const langRes = await fetch(`${POSTGREST_URL}/episodes?id=eq.${dbContentId}&select=series_id`, {
+          headers: { 'Accept-Profile': 'public' }
+        });
+        const langData = await langRes.json();
+        if (Array.isArray(langData) && langData.length > 0) {
+          const seriesLangRes = await fetch(`${POSTGREST_URL}/series?id=eq.${langData[0].series_id}&select=original_language`, {
+            headers: { 'Accept-Profile': 'public' }
+          });
+          const seriesLangData = await seriesLangRes.json();
+          if (Array.isArray(seriesLangData) && seriesLangData.length > 0 && seriesLangData[0].original_language) {
+            detectedLanguage = seriesLangData[0].original_language;
+          }
+        }
+      } catch {}
+    }
+    console.log(`Auto-detected language: ${detectedLanguage} for ${content_type} ${dbContentId}`);
+
+    // Auto-fetch file size from Telegram if not provided
+    let resolvedFileSize = file_size || null;
+    if (source === 'telegram' && telegram_file_id && !file_size) {
+      try {
+        const sizeRes = await fetch(`http://127.0.0.1:8765/info/${telegram_file_id}`, { signal: AbortSignal.timeout(5000) });
+        if (sizeRes.ok) {
+          const sizeData = await sizeRes.json();
+          if (sizeData.file_size) {
+            const bytes = sizeData.file_size;
+            if (bytes >= 1073741824) {
+              resolvedFileSize = (bytes / 1073741824).toFixed(2) + ' GB';
+            } else {
+              resolvedFileSize = Math.round(bytes / 1048576) + ' MB';
+            }
+            console.log(`Auto-detected file size: ${resolvedFileSize}`);
+          }
+        }
+      } catch {}
+    }
+
     // Insert into download_links
     const linkData = {
       content_type,
       content_id: dbContentId,
       source,
       quality,
-      file_size: file_size || null,
+      file_size: resolvedFileSize,
       url: downloadUrl,
       telegram_file_id: telegram_file_id?.toString() || null,
       is_active: true,
       click_count: 0,
-      language: 'en',
+      language: detectedLanguage,
       has_subtitle: false
     };
 

@@ -267,17 +267,23 @@ async function getBoxOfficeData() {
 }
 
 // Fetch mood-specific genres
-const [familyMovies, horrorMovies, sciFiMovies, dramaMovies] = await Promise.all([
+const [familyMovies, horrorMovies, sciFiMovies, dramaMovies, hindiMovies, animationMovies, historyMovies] = await Promise.all([
   discoverMovies({ with_genres: "10751", sort_by: "vote_average.desc", "vote_count.gte": "200" }),
   discoverMovies({ with_genres: "27", sort_by: "popularity.desc" }),
   discoverMovies({ with_genres: "878", sort_by: "vote_average.desc", "vote_count.gte": "300" }),
   discoverMovies({ with_genres: "18", sort_by: "vote_average.desc", "vote_count.gte": "500" }),
+  discoverMovies({ with_original_language: "hi", sort_by: "popularity.desc" }),
+  discoverMovies({ with_genres: "16", sort_by: "popularity.desc" }),
+  discoverMovies({ with_genres: "36", sort_by: "vote_average.desc", "vote_count.gte": "500" }),
 ]);
 
 const familyItems = (familyMovies?.results || []).slice(0, 8).map(transformMovie);
 const horrorItems = (horrorMovies?.results || []).slice(0, 8).map(transformMovie);
 const sciFiItems = (sciFiMovies?.results || []).slice(0, 8).map(transformMovie);
 const dramaItems = (dramaMovies?.results || []).slice(0, 8).map(transformMovie);
+const hindiItems = (hindiMovies?.results || []).slice(0, 8).map(transformMovie);
+const animationItems = (animationMovies?.results || []).slice(0, 8).map(transformMovie);
+const historyItems = (historyMovies?.results || []).slice(0, 8).map(transformMovie);
 
 const moodData = [
   { id: "chill", emoji: "😌", label: "Chill", gradient: "linear-gradient(135deg, #06b6d4, #0284c7)", items: familyItems.slice(0, 4) },
@@ -289,12 +295,12 @@ const moodData = [
 ];
 
 const collectionsData = [
-  { id: "romance", title: "Love Stories", subtitle: "Romance that melts your heart", link: "/genre/romance", gradient: "linear-gradient(135deg, #ec4899 0%, #8b5cf6 100%)", posters: romanceItems.slice(0, 4).map((i) => i.poster_path).filter(Boolean) },
-  { id: "top-rated", title: "Highest Rated of All Time", subtitle: "The all-time greatest", link: "/top-rated", gradient: "linear-gradient(135deg, #f59e0b 0%, #ef4444 100%)", posters: topRatedItems.slice(0, 4).map((i) => i.poster_path).filter(Boolean) },
-  { id: "comedy", title: "Comedy Gold", subtitle: "Guaranteed laughs", link: "/genre/comedy", gradient: "linear-gradient(135deg, #06b6d4 0%, #3b82f6 100%)", posters: comedyItems.slice(0, 4).map((i) => i.poster_path).filter(Boolean) },
-  { id: "horror", title: "Nightmare Fuel", subtitle: "Sleep with the lights on", link: "/genre/horror", gradient: "linear-gradient(135deg, #1e1e1e 0%, #7f1d1d 100%)", posters: horrorItems.slice(0, 4).map((i) => i.poster_path).filter(Boolean) },
+  { id: "true-story", title: "True Story", subtitle: "Because real life is stranger than fiction", link: "/genre/history", gradient: "linear-gradient(135deg, #78716c 0%, #44403c 100%)", posters: historyItems.slice(0, 4).map((i) => i.poster_path).filter(Boolean) },
+  { id: "animation", title: "Animation World", subtitle: "Stunning animated films", link: "/genre/animation", gradient: "linear-gradient(135deg, #8b5cf6 0%, #6366f1 100%)", posters: animationItems.slice(0, 4).map((i) => i.poster_path).filter(Boolean) },
   { id: "sci-fi", title: "Mind-Bending Sci-Fi", subtitle: "Beyond imagination", link: "/genre/sci-fi", gradient: "linear-gradient(135deg, #059669 0%, #0d9488 100%)", posters: sciFiItems.slice(0, 4).map((i) => i.poster_path).filter(Boolean) },
-  { id: "action", title: "Non-Stop Action", subtitle: "Explosions & adrenaline", link: "/genre/action", gradient: "linear-gradient(135deg, #dc2626 0%, #ea580c 100%)", posters: actionItems.slice(0, 4).map((i) => i.poster_path).filter(Boolean) },
+  { id: "horror", title: "Nightmare Fuel", subtitle: "Sleep with the lights on", link: "/genre/horror", gradient: "linear-gradient(135deg, #1e1e1e 0%, #7f1d1d 100%)", posters: horrorItems.slice(0, 4).map((i) => i.poster_path).filter(Boolean) },
+  { id: "bollywood", title: "Bollywood Hits", subtitle: "Best of Hindi cinema", link: "/category/bollywood", gradient: "linear-gradient(135deg, #f59e0b 0%, #e11d48 100%)", posters: hindiItems.slice(0, 4).map((i) => i.poster_path).filter(Boolean) },
+  { id: "top-rated", title: "Highest Rated of All Time", subtitle: "The all-time greatest", link: "/top-rated", gradient: "linear-gradient(135deg, #f59e0b 0%, #ef4444 100%)", posters: topRatedItems.slice(0, 4).map((i) => i.poster_path).filter(Boolean) },
 ];
 
 const boxOfficeData = await getBoxOfficeData();
@@ -419,7 +425,7 @@ const boxOfficeWithPosters = await Promise.all(boxOfficeData.map(async (entry) =
   {actionItems.length > 0 && (
     <ContentRow
       client:visible
-      title="Action Movies"
+      title="Non-Stop Action"
       items={actionItems}
       seeAllLink="/genre/action"
     />
@@ -429,7 +435,7 @@ const boxOfficeWithPosters = await Promise.all(boxOfficeData.map(async (entry) =
   {comedyItems.length > 0 && (
     <ContentRow
       client:visible
-      title="Comedy Movies"
+      title="Comedy Central"
       items={comedyItems}
       seeAllLink="/genre/comedy"
     />
@@ -439,7 +445,7 @@ const boxOfficeWithPosters = await Promise.all(boxOfficeData.map(async (entry) =
   {romanceItems.length > 0 && (
     <ContentRow
       client:visible
-      title="Romance Movies"
+      title="Midnight Romance"
       items={romanceItems}
       seeAllLink="/genre/romance"
     />
@@ -475,13 +481,4 @@ const boxOfficeWithPosters = await Promise.all(boxOfficeData.map(async (entry) =
     />
   )}
 
-  <!-- Top Rated (last section) -->
-  {topRatedItems.length > 0 && (
-    <ContentRow
-      client:visible
-      title="Top Rated"
-      items={topRatedItems}
-      seeAllLink="/top-rated"
-    />
-  )}
 </BaseLayout>
