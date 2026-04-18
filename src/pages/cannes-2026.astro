@@ -1,0 +1,379 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import { searchMovies, getMovieDetails } from '../lib/tmdb';
+
+// ─── Cannes 2026 Official Competition Films ───────────────────────────────────
+// 79th Festival de Cannes | May 13–24, 2026
+const competitionFilms = [
+  { title: 'Alpha', director: 'Julia Ducournau', country: 'France', note: 'Opening film' },
+  { title: 'The History of Sound', director: 'Oliver Hermanus', country: 'USA/UK' },
+  { title: 'Eddington', director: 'Ari Aster', country: 'USA' },
+  { title: 'Nouvelle Vague', director: 'Richard Linklater', country: 'USA/France' },
+  { title: 'After the Hunt', director: 'Luca Guadagnino', country: 'USA' },
+  { title: 'The Shrouds', director: 'David Cronenberg', country: 'Canada/France' },
+  { title: 'Sirat', director: 'Oliver Laxe', country: 'Spain/France' },
+  { title: "C'est pas moi", director: 'Leos Carax', country: 'France' },
+  { title: 'Grand Tour', director: 'Miguel Gomes', country: 'Portugal' },
+  { title: 'Bird', director: 'Andrea Arnold', country: 'UK' },
+  { title: 'Three Kilometres to the End of the World', director: 'Emanuel Parvu', country: 'Romania' },
+  { title: 'Emilia Perez', director: 'Jacques Audiard', country: 'France', note: 'Multiple awards' },
+  { title: 'All We Imagine as Light', director: 'Payal Kapadia', country: 'India/France', note: 'Grand Prix' },
+  { title: 'Anora', director: 'Sean Baker', country: 'USA', note: "Palme d'Or favourite" },
+  { title: 'Parthenope', director: 'Paolo Sorrentino', country: 'Italy' },
+  { title: 'On Becoming a Guinea Fowl', director: 'Rungano Nyoni', country: 'Zambia/UK' },
+  { title: 'Vingt Dieux', director: 'Louise Courvoisier', country: 'France' },
+  { title: 'Armand', director: 'Halfdan Ullmann Tondel', country: 'Norway' },
+  { title: 'When the Light Breaks', director: 'Rúnar Rúnarsson', country: 'Iceland' },
+  { title: 'Flow', director: 'Gints Zilbalodis', country: 'Latvia', note: 'Animated' },
+];
+
+// Previous Palme d'Or winners for context section
+const palmeDorHistory = [
+  { year: 2025, film: 'TBA', director: 'TBA' },
+  { year: 2024, film: 'Anora', director: 'Sean Baker' },
+  { year: 2023, film: 'Anatomy of a Fall', director: 'Justine Triet' },
+  { year: 2022, film: 'Triangle of Sadness', director: 'Ruben Ostlund' },
+  { year: 2021, film: 'Titane', director: 'Julia Ducournau' },
+  { year: 2019, film: 'Parasite', director: 'Bong Joon-ho' },
+  { year: 2018, film: 'Shoplifters', director: 'Hirokazu Kore-eda' },
+];
+
+// Award categories at Cannes
+const awardCategories = [
+  { name: "Palme d'Or", emoji: '🌴', description: 'The highest prize — best film in competition', color: '#F7D000' },
+  { name: 'Grand Prix', emoji: '🥈', description: 'Second highest prize in the competition', color: '#C0C0C0' },
+  { name: 'Jury Prize', emoji: '⚖️', description: "Awarded by the jury for a film's originality", color: '#B50C1B' },
+  { name: 'Best Director', emoji: '🎬', description: 'Prix de la mise en scène', color: '#3B82F6' },
+  { name: 'Best Actress', emoji: '👑', description: 'Prix d\'interpretation feminine', color: '#EC4899' },
+  { name: 'Best Actor', emoji: '🎭', description: 'Prix d\'interpretation masculine', color: '#8B5CF6' },
+  { name: 'Best Screenplay', emoji: '📜', description: 'Prix du scénario', color: '#10B981' },
+  { name: "Caméra d'Or", emoji: '📷', description: "Best first feature film (all sections)", color: '#F59E0B' },
+  { name: 'Special Jury Prize', emoji: '🏅', description: 'For a daring and different work', color: '#6366F1' },
+];
+
+// Fetch TMDB data for competition films
+async function getFilmData(title: string) {
+  try {
+    const result = await searchMovies(title, 1);
+    if (result.results && result.results.length > 0) {
+      const match = result.results.find((m: any) => {
+        const y = m.release_date ? new Date(m.release_date).getFullYear() : 0;
+        return y >= 2023 && y <= 2026;
+      }) || result.results[0];
+      if (match?.poster_path) return match;
+    }
+  } catch {}
+  return null;
+}
+
+const filmDataMap: Record<string, any> = {};
+const batchSize = 5;
+for (let i = 0; i < competitionFilms.length; i += batchSize) {
+  const batch = competitionFilms.slice(i, i + batchSize);
+  const results = await Promise.all(batch.map(f => getFilmData(f.title)));
+  batch.forEach((f, idx) => { if (results[idx]) filmDataMap[f.title] = results[idx]; });
+}
+
+function getPosterUrl(path: string | null): string {
+  return path ? `https://image.tmdb.org/t/p/w500${path}` : '/images/no-poster.svg';
+}
+function getBackdropUrl(path: string | null): string {
+  return path ? `https://image.tmdb.org/t/p/original${path}` : '';
+}
+
+// Find a backdrop from any film data
+const heroBackdrop = Object.values(filmDataMap).find((m: any) => m?.backdrop_path)?.backdrop_path;
+
+// Countdown
+const festivalStart = new Date('2026-05-13T00:00:00');
+const now = new Date();
+const msLeft = festivalStart.getTime() - now.getTime();
+const daysLeft = Math.max(0, Math.floor(msLeft / (1000 * 60 * 60 * 24)));
+const hoursLeft = Math.max(0, Math.floor((msLeft % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60)));
+const minutesLeft = Math.max(0, Math.floor((msLeft % (1000 * 60 * 60)) / (1000 * 60)));
+---
+
+<BaseLayout
+  title="Cannes Film Festival 2026 - 79th Festival de Cannes | TrendiMovies"
+  description="The 79th Cannes Film Festival runs May 13-24, 2026. Full competition lineup, award categories, and Palme d'Or contenders."
+>
+  <!-- ── HERO ───────────────────────────────────────────────────────────────── -->
+  <section class="relative min-h-[60vh] sm:min-h-[70vh] overflow-hidden flex items-end">
+    <!-- Background -->
+    <div class="absolute inset-0">
+      {heroBackdrop ? (
+        <img src={getBackdropUrl(heroBackdrop)} alt="Cannes 2026" class="w-full h-full object-cover" loading="eager" />
+      ) : (
+        <div class="w-full h-full" style="background: linear-gradient(135deg, #0d0d0d 0%, #1a0005 40%, #2d0010 100%);"></div>
+      )}
+      <div class="absolute inset-0" style="background: linear-gradient(to top, #000000 0%, rgba(0,0,0,0.85) 40%, rgba(0,0,0,0.3) 100%);"></div>
+      <!-- Red film grain overlay -->
+      <div class="absolute inset-0 opacity-10" style="background: radial-gradient(ellipse at 20% 50%, #B50C1B 0%, transparent 60%), radial-gradient(ellipse at 80% 30%, #F7D000 0%, transparent 50%);"></div>
+    </div>
+
+    <!-- Gold top border -->
+    <div class="absolute top-0 left-0 right-0 h-1" style="background: linear-gradient(90deg, transparent, #F7D000 30%, #B50C1B 70%, transparent);"></div>
+
+    <div class="relative w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-10 sm:pb-16 pt-24">
+      <!-- Status pill -->
+      <div class="flex flex-wrap items-center gap-3 mb-6">
+        <span class="inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-sm font-bold" style="background: rgba(247,208,0,0.15); border: 1px solid rgba(247,208,0,0.4); color: #F7D000;">
+          <span class="w-2 h-2 rounded-full bg-yellow-400 animate-pulse"></span>
+          Upcoming · {daysLeft} days away
+        </span>
+        <span class="px-3 py-1 rounded-full text-xs font-semibold" style="background: rgba(181,12,27,0.2); border: 1px solid rgba(181,12,27,0.4); color: #ff6b7a;">
+          79th Edition
+        </span>
+      </div>
+
+      <!-- Title -->
+      <div class="flex items-start gap-4 mb-4">
+        <span class="text-5xl sm:text-6xl hidden sm:block">🌴</span>
+        <div>
+          <h1 class="text-4xl sm:text-5xl md:text-7xl font-black text-white leading-none tracking-tight">
+            Cannes<br>
+            <span style="color: #F7D000;">Film Festival</span>
+          </h1>
+          <p class="text-xl sm:text-2xl font-light text-gray-300 mt-2">Festival de Cannes 2026</p>
+        </div>
+      </div>
+
+      <p class="text-gray-300 text-base sm:text-lg max-w-2xl mb-8">
+        May 13–24, 2026 &bull; Palais des Festivals, Cannes, France &bull; The Palme d'Or awaits
+      </p>
+
+      <!-- Countdown -->
+      <div class="flex flex-wrap gap-3 sm:gap-4">
+        {[
+          { value: daysLeft, label: 'Days' },
+          { value: hoursLeft, label: 'Hours' },
+          { value: minutesLeft, label: 'Minutes' },
+        ].map(({ value, label }) => (
+          <div class="text-center rounded-xl px-4 sm:px-6 py-3 sm:py-4 min-w-[72px]" style="background: rgba(255,255,255,0.08); border: 1px solid rgba(247,208,0,0.2); backdrop-filter: blur(10px);">
+            <div class="text-3xl sm:text-4xl font-black" style="color: #F7D000;">{String(value).padStart(2,'0')}</div>
+            <div class="text-xs uppercase tracking-widest text-gray-400 mt-1">{label}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  </section>
+
+  <!-- ── KEY FACTS STRIP ────────────────────────────────────────────────────── -->
+  <section style="background: linear-gradient(135deg, #B50C1B, #8B0011);">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-5">
+      <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 text-center text-white text-sm">
+        {[
+          { icon: '📅', label: 'Dates', value: 'May 13–24, 2026' },
+          { icon: '📍', label: 'Location', value: 'Cannes, France' },
+          { icon: '🏛️', label: 'Venue', value: 'Palais des Festivals' },
+          { icon: '🌴', label: 'Top Prize', value: "Palme d'Or" },
+        ].map(({ icon, label, value }) => (
+          <div class="flex flex-col items-center gap-1">
+            <span class="text-xl">{icon}</span>
+            <span class="text-gray-300 text-xs uppercase tracking-wider">{label}</span>
+            <span class="font-semibold text-white">{value}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  </section>
+
+  <!-- ── COMPETITION FILMS ──────────────────────────────────────────────────── -->
+  <section class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-16">
+    <div class="flex items-center justify-between mb-8">
+      <div>
+        <h2 class="text-2xl sm:text-3xl font-black" style="color: var(--text-primary);">
+          <span style="color: #B50C1B;">🌴</span> Official Competition
+        </h2>
+        <p class="text-sm mt-1" style="color: var(--text-secondary);">Palme d'Or contenders — 79th Festival de Cannes</p>
+      </div>
+      <span class="hidden sm:block px-4 py-2 rounded-full text-sm font-semibold" style="background: rgba(181,12,27,0.15); border: 1px solid rgba(181,12,27,0.3); color: #ff6b7a;">
+        {competitionFilms.length} films
+      </span>
+    </div>
+
+    <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 sm:gap-4">
+      {competitionFilms.map((film) => {
+        const tmdb = filmDataMap[film.title];
+        return (
+          <a
+            href={tmdb ? `/movie/${tmdb.id}` : '#'}
+            class="group relative rounded-xl overflow-hidden transition-all duration-300 hover:-translate-y-2 hover:shadow-2xl"
+            style="background-color: var(--bg-card); border: 1px solid var(--border);"
+          >
+            <div class="aspect-[2/3] relative overflow-hidden">
+              <img
+                src={getPosterUrl(tmdb?.poster_path || null)}
+                alt={film.title}
+                class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+                loading="lazy"
+              />
+              <div class="absolute inset-0 bg-gradient-to-t from-black/90 via-black/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+              <!-- Country flag pill -->
+              <div class="absolute top-2 left-2">
+                <span class="px-2 py-0.5 rounded text-[10px] font-bold text-white" style="background: rgba(181,12,27,0.85);">
+                  {film.country.split('/')[0]}
+                </span>
+              </div>
+              {film.note && (
+                <div class="absolute top-2 right-2">
+                  <span class="px-2 py-0.5 rounded text-[10px] font-bold" style="background: rgba(247,208,0,0.9); color: #000;">
+                    {film.note}
+                  </span>
+                </div>
+              )}
+              <!-- Hover overlay info -->
+              <div class="absolute inset-0 flex items-end p-3 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                <div>
+                  <p class="text-white font-bold text-sm line-clamp-2">{film.title}</p>
+                  <p class="text-gray-300 text-xs mt-0.5">{film.director}</p>
+                </div>
+              </div>
+            </div>
+            <div class="p-2.5">
+              <h3 class="font-semibold text-xs line-clamp-2 leading-tight mb-1" style="color: var(--text-primary);">{film.title}</h3>
+              <p class="text-[11px] line-clamp-1" style="color: var(--text-muted);">{film.director}</p>
+            </div>
+          </a>
+        );
+      })}
+    </div>
+  </section>
+
+  <!-- ── AWARDS CATEGORIES ─────────────────────────────────────────────────── -->
+  <section class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-16">
+    <h2 class="text-2xl sm:text-3xl font-black mb-3" style="color: var(--text-primary);">
+      <span style="color: #F7D000;">🏅</span> Awards Categories
+    </h2>
+    <p class="text-sm mb-8 sm:mb-10" style="color: var(--text-secondary);">Presented at the closing ceremony — May 24, 2026</p>
+
+    <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+      {awardCategories.map((cat, i) => (
+        <div
+          class="group relative rounded-xl p-5 transition-all duration-300 hover:-translate-y-1 overflow-hidden"
+          style={`background-color: var(--bg-card); border: 1px solid var(--border);`}
+        >
+          <!-- Colored left bar -->
+          <div class="absolute left-0 top-0 bottom-0 w-1 rounded-l-xl transition-all group-hover:w-1.5" style={`background: ${cat.color};`}></div>
+          <!-- Glow on hover -->
+          <div class="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none rounded-xl" style={`background: radial-gradient(ellipse at top left, ${cat.color}15, transparent 70%);`}></div>
+
+          <div class="relative pl-3">
+            <div class="flex items-center gap-3 mb-2">
+              <span class="text-2xl">{cat.emoji}</span>
+              <h3 class="font-bold text-base" style="color: var(--text-primary);">{cat.name}</h3>
+              {i === 0 && (
+                <span class="ml-auto px-2 py-0.5 rounded text-[10px] font-bold" style="background: rgba(247,208,0,0.2); color: #F7D000;">TOP PRIZE</span>
+              )}
+            </div>
+            <p class="text-sm" style="color: var(--text-secondary);">{cat.description}</p>
+
+            <!-- Awaiting badge -->
+            <div class="mt-3 flex items-center gap-2">
+              <span class="w-2 h-2 rounded-full animate-pulse" style={`background: ${cat.color};`}></span>
+              <span class="text-xs" style="color: var(--text-muted);">Awarded May 24, 2026</span>
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  </section>
+
+  <!-- ── PALME D'OR HISTORY ────────────────────────────────────────────────── -->
+  <section class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-16">
+    <div class="rounded-2xl overflow-hidden" style="background-color: var(--bg-card); border: 1px solid var(--border);">
+      <!-- Header -->
+      <div class="p-6 sm:p-8" style="background: linear-gradient(135deg, rgba(181,12,27,0.15), rgba(247,208,0,0.08));">
+        <h2 class="text-2xl sm:text-3xl font-black" style="color: var(--text-primary);">
+          🌴 Palme d'Or — Recent Winners
+        </h2>
+        <p class="mt-1 text-sm" style="color: var(--text-secondary);">The most prestigious award in world cinema</p>
+      </div>
+
+      <div class="divide-y" style="border-color: var(--border);">
+        {palmeDorHistory.map((entry, i) => (
+          <div class="flex items-center gap-4 px-6 sm:px-8 py-4 transition-colors hover:bg-[var(--bg-hover)] group">
+            <div
+              class="w-12 h-12 rounded-xl flex items-center justify-center font-black text-sm flex-shrink-0"
+              style={i === 0 ? 'background: linear-gradient(135deg, #F7D000, #B8860B); color: #000;' : 'background-color: var(--bg-hover); color: var(--text-secondary);'}
+            >
+              {entry.year}
+            </div>
+            <div class="flex-1 min-w-0">
+              <p class="font-bold truncate" style="color: var(--text-primary);">{entry.film}</p>
+              <p class="text-sm" style="color: var(--text-secondary);">{entry.director}</p>
+            </div>
+            {i === 0 && (
+              <span class="px-3 py-1 rounded-full text-xs font-bold" style="background: rgba(247,208,0,0.15); color: #F7D000; border: 1px solid rgba(247,208,0,0.3);">
+                Current champion
+              </span>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  </section>
+
+  <!-- ── ABOUT CANNES ───────────────────────────────────────────────────────── -->
+  <section class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-16">
+    <div class="grid md:grid-cols-2 gap-6">
+      <!-- About -->
+      <div class="rounded-2xl p-6 sm:p-8" style="background-color: var(--bg-card); border: 1px solid var(--border);">
+        <h3 class="text-xl font-bold mb-4 flex items-center gap-2" style="color: var(--text-primary);">
+          <span style="color: #B50C1B;">🎬</span> About the Festival
+        </h3>
+        <div class="space-y-3 text-sm leading-relaxed" style="color: var(--text-secondary);">
+          <p>The Festival de Cannes is an annual film festival held in Cannes, France. It is considered the most prestigious and publicised film event in the world.</p>
+          <p>Founded in 1946, it previews new films of all genres including documentaries from around the world. The International Jury awards the Palme d'Or to the best film in competition.</p>
+          <p>The 79th edition runs from May 13 to May 24, 2026, with the Palme d'Or ceremony held at the Grand Théâtre Lumière on the final day.</p>
+        </div>
+      </div>
+
+      <!-- Festival sections -->
+      <div class="rounded-2xl p-6 sm:p-8" style="background-color: var(--bg-card); border: 1px solid var(--border);">
+        <h3 class="text-xl font-bold mb-4 flex items-center gap-2" style="color: var(--text-primary);">
+          <span style="color: #F7D000;">🌴</span> Festival Sections
+        </h3>
+        <div class="space-y-3">
+          {[
+            { name: 'Official Competition', desc: 'Main competition for the Palme d\'Or', color: '#B50C1B' },
+            { name: 'Un Certain Regard', desc: 'Innovative and diverse world cinema', color: '#3B82F6' },
+            { name: 'Out of Competition', desc: 'High-profile premieres outside competition', color: '#10B981' },
+            { name: 'Critics\' Week', desc: 'First or second feature films by new directors', color: '#8B5CF6' },
+            { name: 'Directors\' Fortnight', desc: 'Parallel section since 1969', color: '#F59E0B' },
+            { name: 'Short Films', desc: 'Competition for short films and animation', color: '#EC4899' },
+          ].map(s => (
+            <div class="flex items-start gap-3">
+              <div class="w-2 h-2 rounded-full mt-2 flex-shrink-0" style={`background: ${s.color};`}></div>
+              <div>
+                <span class="font-semibold text-sm" style="color: var(--text-primary);">{s.name}</span>
+                <span class="text-sm ml-2" style="color: var(--text-muted);">{s.desc}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── CTA ───────────────────────────────────────────────────────────────── -->
+  <section class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-16">
+    <div class="rounded-2xl p-8 sm:p-12 text-center relative overflow-hidden" style="background: linear-gradient(135deg, #1a0005 0%, #2d0010 50%, #1a0005 100%); border: 1px solid rgba(181,12,27,0.3);">
+      <div class="absolute inset-0 opacity-20" style="background: radial-gradient(ellipse at center, #B50C1B 0%, transparent 70%);"></div>
+      <div class="relative">
+        <span class="text-5xl block mb-4">🌴</span>
+        <h3 class="text-2xl sm:text-3xl font-black text-white mb-2">Get Ready for Cannes 2026</h3>
+        <p class="text-gray-400 mb-6 max-w-lg mx-auto">Watch all the competition films you can before May 13. The Palme d'Or is coming.</p>
+        <div class="flex flex-wrap items-center justify-center gap-4">
+          <a href="/movies" class="px-6 py-3 rounded-xl font-bold text-black transition-all hover:scale-105 hover:shadow-lg" style="background: linear-gradient(135deg, #F7D000, #D4AF37);">
+            Browse Films →
+          </a>
+          <a href="/events" class="px-6 py-3 rounded-xl font-bold transition-all hover:scale-105" style="background: rgba(255,255,255,0.08); color: white; border: 1px solid rgba(255,255,255,0.2);">
+            All Events
+          </a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+</BaseLayout>

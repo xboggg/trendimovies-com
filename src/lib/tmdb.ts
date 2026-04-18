@@ -10,7 +10,7 @@ interface TMDBResponse<T> {
   total_results: number;
 }
 
-export async function fetchFromTMDB<T>(endpoint: string, params: Record<string, string> = {}): Promise<T> {
+export async function fetchFromTMDB<T>(endpoint: string, params: Record<string, string> = {}, retries: number = 1): Promise<T> {
   // Check cache first
   const cached = getCache<T>(endpoint, params);
   if (cached) {
@@ -24,20 +24,35 @@ export async function fetchFromTMDB<T>(endpoint: string, params: Record<string, 
     url.searchParams.set(key, value);
   }
 
-  const response = await fetch(url.toString(), {
-    signal: AbortSignal.timeout(10000),
-  });
+  let lastError: Error | null = null;
 
-  if (!response.ok) {
-    throw new Error(`TMDB API error: ${response.status}`);
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      const response = await fetch(url.toString(), {
+        signal: AbortSignal.timeout(8000),
+      });
+
+      if (!response.ok) {
+        throw new Error(`TMDB API error: ${response.status}`);
+      }
+
+      const data = await response.json();
+
+      // Store in cache
+      setCache(endpoint, params, data);
+
+      return data;
+    } catch (error) {
+      lastError = error as Error;
+      if (attempt < retries) {
+        await new Promise(resolve => setTimeout(resolve, (attempt + 1) * 1000));
+        console.warn(`TMDB retry ${attempt + 1}/${retries} for ${endpoint}: ${lastError.message}`);
+      }
+    }
   }
 
-  const data = await response.json();
-
-  // Store in cache
-  setCache(endpoint, params, data);
-
-  return data;
+  console.error(`TMDB failed after ${retries + 1} attempts for ${endpoint}: ${lastError?.message}`);
+  throw lastError!;
 }
 
 // Movie endpoints

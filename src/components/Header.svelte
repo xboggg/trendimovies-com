@@ -9,6 +9,7 @@
   let searchQuery = '';
   let showGenreDropdown = false;
   let showDiscoveryDropdown = false;
+  let showEventsDropdown = false;
   let currentPath = '';
 
   // Live search autocomplete
@@ -197,6 +198,22 @@
                 <span class="w-2 h-2 rounded-full bg-blue-500"></span>
                 DC
               </a>
+            </div>
+          {/if}
+        </div>
+
+        <!-- Events Dropdown -->
+        <div class="relative" on:mouseenter={() => showEventsDropdown = true} on:mouseleave={() => showEventsDropdown = false}>
+          <button class="nav-link flex items-center gap-1">
+            <span>Events</span>
+            <ChevronDown size={14} class="transition-transform {showEventsDropdown ? 'rotate-180' : ''}" />
+          </button>
+          {#if showEventsDropdown}
+            <div class="dropdown-menu w-52">
+              <a href="/events" class="dropdown-item flex items-center gap-2"><span>📅</span> All Events</a>
+              <div class="my-1 border-t" style="border-color: var(--border);"></div>
+              <a href="/cannes-2026" class="dropdown-item flex items-center gap-2"><span>🌴</span> Cannes 2026</a>
+              <a href="/oscars-2026" class="dropdown-item flex items-center gap-2"><span>🏆</span> Oscars 2026</a>
             </div>
           {/if}
         </div>
@@ -402,6 +419,15 @@
 
         <!-- Action Buttons -->
         <div class="grid grid-cols-2 gap-3 pt-3 border-t mobile-border">
+          <a href="/events" class="mobile-nav-item">
+            <span class="mr-2">📅</span> Events
+          </a>
+          <a href="/cannes-2026" class="mobile-nav-item">
+            <span class="mr-2">🌴</span> Cannes 2026
+          </a>
+          <a href="/oscars-2026" class="mobile-nav-item">
+            <span class="mr-2">🏆</span> Oscars 2026
+          </a>
           <a href="/request" class="mobile-btn-gold">
             Request
           </a>

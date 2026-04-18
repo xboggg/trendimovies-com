@@ -10,6 +10,8 @@ export const GET: APIRoute = async () => {
     { url: '/box-office', changefreq: 'daily', priority: '0.8' },
     { url: '/franchises', changefreq: 'weekly', priority: '0.7' },
     { url: '/oscars-2026', changefreq: 'weekly', priority: '0.7' },
+    { url: '/cannes-2026', changefreq: 'weekly', priority: '0.8' },
+    { url: '/events', changefreq: 'daily', priority: '0.8' },
     { url: '/request', changefreq: 'monthly', priority: '0.5' },
     { url: '/about', changefreq: 'monthly', priority: '0.3' },
     { url: '/contact', changefreq: 'monthly', priority: '0.3' },

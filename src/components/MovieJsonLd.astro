@@ -19,7 +19,7 @@ const { movie, tmdbId } = Astro.props;
 
 const directors = (movie.crew_data || []).filter((c) => c.job === 'Director');
 const ogImage = movie.poster_path
-  ? `https://image.tmdb.org/t/p/w780${movie.poster_path}`
+  ? (movie.poster_path.startsWith("/images/") ? movie.poster_path : `https://image.tmdb.org/t/p/w780${movie.poster_path}`)
   : 'https://trendimovies.com/images/og-default.jpg';
 
 const jsonLd = {

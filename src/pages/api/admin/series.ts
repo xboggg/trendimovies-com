@@ -10,9 +10,10 @@ export const GET: APIRoute = async ({ request, url }) => {
   const page = parseInt(url.searchParams.get('page') || '1');
   const limit = Math.min(parseInt(url.searchParams.get('limit') || '50'), 100); // Cap at 100
   const search = url.searchParams.get('search') || '';
+  const filter = url.searchParams.get('filter') || 'all';
 
   try {
-    const data = await getSeries({ page, limit, search });
+    const data = await getSeries({ page, limit, search, filter });
     return new Response(JSON.stringify(data), {
       headers: { 'Content-Type': 'application/json' }
     });

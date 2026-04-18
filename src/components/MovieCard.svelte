@@ -27,7 +27,7 @@
   $: displayDate = item.release_date ? formatReleaseDate(item.release_date) : (item.year || 'N/A');
 
   $: posterUrl = item.poster_path
-    ? `https://image.tmdb.org/t/p/w500${item.poster_path}`
+    ? (item.poster_path.startsWith("/images/") ? item.poster_path : `https://image.tmdb.org/t/p/w500${item.poster_path}`)
     : '/images/no-poster.svg';
 
   $: movieId = item.tmdb_id || item.id;

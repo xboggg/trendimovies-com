@@ -86,7 +86,7 @@
               src={item.backdrop_path
                 ? `https://image.tmdb.org/t/p/w780${item.backdrop_path}`
                 : item.poster_path
-                  ? `https://image.tmdb.org/t/p/w500${item.poster_path}`
+                  ? (item.poster_path.startsWith("/images/") ? item.poster_path : `https://image.tmdb.org/t/p/w500${item.poster_path}`)
                   : '/images/no-poster.svg'}
               alt={item.title}
               class="visual-img"

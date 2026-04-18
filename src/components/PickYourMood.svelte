@@ -84,7 +84,7 @@
             >
               <div class="result-poster">
                 <img
-                  src={item.poster_path ? `https://image.tmdb.org/t/p/w342${item.poster_path}` : '/images/no-poster.svg'}
+                  src={item.poster_path ? (item.poster_path.startsWith("/images/") ? item.poster_path : `https://image.tmdb.org/t/p/w342${item.poster_path}`) : '/images/no-poster.svg'}
                   alt={item.title}
                   class="result-img"
                   loading="lazy"

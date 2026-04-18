@@ -68,7 +68,7 @@ async function importMovieFromTMDB(tmdbId: number): Promise<boolean> {
       vote_average: movie.vote_average || 0,
       vote_count: movie.vote_count || 0,
       popularity: movie.popularity || 0,
-      genres: movie.genres?.map((g: any) => g.name).join(', ') || '',
+      genres: JSON.stringify(movie.genres || []),
       tagline: movie.tagline || '',
       status: movie.status || 'Released',
       original_language: movie.original_language || 'en',
