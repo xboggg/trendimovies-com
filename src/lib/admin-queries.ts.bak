@@ -228,7 +228,7 @@ export async function getMovies(options: {
 
   // Get actual DDL status from download_links table
   if (movies && movies.length > 0) {
-    const movieIds = movies.map((m: any) => m.id).filter(Boolean);
+    const movieIds = movies.map((m: any) => m.tmdb_id).filter(Boolean);
     if (movieIds.length > 0) {
       // Get all movie download links to check which movies have DDL
       const ddlRes = await fetchWithTimeout(
@@ -240,7 +240,7 @@ export async function getMovies(options: {
       // Update has_downloads based on actual download_links
       movies = movies.map((m: any) => ({
         ...m,
-        has_downloads: movieIdsWithDDL.has(m.id)
+        has_downloads: movieIdsWithDDL.has(m.tmdb_id)
       }));
     }
   }
@@ -264,18 +264,16 @@ export async function getSeries(options: {
   page?: number;
   limit?: number;
   search?: string;
-  filter?: string;
 } = {}) {
-  const { page = 1, limit = 50, search = '', filter = 'all' } = options;
+  const { page = 1, limit = 50, search = '' } = options;
   const offset = (page - 1) * limit;
 
-  let queryUrl = `${POSTGREST_URL}/series?select=id,tmdb_id,title,year,poster_path,number_of_seasons,number_of_episodes,view_count,slug&order=created_at.desc`;
+  let queryUrl = `${POSTGREST_URL}/series?select=id,tmdb_id,title,year,poster_path,number_of_seasons,number_of_episodes,view_count&order=created_at.desc`;
   let countUrl = `${POSTGREST_URL}/series?select=count`;
 
   if (search) {
-    const cleanSearch = search.replace(/[%_]/g, '\\$&').replace(/\s+/g, '*');
-    queryUrl += `&title=ilike.*${cleanSearch}*`;
-    countUrl += `&title=ilike.*${cleanSearch}*`;
+    queryUrl += `&title=ilike.*${encodeURIComponent(search)}*`;
+    countUrl += `&title=ilike.*${encodeURIComponent(search)}*`;
   }
 
   queryUrl += `&offset=${offset}&limit=${limit}`;
@@ -285,43 +283,9 @@ export async function getSeries(options: {
     fetchWithTimeout(countUrl)
   ]);
 
-  let series = await seriesRes.json();
+  const series = await seriesRes.json();
   const countData = await countRes.json();
   const total = countData[0]?.count || 0;
-
-  // Enrich series with episode stats
-  if (series && series.length > 0) {
-    const seriesIds = series.map((s: any) => s.id);
-
-    // Get episode counts and download counts per series
-    const enrichPromises = seriesIds.map(async (sid: number) => {
-      const [epCountRes, epWithDlRes] = await Promise.all([
-        fetchWithTimeout(`${POSTGREST_URL}/episodes?select=count&series_id=eq.${sid}`),
-        fetchWithTimeout(`${POSTGREST_URL}/episodes?select=count&series_id=eq.${sid}&has_downloads=eq.true`),
-      ]);
-      const epCount = (await epCountRes.json())?.[0]?.count || 0;
-      const epWithDl = (await epWithDlRes.json())?.[0]?.count || 0;
-      return { id: sid, total_episodes: epCount, episodes_with_dl: epWithDl };
-    });
-
-    const enrichData = await Promise.all(enrichPromises);
-    const enrichMap = new Map(enrichData.map(e => [e.id, e]));
-
-    series = series.map((s: any) => ({
-      ...s,
-      total_episodes_actual: enrichMap.get(s.id)?.total_episodes || 0,
-      episodes_with_dl: enrichMap.get(s.id)?.episodes_with_dl || 0,
-      episodes_without_dl: (enrichMap.get(s.id)?.total_episodes || 0) - (enrichMap.get(s.id)?.episodes_with_dl || 0),
-      has_downloads: (enrichMap.get(s.id)?.episodes_with_dl || 0) > 0,
-    }));
-
-    // Apply filter
-    if (filter === 'with_ddl') {
-      series = series.filter((s: any) => s.has_downloads);
-    } else if (filter === 'without_ddl') {
-      series = series.filter((s: any) => !s.has_downloads);
-    }
-  }
 
   return {
     series,

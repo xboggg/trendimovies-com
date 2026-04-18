@@ -27,7 +27,7 @@ interface Props {
 const { series, tmdbId, episodes = [] } = Astro.props;
 
 const ogImage = series.poster_path
-  ? `https://image.tmdb.org/t/p/w780${series.poster_path}`
+  ? (series.poster_path.startsWith("/images/") ? series.poster_path : `https://image.tmdb.org/t/p/w780${series.poster_path}`)
   : 'https://trendimovies.com/images/og-default.jpg';
 
 // Build episode list for schema

@@ -3,9 +3,6 @@ import BaseLayout from '../layouts/BaseLayout.astro';
 import HeroCarousel from '../components/HeroCarousel.svelte';
 import ContentRow from '../components/ContentRow.svelte';
 import FeaturedSection from '../components/FeaturedSection.svelte';
-import Collections from '../components/Collections.svelte';
-import PickYourMood from '../components/PickYourMood.svelte';
-import ContinueWatching from '../components/ContinueWatching.svelte';
 import { getTrendingMovies, getNowPlayingMovies, getPopularMovies, getTopRatedMovies, getTrendingTV, getPopularTV, getOnTheAirTV, discoverMovies, getMovieDetails, getMovieGenres, getTVDetails, searchMovies } from '../lib/tmdb';
 
 const POSTGREST_URL = import.meta.env.PUBLIC_SUPABASE_URL || 'http://localhost:3001';
@@ -265,44 +262,6 @@ async function getBoxOfficeData() {
     return [];
   }
 }
-
-// Fetch mood-specific genres
-const [familyMovies, horrorMovies, sciFiMovies, dramaMovies, hindiMovies, animationMovies, historyMovies] = await Promise.all([
-  discoverMovies({ with_genres: "10751", sort_by: "vote_average.desc", "vote_count.gte": "200" }),
-  discoverMovies({ with_genres: "27", sort_by: "popularity.desc" }),
-  discoverMovies({ with_genres: "878", sort_by: "vote_average.desc", "vote_count.gte": "300" }),
-  discoverMovies({ with_genres: "18", sort_by: "vote_average.desc", "vote_count.gte": "500" }),
-  discoverMovies({ with_original_language: "hi", sort_by: "popularity.desc" }),
-  discoverMovies({ with_genres: "16", sort_by: "popularity.desc" }),
-  discoverMovies({ with_genres: "36", sort_by: "vote_average.desc", "vote_count.gte": "500" }),
-]);
-
-const familyItems = (familyMovies?.results || []).slice(0, 8).map(transformMovie);
-const horrorItems = (horrorMovies?.results || []).slice(0, 8).map(transformMovie);
-const sciFiItems = (sciFiMovies?.results || []).slice(0, 8).map(transformMovie);
-const dramaItems = (dramaMovies?.results || []).slice(0, 8).map(transformMovie);
-const hindiItems = (hindiMovies?.results || []).slice(0, 8).map(transformMovie);
-const animationItems = (animationMovies?.results || []).slice(0, 8).map(transformMovie);
-const historyItems = (historyMovies?.results || []).slice(0, 8).map(transformMovie);
-
-const moodData = [
-  { id: "chill", emoji: "😌", label: "Chill", gradient: "linear-gradient(135deg, #06b6d4, #0284c7)", items: familyItems.slice(0, 4) },
-  { id: "thrilling", emoji: "😰", label: "Thrilling", gradient: "linear-gradient(135deg, #dc2626, #991b1b)", items: thrillerItems.slice(0, 4) },
-  { id: "laugh", emoji: "😂", label: "Laugh", gradient: "linear-gradient(135deg, #f59e0b, #ea580c)", items: comedyItems.slice(0, 4) },
-  { id: "cry", emoji: "😢", label: "Cry", gradient: "linear-gradient(135deg, #7c3aed, #4f46e5)", items: dramaItems.slice(0, 4) },
-  { id: "mind-blown", emoji: "🤯", label: "Mind-Blown", gradient: "linear-gradient(135deg, #059669, #0d9488)", items: sciFiItems.slice(0, 4) },
-  { id: "nostalgic", emoji: "🥹", label: "Nostalgic", gradient: "linear-gradient(135deg, #be185d, #e11d48)", items: romanceItems.slice(0, 4) },
-];
-
-const collectionsData = [
-  { id: "true-story", title: "True Story", subtitle: "Because real life is stranger than fiction", link: "/genre/history", gradient: "linear-gradient(135deg, #78716c 0%, #44403c 100%)", posters: historyItems.slice(0, 4).map((i) => i.poster_path).filter(Boolean) },
-  { id: "animation", title: "Animation World", subtitle: "Stunning animated films", link: "/genre/animation", gradient: "linear-gradient(135deg, #8b5cf6 0%, #6366f1 100%)", posters: animationItems.slice(0, 4).map((i) => i.poster_path).filter(Boolean) },
-  { id: "sci-fi", title: "Mind-Bending Sci-Fi", subtitle: "Beyond imagination", link: "/genre/sci-fi", gradient: "linear-gradient(135deg, #059669 0%, #0d9488 100%)", posters: sciFiItems.slice(0, 4).map((i) => i.poster_path).filter(Boolean) },
-  { id: "horror", title: "Nightmare Fuel", subtitle: "Sleep with the lights on", link: "/genre/horror", gradient: "linear-gradient(135deg, #1e1e1e 0%, #7f1d1d 100%)", posters: horrorItems.slice(0, 4).map((i) => i.poster_path).filter(Boolean) },
-  { id: "bollywood", title: "Bollywood Hits", subtitle: "Best of Hindi cinema", link: "/category/bollywood", gradient: "linear-gradient(135deg, #f59e0b 0%, #e11d48 100%)", posters: hindiItems.slice(0, 4).map((i) => i.poster_path).filter(Boolean) },
-  { id: "top-rated", title: "Highest Rated of All Time", subtitle: "The all-time greatest", link: "/top-rated", gradient: "linear-gradient(135deg, #f59e0b 0%, #ef4444 100%)", posters: topRatedItems.slice(0, 4).map((i) => i.poster_path).filter(Boolean) },
-];
-
 const boxOfficeData = await getBoxOfficeData();
 
 // Search TMDB for box office movies to get posters
@@ -402,14 +361,15 @@ const boxOfficeWithPosters = await Promise.all(boxOfficeData.map(async (entry) =
     />
   )}
 
-  <!-- Continue Watching (client-side, reads from localStorage) -->
-  <ContinueWatching client:load />
-
-  <!-- Collections -->
-  <Collections client:visible collections={collectionsData} />
-
-  <!-- Pick Your Mood -->
-  <PickYourMood client:visible moods={moodData} />
+  <!-- Popular TV -->
+  {popularTVItems.length > 0 && (
+    <ContentRow
+      client:visible
+      title="Popular TV Series"
+      items={popularTVItems}
+      seeAllLink="/series"
+    />
+  )}
 
   <!-- New Episodes This Week -->
   {onTheAirItems.length > 0 && (
@@ -425,7 +385,7 @@ const boxOfficeWithPosters = await Promise.all(boxOfficeData.map(async (entry) =
   {actionItems.length > 0 && (
     <ContentRow
       client:visible
-      title="Non-Stop Action"
+      title="Action Movies"
       items={actionItems}
       seeAllLink="/genre/action"
     />
@@ -435,7 +395,7 @@ const boxOfficeWithPosters = await Promise.all(boxOfficeData.map(async (entry) =
   {comedyItems.length > 0 && (
     <ContentRow
       client:visible
-      title="Comedy Central"
+      title="Comedy Movies"
       items={comedyItems}
       seeAllLink="/genre/comedy"
     />
@@ -445,7 +405,7 @@ const boxOfficeWithPosters = await Promise.all(boxOfficeData.map(async (entry) =
   {romanceItems.length > 0 && (
     <ContentRow
       client:visible
-      title="Midnight Romance"
+      title="Romance Movies"
       items={romanceItems}
       seeAllLink="/genre/romance"
     />
@@ -481,4 +441,13 @@ const boxOfficeWithPosters = await Promise.all(boxOfficeData.map(async (entry) =
     />
   )}
 
+  <!-- Top Rated (last section) -->
+  {topRatedItems.length > 0 && (
+    <ContentRow
+      client:visible
+      title="Top Rated"
+      items={topRatedItems}
+      seeAllLink="/top-rated"
+    />
+  )}
 </BaseLayout>

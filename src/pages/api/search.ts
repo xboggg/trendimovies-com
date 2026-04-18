@@ -122,6 +122,27 @@ export const GET: APIRoute = async ({ url }) => {
       }
     }
 
+    // Override poster_path from DB for movies with custom posters
+    try {
+      const overrideIds = results.map((r: any) => r.tmdb_id).filter(Boolean);
+      if (overrideIds.length > 0) {
+        const overrideResp = await fetch(`${POSTGREST_URL}/movies?tmdb_id=in.(${overrideIds.join(',')})&select=tmdb_id,poster_path`, {
+          signal: AbortSignal.timeout(3000),
+        });
+        if (overrideResp.ok) {
+          const dbMovies = await overrideResp.json();
+          const dbPosterMap = new Map(dbMovies.map((m: any) => [m.tmdb_id, m.poster_path]));
+          results = results.map((r: any) => {
+            const dbPoster = dbPosterMap.get(r.tmdb_id);
+            if (dbPoster && dbPoster !== r.poster_path) {
+              return { ...r, poster_path: dbPoster };
+            }
+            return r;
+          });
+        }
+      }
+    } catch {}
+
     const hasMore = page < totalPages;
 
     return new Response(JSON.stringify({

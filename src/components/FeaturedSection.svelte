@@ -534,6 +534,102 @@
   </div>
 </section>
 
+<!-- ── CANNES 2026 WIDGET ─────────────────────────────────────────────────── -->
+<section class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+  <div class="grid lg:grid-cols-2 gap-6">
+
+    <!-- Cannes 2026 Feature -->
+    <a href="/cannes-2026" class="group block rounded-2xl overflow-hidden relative transition-all duration-300 hover:-translate-y-1 hover:shadow-2xl"
+       style="background: linear-gradient(135deg, #1a0005 0%, #2d0010 50%, #1a0008 100%); border: 1px solid rgba(181,12,27,0.3);">
+      <!-- Top bar -->
+      <div class="absolute top-0 left-0 right-0 h-1" style="background: linear-gradient(90deg, #B50C1B, #F7D000, #B50C1B);"></div>
+
+      <!-- Background glow -->
+      <div class="absolute inset-0 opacity-20" style="background: radial-gradient(ellipse at 30% 50%, #B50C1B, transparent 60%);"></div>
+
+      <div class="relative p-6">
+        <!-- Header -->
+        <div class="flex items-start justify-between mb-4">
+          <div class="flex items-center gap-3">
+            <span class="text-4xl">🌴</span>
+            <div>
+              <p class="text-xs uppercase tracking-widest font-semibold mb-0.5" style="color: rgba(247,208,0,0.7);">Festival de Cannes</p>
+              <h2 class="text-xl font-black text-white">Cannes 2026</h2>
+            </div>
+          </div>
+          <div class="text-right">
+            <div class="text-2xl font-black" style="color: #F7D000;">29</div>
+            <div class="text-xs text-gray-500 uppercase tracking-wide">days</div>
+          </div>
+        </div>
+
+        <!-- Date strip -->
+        <div class="flex items-center gap-2 mb-4 px-3 py-2 rounded-lg" style="background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.08);">
+          <span class="text-sm">📅</span>
+          <span class="text-sm text-gray-300">May 13–24, 2026 · Cannes, France</span>
+          <span class="ml-auto px-2 py-0.5 rounded-full text-xs font-bold" style="background: rgba(181,12,27,0.3); color: #ff6b7a; border: 1px solid rgba(181,12,27,0.4);">Upcoming</span>
+        </div>
+
+        <!-- Award pills -->
+        <div class="flex flex-wrap gap-2 mb-5">
+          {#each ["Palme d'Or", "Grand Prix", "Jury Prize", "Best Director", "Best Actor/Actress"] as award}
+            <span class="px-2.5 py-1 rounded-lg text-xs font-medium" style="background: rgba(247,208,0,0.1); color: rgba(247,208,0,0.8); border: 1px solid rgba(247,208,0,0.2);">{award}</span>
+          {/each}
+        </div>
+
+        <!-- CTA -->
+        <div class="flex items-center justify-between">
+          <p class="text-xs text-gray-500">79th Edition · Official Competition Lineup</p>
+          <span class="px-4 py-2 rounded-lg text-sm font-bold text-white transition-all group-hover:scale-105 group-hover:shadow-lg" style="background: linear-gradient(135deg, #B50C1B, #8B0011);">
+            View Lineup →
+          </span>
+        </div>
+      </div>
+    </a>
+
+    <!-- Events Calendar Summary -->
+    <a href="/events" class="group block rounded-2xl overflow-hidden relative transition-all duration-300 hover:-translate-y-1 hover:shadow-xl"
+       style="background-color: var(--bg-card); border: 1px solid var(--border);">
+      <!-- Top bar -->
+      <div class="absolute top-0 left-0 right-0 h-1" style="background: linear-gradient(90deg, #6366f1, #8b5cf6, #ec4899);"></div>
+
+      <div class="p-6">
+        <div class="flex items-center justify-between mb-5">
+          <div class="flex items-center gap-2">
+            <span class="text-2xl">📅</span>
+            <h2 class="font-black text-lg" style="color: var(--text-primary);">Awards Calendar</h2>
+          </div>
+          <span class="text-xs font-medium group-hover:text-yellow-300 transition-colors" style="color: var(--text-muted);">View All →</span>
+        </div>
+
+        <div class="space-y-3">
+          {#each [
+            { emoji: "🌴", name: "Cannes 2026", date: "May 13", days: 29, color: "#B50C1B", status: "upcoming" },
+            { emoji: "🎬", name: "MTV Awards", date: "Jun 7", days: 54, color: "#FF0033", status: "upcoming" },
+            { emoji: "🦁", name: "Venice 2026", date: "Aug 26", days: 134, color: "#8B0000", status: "upcoming" },
+            { emoji: "🏆", name: "Oscars 2026", date: "Mar 15", days: -30, color: "#D4AF37", status: "past" },
+          ] as event}
+            <div class="flex items-center gap-3 p-2.5 rounded-xl transition-colors hover:bg-[var(--bg-hover)]">
+              <span class="text-xl w-8 text-center flex-shrink-0">{event.emoji}</span>
+              <div class="flex-1 min-w-0">
+                <p class="font-semibold text-sm truncate" style="color: var(--text-primary);">{event.name}</p>
+                <p class="text-xs" style="color: var(--text-muted);">{event.date}, 2026</p>
+              </div>
+              {#if event.status === "past"}
+                <span class="px-2 py-0.5 rounded text-[10px] font-bold" style="background: rgba(107,114,128,0.2); color: #9ca3af;">Past</span>
+              {:else}
+                <span class="px-2 py-1 rounded-lg text-xs font-bold" style="background: rgba(34,197,94,0.1); color: #4ade80; border: 1px solid rgba(34,197,94,0.2);">{event.days}d</span>
+              {/if}
+            </div>
+          {/each}
+        </div>
+      </div>
+    </a>
+
+  </div>
+</section>
+
+
 <style>
   .hide-scrollbar {
     -ms-overflow-style: none;

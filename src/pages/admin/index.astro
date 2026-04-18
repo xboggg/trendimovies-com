@@ -5,8 +5,8 @@ import DataTable from '../../components/admin/DataTable.svelte';
 import { getDashboardStats } from '../../lib/admin-queries';
 
 const stats = await getDashboardStats();
+const analytics = (stats as any).analytics || {};
 
-// Calculate percentages
 const movieDDLPercent = stats.totals.movies > 0
   ? Math.round((stats.ddlCoverage.moviesWithDDL / stats.totals.movies) * 100)
   : 0;
@@ -44,9 +44,57 @@ const episodeDDLPercent = stats.totals.episodes > 0
       value={stats.totals.downloadLinks}
       icon="link"
       color="purple"
-      subtext={`${stats.downloads.totalClicks.toLocaleString()} total clicks`}
+      subtext={`${stats.linkCounts.movieLinks.toLocaleString()} movies, ${stats.linkCounts.episodeLinks.toLocaleString()} episodes`}
     />
   </div>
+
+  <!-- Traffic Overview -->
+  <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+    <div class="bg-[#141414] rounded-xl border border-[#2a2a2a] p-5">
+      <p class="text-sm text-[#666] mb-1">Total Page Views</p>
+      <p class="text-2xl font-bold text-white">{(analytics.totalViews || 0).toLocaleString()}</p>
+    </div>
+    <div class="bg-[#141414] rounded-xl border border-[#2a2a2a] p-5">
+      <p class="text-sm text-[#666] mb-1">Views Today</p>
+      <p class="text-2xl font-bold text-green-400">{(analytics.todayViews || 0).toLocaleString()}</p>
+    </div>
+    <div class="bg-[#141414] rounded-xl border border-[#2a2a2a] p-5">
+      <p class="text-sm text-[#666] mb-1">Views This Week</p>
+      <p class="text-2xl font-bold text-blue-400">{(analytics.weekViews || 0).toLocaleString()}</p>
+    </div>
+    <div class="bg-[#141414] rounded-xl border border-[#2a2a2a] p-5">
+      <p class="text-sm text-[#666] mb-1">Unique Visitors (7d)</p>
+      <p class="text-2xl font-bold text-purple-400">{(analytics.uniqueVisitors || 0).toLocaleString()}</p>
+    </div>
+  </div>
+
+  <!-- Daily Trend Chart -->
+  {analytics.dailyTrend && analytics.dailyTrend.length > 0 && (
+  <div class="bg-[#141414] rounded-xl border border-[#2a2a2a] p-6 mb-8">
+    <h3 class="text-lg font-semibold mb-4">Daily Traffic (Last 14 Days)</h3>
+    <div class="overflow-x-auto">
+      <div class="flex items-end gap-1 h-40 min-w-[600px]">
+        {analytics.dailyTrend.map((d: any) => {
+          const maxViews = Math.max(...analytics.dailyTrend.map((x: any) => x.views));
+          const height = maxViews > 0 ? Math.max((d.views / maxViews) * 100, 2) : 2;
+          const dateStr = new Date(d.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+          return (
+            <div class="flex flex-col items-center flex-1 group relative">
+              <div class="absolute -top-8 bg-[#333] text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10">
+                {d.views.toLocaleString()} views / {d.unique_sessions.toLocaleString()} sessions
+              </div>
+              <div
+                class="w-full bg-gradient-to-t from-red-600 to-red-400 rounded-t transition-all hover:from-red-500 hover:to-red-300"
+                style={`height: ${height}%`}
+              ></div>
+              <span class="text-[10px] text-[#666] mt-1 rotate-[-45deg] origin-top-left">{dateStr}</span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  </div>
+  )}
 
   <!-- DDL Coverage -->
   <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
@@ -97,56 +145,87 @@ const episodeDDLPercent = stats.totals.episodes > 0
     </div>
   </div>
 
-  <!-- Download Stats -->
-  <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+  <!-- Country & Device Breakdown -->
+  <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
     <div class="bg-[#141414] rounded-xl border border-[#2a2a2a] p-6">
-      <h3 class="text-lg font-semibold mb-4">Downloads by Quality</h3>
-      <div class="space-y-3">
-        {Object.entries(stats.downloads.byQuality).map(([quality, clicks]) => (
-          <div class="flex items-center justify-between">
-            <div class="flex items-center gap-2">
-              <span class={`w-3 h-3 rounded-full ${
-                quality === '720p' ? 'bg-green-500' :
-                quality === '1080p' ? 'bg-blue-500' : 'bg-purple-500'
-              }`}></span>
-              <span class="font-medium">{quality}</span>
+      <h3 class="text-lg font-semibold mb-4">Top Countries (30 Days)</h3>
+      <div class="space-y-2">
+        {(analytics.viewsByCountry || []).map((c: any, i: number) => {
+          const maxViews = analytics.viewsByCountry?.[0]?.views || 1;
+          const width = Math.max((c.views / maxViews) * 100, 3);
+          return (
+            <div class="flex items-center gap-3">
+              <span class="text-sm text-[#666] w-5 text-right">{i + 1}</span>
+              <span class="text-sm font-medium w-28 truncate">{c.country_name}</span>
+              <div class="flex-1 h-5 bg-[#0a0a0a] rounded overflow-hidden">
+                <div class="h-full bg-gradient-to-r from-blue-600 to-blue-400 rounded" style={`width: ${width}%`}></div>
+              </div>
+              <span class="text-sm text-[#a0a0a0] w-16 text-right">{c.views.toLocaleString()}</span>
             </div>
-            <span class="text-[#a0a0a0]">{clicks.toLocaleString()} clicks</span>
-          </div>
-        ))}
+          );
+        })}
+        {(!analytics.viewsByCountry || analytics.viewsByCountry.length === 0) && (
+          <p class="text-[#666] text-sm">No data yet</p>
+        )}
       </div>
     </div>
 
     <div class="bg-[#141414] rounded-xl border border-[#2a2a2a] p-6">
-      <h3 class="text-lg font-semibold mb-4">Downloads by Source</h3>
+      <h3 class="text-lg font-semibold mb-4">Device Breakdown (30 Days)</h3>
       <div class="space-y-3">
-        {Object.entries(stats.downloads.bySource).map(([source, clicks]) => (
+        {(analytics.viewsByDevice || []).map((d: any) => {
+          const totalDeviceViews = (analytics.viewsByDevice || []).reduce((s: number, x: any) => s + x.views, 0);
+          const pct = totalDeviceViews > 0 ? Math.round((d.views / totalDeviceViews) * 100) : 0;
+          const color = d.device_type === 'mobile' ? 'from-green-600 to-green-400' :
+                       d.device_type === 'desktop' ? 'from-blue-600 to-blue-400' :
+                       d.device_type === 'tablet' ? 'from-purple-600 to-purple-400' : 'from-gray-600 to-gray-400';
+          return (
+            <div>
+              <div class="flex justify-between text-sm mb-1">
+                <span class="font-medium capitalize">{d.device_type || 'Unknown'}</span>
+                <span class="text-[#a0a0a0]">{d.views.toLocaleString()} ({pct}%)</span>
+              </div>
+              <div class="h-3 bg-[#0a0a0a] rounded overflow-hidden">
+                <div class={`h-full bg-gradient-to-r ${color} rounded`} style={`width: ${pct}%`}></div>
+              </div>
+            </div>
+          );
+        })}
+        {(!analytics.viewsByDevice || analytics.viewsByDevice.length === 0) && (
+          <p class="text-[#666] text-sm">No data yet</p>
+        )}
+      </div>
+
+      <!-- Download Link Stats -->
+      <h3 class="text-lg font-semibold mt-8 mb-4">Download Links by Quality</h3>
+      <div class="space-y-2">
+        {Object.entries(stats.downloads.byQuality).map(([quality, count]) => (
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-2">
+              <span class={`w-3 h-3 rounded-full ${
+                quality === '720p' ? 'bg-green-500' :
+                quality === '1080p' ? 'bg-blue-500' :
+                quality === '2160p' ? 'bg-purple-500' : 'bg-gray-500'
+              }`}></span>
+              <span class="font-medium text-sm">{quality}</span>
+            </div>
+            <span class="text-[#a0a0a0] text-sm">{(count as number).toLocaleString()} links</span>
+          </div>
+        ))}
+      </div>
+
+      <h3 class="text-lg font-semibold mt-6 mb-4">Download Links by Source</h3>
+      <div class="space-y-2">
+        {Object.entries(stats.downloads.bySource).map(([source, count]) => (
           <div class="flex items-center justify-between">
             <div class="flex items-center gap-2">
               <span class={`w-3 h-3 rounded-full ${
                 source === 'telegram' ? 'bg-blue-400' :
                 source === 'cinematika' ? 'bg-yellow-500' : 'bg-orange-500'
               }`}></span>
-              <span class="font-medium capitalize">{source}</span>
+              <span class="font-medium text-sm capitalize">{source}</span>
             </div>
-            <span class="text-[#a0a0a0]">{clicks.toLocaleString()} clicks</span>
-          </div>
-        ))}
-      </div>
-    </div>
-
-    <div class="bg-[#141414] rounded-xl border border-[#2a2a2a] p-6">
-      <h3 class="text-lg font-semibold mb-4">Downloads by Type</h3>
-      <div class="space-y-3">
-        {Object.entries(stats.downloads.byContentType).map(([type, clicks]) => (
-          <div class="flex items-center justify-between">
-            <div class="flex items-center gap-2">
-              <span class={`w-3 h-3 rounded-full ${
-                type === 'movie' ? 'bg-red-500' : 'bg-green-500'
-              }`}></span>
-              <span class="font-medium capitalize">{type}s</span>
-            </div>
-            <span class="text-[#a0a0a0]">{clicks.toLocaleString()} clicks</span>
+            <span class="text-[#a0a0a0] text-sm">{(count as number).toLocaleString()} links</span>
           </div>
         ))}
       </div>
@@ -179,10 +258,10 @@ const episodeDDLPercent = stats.totals.episodes > 0
     </div>
   </div>
 
-  <!-- Top Content -->
+  <!-- Top Viewed Content (paginated, 10 per page) -->
   <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
     <div class="bg-[#141414] rounded-xl border border-[#2a2a2a] p-6">
-      <h3 class="text-lg font-semibold mb-4">Top 10 Most Viewed Movies</h3>
+      <h3 class="text-lg font-semibold mb-4">Top Viewed Movies (30 Days)</h3>
       <DataTable
         client:load
         columns={['#', 'Title', 'Year', 'Views']}
@@ -193,11 +272,12 @@ const episodeDDLPercent = stats.totals.episodes > 0
           (m.view_count || 0).toLocaleString()
         ])}
         emptyMessage="No view data yet"
+        pageSize={10}
       />
     </div>
 
     <div class="bg-[#141414] rounded-xl border border-[#2a2a2a] p-6">
-      <h3 class="text-lg font-semibold mb-4">Top 10 Most Viewed Series</h3>
+      <h3 class="text-lg font-semibold mb-4">Top Viewed Series (30 Days)</h3>
       <DataTable
         client:load
         columns={['#', 'Title', 'Year', 'Views']}
@@ -208,6 +288,7 @@ const episodeDDLPercent = stats.totals.episodes > 0
           (s.view_count || 0).toLocaleString()
         ])}
         emptyMessage="No view data yet"
+        pageSize={10}
       />
     </div>
   </div>
