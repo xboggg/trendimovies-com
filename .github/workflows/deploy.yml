@@ -1,0 +1,64 @@
+name: Deploy TrendiMovies
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - '**.md'
+      - 'DOCS/**'
+      - 'LICENSE'
+      - '.gitignore'
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-trendimovies
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    # Astro build on the server takes ~80s, plus npm ci on first deploy.
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Package source tarball
+        run: |
+          # Ship source only. The install script does npm ci (if needed) and
+          # `astro build` server-side, then atomically swaps dist/.
+          tar --exclude='./.git' \
+              --exclude='./.github' \
+              --exclude='./DOCS' \
+              --exclude='./README.md' \
+              --exclude='./*.md' \
+              --exclude='./node_modules' \
+              --exclude='./dist' \
+              --exclude='./.cache' \
+              --exclude='./.astro' \
+              --exclude='./backups' \
+              --exclude='./dist_backup_*' \
+              --exclude='./public_old_backup' \
+              --exclude='./src_old_backup' \
+              --exclude='./.env' \
+              -czf /tmp/trendimovies-new.tar.gz .
+          ls -lh /tmp/trendimovies-new.tar.gz
+
+      - name: Install SSH key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.DEPLOY_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H ${{ secrets.DEPLOY_HOST }} >> ~/.ssh/known_hosts 2>/dev/null
+
+      - name: Ship tarball to server
+        # -O forces legacy SCP protocol — the deploy gate only allows `scp -t`.
+        run: |
+          scp -O -i ~/.ssh/deploy_key /tmp/trendimovies-new.tar.gz \
+            ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:/tmp/trendimovies-new.tar.gz
+
+      - name: Run install on server
+        run: |
+          ssh -i ~/.ssh/deploy_key \
+            ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} \
+            /usr/local/bin/trendimovies-install
