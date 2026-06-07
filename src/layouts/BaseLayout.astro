@@ -20,6 +20,8 @@ const {
 } = Astro.props;
 
 const canonicalUrl = new URL(Astro.url.pathname, Astro.site || 'https://trendimovies.com');
+// og:url should reflect query string so cache-bust params (?v=N) actually work as a cache bust
+const ogUrl = new URL(Astro.url.pathname + Astro.url.search, Astro.site || 'https://trendimovies.com');
 ---
 
 <!DOCTYPE html>
@@ -49,7 +51,7 @@ const canonicalUrl = new URL(Astro.url.pathname, Astro.site || 'https://trendimo
   <meta property="og:title" content={title} />
   <meta property="og:description" content={description} />
   <meta property="og:image" content={image.startsWith("http") ? image : `https://trendimovies.com${image}`} />
-  <meta property="og:url" content={canonicalUrl} />
+  <meta property="og:url" content={ogUrl} />
   <meta property="og:site_name" content="TrendiMovies" />
 
   <!-- Twitter -->

@@ -23,13 +23,11 @@
   }
 
   export let oscarMovies: Movie[] = [];
-  export let top2026: Movie[] = [];
-  export let top2024_25: Movie[] = [];
-  export let top2020_23: Movie[] = [];
+  export let topMovies: Movie[] = [];
   export let boxOffice: BoxOfficeEntry[] = [];
   export let comingSoon: Movie[] = [];
 
-  let activeTab: 'top2026' | 'top2024_25' | 'top2020_23' | 'boxoffice' | 'franchise' | 'comingsoon' = 'boxoffice';
+  let activeTab: 'topmovies' | 'boxoffice' | 'franchise' | 'comingsoon' = 'boxoffice';
   let carouselContainer: HTMLDivElement;
   let scrollContainer: HTMLDivElement;
   let comingSoonContainer: HTMLDivElement;
@@ -39,10 +37,7 @@
   let touchStartScrollLeft = 0;
   let comingSoonIndex = 0;
 
-  $: currentTabMovies = activeTab === 'top2026' ? top2026
-    : activeTab === 'top2024_25' ? top2024_25
-    : activeTab === 'top2020_23' ? top2020_23
-    : [];
+  $: currentTabMovies = activeTab === 'topmovies' ? topMovies : [];
 
   $: featuredOscar = oscarMovies[0];
   $: currentComingSoon = comingSoon[comingSoonIndex] || null;
@@ -58,7 +53,17 @@
     return `https://image.tmdb.org/t/p/w780${path}`;
   }
 
-  function getDaysUntilRelease(dateStr: string | undefined): number | null {
+  function getCannesStatus() {
+    const start = new Date('2026-05-13T00:00:00');
+    const end   = new Date('2026-05-24T23:59:59');
+    const now   = new Date();
+    if (now < start) return { phase: 'upcoming' as const, dayOfFestival: 0, daysUntil: Math.ceil((start.getTime()-now.getTime())/86400000), totalDays: 12 };
+    if (now > end)   return { phase: 'ended'    as const, dayOfFestival: 0, daysUntil: 0, totalDays: 12 };
+    const dayOfFestival = Math.floor((now.getTime()-start.getTime())/86400000) + 1;
+    return { phase: 'live' as const, dayOfFestival, daysUntil: 0, totalDays: 12 };
+  }
+
+    function getDaysUntilRelease(dateStr: string | undefined): number | null {
     if (!dateStr) return null;
     const releaseDate = new Date(dateStr);
     const today = new Date();
@@ -296,31 +301,13 @@
           Box Office
         </button>
         <button
-          on:click={() => activeTab = 'top2026'}
+          on:click={() => activeTab = 'topmovies'}
           class="px-3 py-1.5 rounded-lg text-xs font-medium transition-all"
-          class:bg-amber-500={activeTab === 'top2026'}
-          class:text-black={activeTab === 'top2026'}
-          style={activeTab !== 'top2026' ? 'color: var(--text-secondary); background-color: var(--bg-hover);' : ''}
+          class:bg-amber-500={activeTab === 'topmovies'}
+          class:text-black={activeTab === 'topmovies'}
+          style={activeTab !== 'topmovies' ? 'color: var(--text-secondary); background-color: var(--bg-hover);' : ''}
         >
-          Top 2026
-        </button>
-        <button
-          on:click={() => activeTab = 'top2024_25'}
-          class="px-3 py-1.5 rounded-lg text-xs font-medium transition-all"
-          class:bg-amber-500={activeTab === 'top2024_25'}
-          class:text-black={activeTab === 'top2024_25'}
-          style={activeTab !== 'top2024_25' ? 'color: var(--text-secondary); background-color: var(--bg-hover);' : ''}
-        >
-          2024-25
-        </button>
-        <button
-          on:click={() => activeTab = 'top2020_23'}
-          class="px-3 py-1.5 rounded-lg text-xs font-medium transition-all"
-          class:bg-amber-500={activeTab === 'top2020_23'}
-          class:text-black={activeTab === 'top2020_23'}
-          style={activeTab !== 'top2020_23' ? 'color: var(--text-secondary); background-color: var(--bg-hover);' : ''}
-        >
-          2020-23
+          Top Movies
         </button>
         <button
           on:click={() => activeTab = 'franchise'}
@@ -498,31 +485,87 @@
             View All Franchises →
           </a>
         {:else}
-          <!-- Movie Lists -->
-          <div class="space-y-2">
-            {#each currentTabMovies.slice(0, 7) as movie, i}
-              <a
-                href={`/movie/${movie.id}`}
-                class="flex items-center gap-3 p-2 rounded-lg transition-colors hover:bg-[var(--bg-hover)]"
-              >
-                <span class="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold"
-                  style="background: linear-gradient(135deg, #fbbf24, #f59e0b); color: #000;">
-                  {i + 1}
-                </span>
-                <img src={getPosterUrl(movie.poster_path)} alt={movie.title} class="w-8 h-12 rounded object-cover" loading="lazy" />
-                <div class="flex-1 min-w-0">
-                  <p class="text-sm font-medium truncate" style="color: var(--text-primary);">{movie.title}</p>
-                  <p class="text-xs" style="color: var(--text-muted);">{movie.year || 'TBA'}</p>
-                </div>
-                <div class="flex items-center gap-1 text-amber-400">
+          <!-- TOP MOVIES — Hero Poster + Strip Design -->
+          {#if currentTabMovies.length > 0}
+            {@const heroMovie = currentTabMovies[0]}
+            {@const stripMovies = currentTabMovies.slice(1, 6)}
+            <!-- Hero #1 -->
+            <a
+              href={`/movie/${heroMovie.id}`}
+              class="relative block rounded-xl overflow-hidden group mb-3"
+              style="aspect-ratio: 16/9;"
+            >
+              <img
+                src={getBackdropUrl(heroMovie.backdrop_path || heroMovie.poster_path)}
+                alt={heroMovie.title}
+                class="w-full h-full object-cover transition-transform group-hover:scale-105"
+                loading="lazy"
+              />
+              <!-- Gradient overlay -->
+              <div class="absolute inset-0 bg-gradient-to-t from-black via-black/50 to-transparent"></div>
+
+              <!-- TOP MOVIES badge (top-left) -->
+              <div class="absolute top-3 left-3 px-2.5 py-1 rounded-md text-[10px] font-extrabold tracking-wider shadow-lg"
+                   style="background: linear-gradient(135deg, #fbbf24, #f59e0b); color: #000;">
+                TOP MOVIES {heroMovie.year || ''}
+              </div>
+
+              <!-- IMDb score (top-right) -->
+              {#if heroMovie.vote_average}
+                <div class="absolute top-3 right-3 px-2 py-1 rounded-md text-xs font-bold flex items-center gap-1 bg-black/80 text-amber-400">
                   <Star size={12} fill="currentColor" />
-                  <span class="text-xs font-medium">{movie.vote_average.toFixed(1)}</span>
+                  <span>{heroMovie.vote_average.toFixed(1)}</span>
                 </div>
-              </a>
-            {/each}
-          </div>
+              {/if}
+
+              <!-- Rank #1 + Title (bottom) -->
+              <div class="absolute bottom-0 left-0 right-0 p-3">
+                <div class="flex items-center gap-2 mb-1">
+                  <span class="w-6 h-6 rounded-full flex items-center justify-center text-xs font-extrabold"
+                        style="background: linear-gradient(135deg, #fbbf24, #f59e0b); color: #000;">1</span>
+                  <span class="text-[10px] uppercase tracking-wider font-semibold text-amber-300">
+                    #1 of the year
+                  </span>
+                </div>
+                <h3 class="text-base sm:text-lg font-bold text-white leading-tight line-clamp-2">
+                  {heroMovie.title}
+                </h3>
+              </div>
+            </a>
+
+            <!-- Strip of #2–#6 small posters -->
+            {#if stripMovies.length > 0}
+              <div class="grid grid-cols-5 gap-2 mb-2">
+                {#each stripMovies as m, idx}
+                  <a
+                    href={`/movie/${m.id}`}
+                    class="relative block group"
+                    title={m.title}
+                  >
+                    <div class="aspect-[2/3] rounded-md overflow-hidden" style="background-color: var(--bg-hover);">
+                      <img
+                        src={getPosterUrl(m.poster_path)}
+                        alt={m.title}
+                        class="w-full h-full object-cover transition-transform group-hover:scale-105"
+                        loading="lazy"
+                      />
+                    </div>
+                    <span class="absolute -top-1 -left-1 w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-extrabold shadow"
+                          style="background: linear-gradient(135deg, #fbbf24, #f59e0b); color: #000;">
+                      {idx + 2}
+                    </span>
+                  </a>
+                {/each}
+              </div>
+            {/if}
+          {:else}
+            <div class="text-center py-12 text-sm" style="color: var(--text-muted);">
+              No top movies available
+            </div>
+          {/if}
+
           <a
-            href={activeTab === 'top2026' ? '/movies/top-2026' : activeTab === 'top2024_25' ? '/movies/top-2024-2025' : '/movies/top-2020-2023'}
+            href="/top-movies"
             class="block text-center text-sm font-medium text-amber-400 hover:text-amber-300 mt-3 pt-3"
             style="border-top: 1px solid var(--border);"
           >
@@ -557,17 +600,35 @@
               <h2 class="text-xl font-black text-white">Cannes 2026</h2>
             </div>
           </div>
-          <div class="text-right">
-            <div class="text-2xl font-black" style="color: #F7D000;">29</div>
-            <div class="text-xs text-gray-500 uppercase tracking-wide">days</div>
-          </div>
+          {#if getCannesStatus().phase === 'live'}
+            <div class="text-right">
+              <div class="text-2xl font-black" style="color: #ff5566;">{getCannesStatus().dayOfFestival}/{getCannesStatus().totalDays}</div>
+              <div class="text-[10px] uppercase tracking-wide font-bold" style="color: #ff5566;">DAY · LIVE</div>
+            </div>
+          {:else if getCannesStatus().phase === 'ended'}
+            <div class="text-right">
+              <div class="text-xl font-black text-gray-400">ENDED</div>
+              <div class="text-[10px] text-gray-500 uppercase tracking-wide">See winners</div>
+            </div>
+          {:else}
+            <div class="text-right">
+              <div class="text-2xl font-black" style="color: #F7D000;">{getCannesStatus().daysUntil}</div>
+              <div class="text-xs text-gray-500 uppercase tracking-wide">days</div>
+            </div>
+          {/if}
         </div>
 
         <!-- Date strip -->
         <div class="flex items-center gap-2 mb-4 px-3 py-2 rounded-lg" style="background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.08);">
           <span class="text-sm">📅</span>
           <span class="text-sm text-gray-300">May 13–24, 2026 · Cannes, France</span>
-          <span class="ml-auto px-2 py-0.5 rounded-full text-xs font-bold" style="background: rgba(181,12,27,0.3); color: #ff6b7a; border: 1px solid rgba(181,12,27,0.4);">Upcoming</span>
+          {#if getCannesStatus().phase === 'live'}
+            <span class="ml-auto px-2 py-0.5 rounded-full text-xs font-bold flex items-center gap-1" style="background: rgba(220,38,38,0.3); color: #ff5566; border: 1px solid rgba(220,38,38,0.5);"><span class="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse"></span>LIVE</span>
+          {:else if getCannesStatus().phase === 'ended'}
+            <span class="ml-auto px-2 py-0.5 rounded-full text-xs font-bold" style="background: rgba(107,114,128,0.3); color: #d1d5db; border: 1px solid rgba(107,114,128,0.4);">Ended</span>
+          {:else}
+            <span class="ml-auto px-2 py-0.5 rounded-full text-xs font-bold" style="background: rgba(181,12,27,0.3); color: #ff6b7a; border: 1px solid rgba(181,12,27,0.4);">Upcoming</span>
+          {/if}
         </div>
 
         <!-- Award pills -->
@@ -604,18 +665,18 @@
 
         <div class="space-y-3">
           {#each [
-            { emoji: "🌴", name: "Cannes 2026", date: "May 13", days: 29, color: "#B50C1B", status: "upcoming" },
-            { emoji: "🎬", name: "MTV Awards", date: "Jun 7", days: 54, color: "#FF0033", status: "upcoming" },
-            { emoji: "🦁", name: "Venice 2026", date: "Aug 26", days: 134, color: "#8B0000", status: "upcoming" },
-            { emoji: "🏆", name: "Oscars 2026", date: "Mar 15", days: -30, color: "#D4AF37", status: "past" },
-          ] as event}
+            { emoji: "🌴", name: "Cannes 2026", date: "May 13", startDate: "2026-05-13", color: "#B50C1B" },
+            { emoji: "🎬", name: "MTV Awards", date: "Jun 7", startDate: "2026-06-07", color: "#FF0033" },
+            { emoji: "🦁", name: "Venice 2026", date: "Aug 26", startDate: "2026-08-26", color: "#8B0000" },
+            { emoji: "🏆", name: "Oscars 2026", date: "Mar 15", startDate: "2026-03-15", color: "#D4AF37" },
+          ].map(e => ({ ...e, days: getDaysUntilRelease(e.startDate) })) as event}
             <div class="flex items-center gap-3 p-2.5 rounded-xl transition-colors hover:bg-[var(--bg-hover)]">
               <span class="text-xl w-8 text-center flex-shrink-0">{event.emoji}</span>
               <div class="flex-1 min-w-0">
                 <p class="font-semibold text-sm truncate" style="color: var(--text-primary);">{event.name}</p>
                 <p class="text-xs" style="color: var(--text-muted);">{event.date}, 2026</p>
               </div>
-              {#if event.status === "past"}
+              {#if !event.days || event.days <= 0}
                 <span class="px-2 py-0.5 rounded text-[10px] font-bold" style="background: rgba(107,114,128,0.2); color: #9ca3af;">Past</span>
               {:else}
                 <span class="px-2 py-1 rounded-lg text-xs font-bold" style="background: rgba(34,197,94,0.1); color: #4ade80; border: 1px solid rgba(34,197,94,0.2);">{event.days}d</span>

@@ -5,26 +5,28 @@ import { searchMovies, getMovieDetails } from '../lib/tmdb';
 // ─── Cannes 2026 Official Competition Films ───────────────────────────────────
 // 79th Festival de Cannes | May 13–24, 2026
 const competitionFilms = [
-  { title: 'Alpha', director: 'Julia Ducournau', country: 'France', note: 'Opening film' },
-  { title: 'The History of Sound', director: 'Oliver Hermanus', country: 'USA/UK' },
-  { title: 'Eddington', director: 'Ari Aster', country: 'USA' },
-  { title: 'Nouvelle Vague', director: 'Richard Linklater', country: 'USA/France' },
-  { title: 'After the Hunt', director: 'Luca Guadagnino', country: 'USA' },
-  { title: 'The Shrouds', director: 'David Cronenberg', country: 'Canada/France' },
-  { title: 'Sirat', director: 'Oliver Laxe', country: 'Spain/France' },
-  { title: "C'est pas moi", director: 'Leos Carax', country: 'France' },
-  { title: 'Grand Tour', director: 'Miguel Gomes', country: 'Portugal' },
-  { title: 'Bird', director: 'Andrea Arnold', country: 'UK' },
-  { title: 'Three Kilometres to the End of the World', director: 'Emanuel Parvu', country: 'Romania' },
-  { title: 'Emilia Perez', director: 'Jacques Audiard', country: 'France', note: 'Multiple awards' },
-  { title: 'All We Imagine as Light', director: 'Payal Kapadia', country: 'India/France', note: 'Grand Prix' },
-  { title: 'Anora', director: 'Sean Baker', country: 'USA', note: "Palme d'Or favourite" },
-  { title: 'Parthenope', director: 'Paolo Sorrentino', country: 'Italy' },
-  { title: 'On Becoming a Guinea Fowl', director: 'Rungano Nyoni', country: 'Zambia/UK' },
-  { title: 'Vingt Dieux', director: 'Louise Courvoisier', country: 'France' },
-  { title: 'Armand', director: 'Halfdan Ullmann Tondel', country: 'Norway' },
-  { title: 'When the Light Breaks', director: 'Rúnar Rúnarsson', country: 'Iceland' },
-  { title: 'Flow', director: 'Gints Zilbalodis', country: 'Latvia', note: 'Animated' },
+  { title: 'All of a Sudden',             director: 'Ryusuke Hamaguchi',                          country: 'France/Japan/Germany/Belgium' },
+  { title: 'Another Day',                 director: 'Jeanne Herry',                               country: 'France' },
+  { title: 'The Beloved',                 director: 'Rodrigo Sorogoyen',                          country: 'Spain/France' },
+  { title: 'The Birthday Party',          director: 'Léa Mysius',                                 country: 'France' },
+  { title: 'Bitter Christmas',            director: 'Pedro Almodóvar',                            country: 'Spain' },
+  { title: 'The Black Ball',              director: 'Javier Ambrossi, Javier Calvo',              country: 'Spain/France' },
+  { title: 'Coward',                      director: 'Lukas Dhont',                                country: 'Belgium/France/Netherlands' },
+  { title: 'The Dreamed Adventure',       director: 'Valeska Grisebach',                          country: 'Germany/France/Austria/Bulgaria' },
+  { title: 'Fatherland',                  director: 'Paweł Pawlikowski',                          country: 'Poland/France/Italy/Germany' },
+  { title: 'Fjord',                       director: 'Cristian Mungiu',                            country: 'Romania/Norway/Denmark/France/Sweden' },
+  { title: 'Gentle Monster',              director: 'Marie Kreutzer',                             country: 'Austria/France/Germany' },
+  { title: 'Hope',                        director: 'Na Hong-jin',                                country: 'South Korea' },
+  { title: 'A Man of His Time',           director: 'Emmanuel Marre',                             country: 'Belgium/France' },
+  { title: 'The Man I Love',              director: 'Ira Sachs',                                  country: 'USA/France' },
+  { title: 'Minotaur',                    director: 'Andrey Zvyagintsev',                         country: 'France/Latvia/Germany' },
+  { title: 'Moulin',                      director: 'László Nemes',                               country: 'France' },
+  { title: 'Nagi Notes',                  director: 'Koji Fukada',                                country: 'Japan/Singapore/Philippines/Thailand/France' },
+  { title: 'Paper Tiger',                 director: 'James Gray',                                 country: 'USA/Brazil' },
+  { title: 'Parallel Tales',              director: 'Asghar Farhadi',                             country: 'France/USA/Italy/Belgium' },
+  { title: 'Sheep in the Box',            director: 'Hirokazu Kore-eda',                          country: 'Japan' },
+  { title: 'The Unknown',                 director: 'Arthur Harari',                              country: 'France/Italy' },
+  { title: "A Woman's Life",              director: 'Charline Bourgeois-Tacquet',                 country: 'France/Belgium' },
 ];
 
 // Previous Palme d'Or winners for context section
@@ -86,16 +88,36 @@ const heroBackdrop = Object.values(filmDataMap).find((m: any) => m?.backdrop_pat
 
 // Countdown
 const festivalStart = new Date('2026-05-13T00:00:00');
+const festivalEnd   = new Date('2026-05-24T23:59:59');
 const now = new Date();
 const msLeft = festivalStart.getTime() - now.getTime();
 const daysLeft = Math.max(0, Math.floor(msLeft / (1000 * 60 * 60 * 24)));
 const hoursLeft = Math.max(0, Math.floor((msLeft % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60)));
 const minutesLeft = Math.max(0, Math.floor((msLeft % (1000 * 60 * 60)) / (1000 * 60)));
+// Festival status
+const isLive = now >= festivalStart && now <= festivalEnd;
+const isOver = now > festivalEnd;
+const totalDays = Math.ceil((festivalEnd.getTime() - festivalStart.getTime()) / (1000*60*60*24));
+const dayOfFestival = isLive ? (Math.floor((now.getTime() - festivalStart.getTime()) / (1000*60*60*24)) + 1) : 0;
+
+// Award winners — 79th Festival de Cannes, announced closing night May 24, 2026
+const winners2026: Record<string, { film: string; director: string; recipient?: string } | null> = {
+  "Palme d'Or":            { film: 'Fjord', director: 'Cristian Mungiu' },
+  'Grand Prix':            { film: 'Minotaur', director: 'Andrey Zvyagintsev' },
+  'Jury Prize':            { film: 'The Dreamed Adventure', director: 'Valeska Grisebach' },
+  'Best Director':         { film: 'The Black Ball / Fatherland', director: 'Calvo & Ambrossi; Pawlikowski (tie)' },
+  'Best Actress':          { film: 'All of a Sudden', director: '', recipient: 'Virginie Efira & Tao Okamoto' },
+  'Best Actor':            { film: 'Coward', director: 'Lukas Dhont', recipient: 'Valentin Campagne & Emmanuel Macchia' },
+  'Best Screenplay':       { film: 'A Man of His Time', director: 'Emmanuel Marre' },
+  "Caméra d'Or":           { film: "Ben'Imana", director: 'Marie Clémentine Dusabejambo' },
+  'Special Jury Prize':    null,
+};
 ---
 
 <BaseLayout
   title="Cannes Film Festival 2026 - 79th Festival de Cannes | TrendiMovies"
   description="The 79th Cannes Film Festival runs May 13-24, 2026. Full competition lineup, award categories, and Palme d'Or contenders."
+  image="https://trendimovies.com/images/og-cannes-2026.png"
 >
   <!-- ── HERO ───────────────────────────────────────────────────────────────── -->
   <section class="relative min-h-[60vh] sm:min-h-[70vh] overflow-hidden flex items-end">
@@ -117,10 +139,23 @@ const minutesLeft = Math.max(0, Math.floor((msLeft % (1000 * 60 * 60)) / (1000 *
     <div class="relative w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-10 sm:pb-16 pt-24">
       <!-- Status pill -->
       <div class="flex flex-wrap items-center gap-3 mb-6">
-        <span class="inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-sm font-bold" style="background: rgba(247,208,0,0.15); border: 1px solid rgba(247,208,0,0.4); color: #F7D000;">
-          <span class="w-2 h-2 rounded-full bg-yellow-400 animate-pulse"></span>
-          Upcoming · {daysLeft} days away
-        </span>
+        {isLive && (
+          <span class="inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-sm font-bold" style="background: rgba(220,38,38,0.2); border: 1px solid rgba(220,38,38,0.5); color: #ff5566;">
+            <span class="w-2 h-2 rounded-full bg-red-500 animate-pulse"></span>
+            LIVE NOW · Day {dayOfFestival} of {totalDays}
+          </span>
+        )}
+        {!isLive && !isOver && (
+          <span class="inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-sm font-bold" style="background: rgba(247,208,0,0.15); border: 1px solid rgba(247,208,0,0.4); color: #F7D000;">
+            <span class="w-2 h-2 rounded-full bg-yellow-400 animate-pulse"></span>
+            Upcoming · {daysLeft} days away
+          </span>
+        )}
+        {isOver && (
+          <span class="inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-sm font-bold" style="background: rgba(107,114,128,0.2); border: 1px solid rgba(107,114,128,0.4); color: #d1d5db;">
+            Festival ended · See winners below
+          </span>
+        )}
         <span class="px-3 py-1 rounded-full text-xs font-semibold" style="background: rgba(181,12,27,0.2); border: 1px solid rgba(181,12,27,0.4); color: #ff6b7a;">
           79th Edition
         </span>
@@ -376,4 +411,54 @@ const minutesLeft = Math.max(0, Math.floor((msLeft % (1000 * 60 * 60)) / (1000 *
     </div>
   </section>
 
+
+  <!-- ── WINNERS TRACKER ────────────────────────────────────────────────────── -->
+  <section class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-16">
+    <div class="flex items-center justify-between mb-8">
+      <div>
+        <h2 class="text-2xl sm:text-3xl font-black" style="color: var(--text-primary);">
+          <span style="color: #F7D000;">🏆</span> 2026 Winners Tracker
+        </h2>
+        <p class="text-sm mt-1" style="color: var(--text-secondary);">
+          {isOver ? 'Official prizes from the 79th Festival de Cannes' : 'Awards ceremony — closing night, Saturday May 24, 2026'}
+        </p>
+      </div>
+      {!isOver && (
+        <span class="hidden sm:block px-4 py-2 rounded-full text-sm font-semibold" style="background: rgba(247,208,0,0.15); border: 1px solid rgba(247,208,0,0.4); color: #F7D000;">
+          To be announced
+        </span>
+      )}
+    </div>
+
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+      {awardCategories.map((award) => {
+        const winner = winners2026[award.name];
+        return (
+          <div class="rounded-2xl p-5 transition-all hover:-translate-y-1" style={`background: var(--bg-card); border: 1px solid ${winner ? award.color + '60' : 'var(--border)'};`}>
+            <div class="flex items-start gap-3 mb-3">
+              <span class="text-3xl">{award.emoji}</span>
+              <div class="flex-1">
+                <h3 class="font-black text-base sm:text-lg" style={`color: ${award.color};`}>{award.name}</h3>
+                <p class="text-xs" style="color: var(--text-muted);">{award.description}</p>
+              </div>
+            </div>
+            {winner ? (
+              <div class="pt-3 border-t" style="border-color: var(--border);">
+                <p class="font-bold text-lg" style="color: var(--text-primary);">{winner.film}</p>
+                <p class="text-sm" style="color: var(--text-secondary);">
+                  {winner.recipient ? winner.recipient + ' — ' : ''}{winner.director}
+                </p>
+              </div>
+            ) : (
+              <div class="pt-3 border-t flex items-center gap-2" style="border-color: var(--border);">
+                <span class="text-xs px-2.5 py-1 rounded-full" style="background: rgba(255,255,255,0.05); color: var(--text-muted);">
+                  Pending · announced May 24
+                </span>
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  </section>
 </BaseLayout>

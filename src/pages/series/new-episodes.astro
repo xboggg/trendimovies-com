@@ -3,8 +3,37 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
 import MovieCard from '../../components/MovieCard.svelte';
 import { getOnTheAirTVPaginated, getTVDetails } from '../../lib/tmdb';
 
+const POSTGREST_URL = import.meta.env.PUBLIC_SUPABASE_URL || 'http://localhost:3001';
+
 // Get current page from query params
 const page = parseInt(Astro.url.searchParams.get('page') || '1');
+
+// On page 1: prepend DB-assigned recent episodes (last 7 days)
+let dbItems: any[] = [];
+if (page === 1) {
+  try {
+    const dbRes = await fetch(`${POSTGREST_URL}/recent_episode_series?order=latest_added.desc&limit=50`);
+    if (dbRes.ok) {
+      const dbData = await dbRes.json();
+      dbItems = dbData
+        .filter((r: any) => r.poster_path)
+        .map((r: any) => {
+          const s = String(r.season_number).padStart(2, '0');
+          const e = String(r.episode_number).padStart(2, '0');
+          return {
+            id: r.tmdb_id,
+            tmdb_id: r.tmdb_id,
+            title: r.title,
+            poster_path: r.poster_path,
+            vote_average: r.vote_average,
+            year: r.year,
+            type: 'series' as const,
+            episode_info: `S${s}E${e}`,
+          };
+        });
+    }
+  } catch(e) {}
+}
 
 // Fetch 2 TMDB pages per app page (to get ~40 results, display 30)
 const tmdbPage1 = (page - 1) * 2 + 1;
@@ -25,7 +54,7 @@ const details = await Promise.all(
 );
 
 // Transform with episode info
-const shows = filtered.map((t: any, index: number) => {
+const tmdbShows = filtered.map((t: any, index: number) => {
   const detail = details[index];
   const lastEp = detail?.last_episode_to_air;
   let episode_info: string | undefined;
@@ -45,9 +74,23 @@ const shows = filtered.map((t: any, index: number) => {
     episode_info,
   };
 });
+
+// Merge: DB results first (page 1 only), deduplicate by tmdb_id
+const dbTmdbIds = new Set(dbItems.map((x: any) => x.tmdb_id));
+const merged = [
+  ...dbItems,
+  ...tmdbShows.filter((x: any) => !dbTmdbIds.has(x.tmdb_id)),
+];
+// Round down to multiple of 6 so grid rows are always complete
+const cols = 6;
+const shows = merged.length % cols === 0 ? merged : merged.slice(0, Math.floor(merged.length / cols) * cols);
 ---
 
-<BaseLayout title="New Episodes This Week" description="TV series with new episodes airing this week">
+<BaseLayout
+  title="New Episodes This Week"
+  description="TV series with new episodes airing this week"
+  image={shows[0]?.poster_path ? `https://image.tmdb.org/t/p/w780${shows[0].poster_path}` : '/images/og-default.jpg'}
+>
   <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
     <!-- Header -->
     <div class="flex flex-col md:flex-row md:items-center md:justify-between mb-8">

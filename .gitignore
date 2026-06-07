@@ -11,3 +11,10 @@ Thumbs.db
 npm-debug.log*
 .cache/
 .astro/
+dist_backup*/
+public/_astro/
+*.bak
+*.bak.*
+*.bak_*
+nul
+tailwindcss-*.log

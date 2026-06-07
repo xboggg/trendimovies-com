@@ -111,15 +111,17 @@ export const GET: APIRoute = async ({ url }) => {
       }));
     }
 
-    // Merge local DB results: add any that are not already in TMDB results
+    // Boost local DB results to top — they have downloads on our site
     if (localResults.length > 0) {
-      const tmdbIds = new Set(results.map((r: any) => r.tmdb_id));
-      const newLocal = localResults.filter((r: any) => !tmdbIds.has(r.tmdb_id));
-      if (newLocal.length > 0) {
-        // Prepend local results (they matched fuzzy search on our DB)
-        results = [...newLocal, ...results];
-        total = total + newLocal.length;
-      }
+      const localTmdbIds = new Set(localResults.map((r: any) => r.tmdb_id));
+      const newLocal = localResults.filter((r: any) =>
+        !results.some((t: any) => t.tmdb_id === r.tmdb_id)
+      );
+      results = [
+        ...localResults,
+        ...results.filter((r: any) => !localTmdbIds.has(r.tmdb_id)),
+      ];
+      total = total + newLocal.length;
     }
 
     // Override poster_path from DB for movies with custom posters

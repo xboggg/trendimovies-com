@@ -93,6 +93,7 @@ function getPosterUrl(path: string | null): string {
 <BaseLayout
   title="Weekend Box Office - Movie Earnings & Charts"
   description="Latest weekend box office results, movie earnings, and charts. Track the highest-grossing films of the week."
+  image={boxOfficeData[0]?.poster_path ? `https://image.tmdb.org/t/p/w780${boxOfficeData[0].poster_path}` : '/images/og-default.jpg'}
 >
   <!-- Header -->
   <section class="relative py-12 overflow-hidden">

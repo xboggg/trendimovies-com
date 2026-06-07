@@ -47,48 +47,6 @@ export const GET: APIRoute = async ({ request, url }) => {
   } catch (sqliteError: any) {
     console.error('SQLite direct search failed:', sqliteError.message);
   }
-
-  // Fallback to Telegram API if direct query failed or returned no results
-  if (!useDirect) {
-    try {
-      const searchParams = new URLSearchParams({ title: query });
-      if (year) searchParams.append('year', year);
-
-      const response = await fetch(`${TELEGRAM_API}/search/movies?${searchParams}`, {
-        signal: AbortSignal.timeout(25000)
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        let files = (data.results || data.files || []).map((f: any) => ({
-          id: f.id,
-          telegram_file_id: f.file_id || f.id,
-          message_id: f.message_id,
-          file_name: f.file_name || f.filename,
-          file_size: formatFileSize(f.file_size),
-          quality: f.quality || extractQuality(f.file_name || f.filename || ''),
-          year: f.year || extractYear(f.file_name || f.filename || '')
-        }));
-
-        if (quality) {
-          files = files.filter((f: any) =>
-            f.quality?.toLowerCase().includes(quality.toLowerCase())
-          );
-        }
-
-        files = files.slice(0, 50);
-
-        if (files.length > 0) {
-          return new Response(JSON.stringify({ files, source: 'telegram_api' }), {
-            headers: { 'Content-Type': 'application/json' }
-          });
-        }
-      }
-    } catch (apiError: any) {
-      console.error('Telegram API search failed:', apiError.message);
-    }
-  }
-
   // No results from either source
   return new Response(JSON.stringify({
     files: [],
@@ -162,7 +120,7 @@ async function searchSQLiteDirect(query: string, year?: string, quality?: string
     // Format results
     let files = results.map((f: any) => ({
       id: f.id,
-      telegram_file_id: f.file_id,
+      telegram_file_id: String(f.id),
       message_id: f.message_id,
       file_name: f.file_name,
       file_size: formatFileSize(f.file_size),

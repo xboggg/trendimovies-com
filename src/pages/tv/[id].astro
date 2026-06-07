@@ -27,8 +27,19 @@ const seasonNumbers = (tmdbData.seasons || [])
   .filter((s: any) => s.season_number > 0) // Skip specials (season 0)
   .map((s: any) => s.season_number);
 
-const seasonDataPromises = seasonNumbers.map((num: number) => getSeasonDetails(tmdbId, num));
-const seasonDataResults = await Promise.all(seasonDataPromises);
+// Concurrency-limited fetch: avoid hammering TMDB with 60+ parallel calls
+// (e.g. Melodi Grand Prix has 63 seasons -> overwhelmed astro queue, caused 504s).
+// 8 concurrent requests is well under TMDB's rate limit and stable.
+async function fetchInBatches<T>(items: number[], batchSize: number, fn: (n: number) => Promise<T>): Promise<T[]> {
+  const out: T[] = [];
+  for (let i = 0; i < items.length; i += batchSize) {
+    const batch = items.slice(i, i + batchSize);
+    const batchResult = await Promise.all(batch.map(fn));
+    out.push(...batchResult);
+  }
+  return out;
+}
+const seasonDataResults = await fetchInBatches(seasonNumbers, 8, (num: number) => getSeasonDetails(tmdbId, num));
 
 // Collect all episodes for JSON-LD schema
 const allEpisodes = seasonDataResults.flatMap((season: any) => 

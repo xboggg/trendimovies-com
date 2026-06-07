@@ -77,7 +77,11 @@ function transformToItem(show: any) {
 }
 ---
 
-<BaseLayout title="TV Series" description="Browse all TV series available for streaming">
+<BaseLayout
+  title="TV Series"
+  description="Browse all TV series available for streaming"
+  image="/images/og-default.jpg"
+>
   <!-- Ongoing Series Section (only on first page without filters) -->
   {page === 1 && !genre && !year && ongoingSeries.length > 0 && (
     <ContentRow

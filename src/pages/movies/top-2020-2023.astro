@@ -57,6 +57,7 @@ const movies = allResults.map((m: any) => ({
 <BaseLayout
   title="Top Movies 2020-2023 - Highest Rated Films"
   description="Discover the highest rated movies from 2020 to 2023. Browse the best films from recent years."
+  image={movies[0]?.poster_path ? `https://image.tmdb.org/t/p/w780${movies[0].poster_path}` : '/images/og-default.jpg'}
 >
   <section class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
     <div class="flex items-center justify-between mb-8">

@@ -211,6 +211,20 @@ function formatDate(dateStr: string) {
   </div>
 
   <script>
+    // Prefill from URL query (?title=...&year=...) when arriving from /top-movies
+    {
+      const params = new URLSearchParams(window.location.search);
+      const t = params.get('title');
+      const y = params.get('year');
+      if (t) {
+        const ti = document.getElementById('title') as HTMLInputElement | null;
+        if (ti) ti.value = t;
+      }
+      if (y) {
+        const yi = document.getElementById('year') as HTMLInputElement | null;
+        if (yi) yi.value = y;
+      }
+    }
     const form = document.getElementById('request-form') as HTMLFormElement;
     const successMessage = document.getElementById('success-message');
     const newRequestBtn = document.getElementById('new-request');

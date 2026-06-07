@@ -52,7 +52,11 @@ function transformToItem(movie: any) {
 }
 ---
 
-<BaseLayout title="Latest Additions" description="Recently added movies available for download">
+<BaseLayout
+  title="Latest Additions"
+  description="Recently added movies available for download"
+  image={movies[0]?.poster_path ? `https://image.tmdb.org/t/p/w780${movies[0].poster_path}` : '/images/og-default.jpg'}
+>
   <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
     <div class="flex flex-col md:flex-row md:items-center md:justify-between mb-8">
       <div>

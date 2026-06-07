@@ -90,7 +90,11 @@ function transformToItem(movie: any) {
 }
 ---
 
-<BaseLayout title={`${genre.name} Movies`} description={`Browse ${genre.name} movies available for streaming`}>
+<BaseLayout
+  title={`${genre.name} Movies`}
+  description={`Browse ${genre.name} movies available for streaming`}
+  image={movies[0]?.poster_path ? `https://image.tmdb.org/t/p/w780${movies[0].poster_path}` : '/images/og-default.jpg'}
+>
   <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
     <div class="flex flex-col md:flex-row md:items-center md:justify-between mb-8">
       <h1 class="text-3xl font-bold mb-4 md:mb-0" style="color: var(--text-primary);">{genre.name} Movies</h1>

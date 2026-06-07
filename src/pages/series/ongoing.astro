@@ -36,7 +36,11 @@ function transformToItem(show: any) {
 }
 ---
 
-<BaseLayout title="Ongoing Series" description="Browse all ongoing TV series currently airing">
+<BaseLayout
+  title="Ongoing Series"
+  description="Browse all ongoing TV series currently airing"
+  image={series[0]?.poster_path ? `https://image.tmdb.org/t/p/w780${series[0].poster_path}` : '/images/og-default.jpg'}
+>
   <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
     <div class="flex items-center justify-between mb-8">
       <h1 class="text-3xl font-bold" style="color: var(--text-primary);">Ongoing Series</h1>

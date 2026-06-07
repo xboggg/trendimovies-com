@@ -1,0 +1,280 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import topMoviesData from '../data/top_movies_by_year.json';
+
+type Entry = {
+  rank: number;
+  title: string;
+  imdb: number | null;
+  rating: string;
+  tmdb_id: number | null;
+  poster_path: string | null;
+  backdrop_path: string | null;
+  overview: string | null;
+  release_date: string | null;
+  vote_average: number | null;
+  in_db: boolean;
+  db_id: number | null;
+  db_slug: string | null;
+};
+
+const data = topMoviesData as {
+  generated_at: string;
+  source: string;
+  years: number[];
+  by_year: Record<string, Entry[]>;
+};
+
+// Year from URL ?year=YYYY, default to most recent
+const url = new URL(Astro.request.url);
+const requestedYear = url.searchParams.get('year');
+const years = data.years; // already sorted desc
+const selectedYear = (requestedYear && years.includes(parseInt(requestedYear, 10)))
+  ? parseInt(requestedYear, 10)
+  : years[0];
+
+let movies = (data.by_year[String(selectedYear)] || []).slice();
+
+// Live overlay: ask PostgREST which of these tmdb_ids actually exist in our
+// movies table with has_downloads = true, then override the JSON's frozen
+// in_db flag. Keeps the badge accurate without re-running enrichment.
+{
+  const POSTGREST_URL = import.meta.env.PUBLIC_SUPABASE_URL || 'http://localhost:3001';
+  const tmdbIds = movies.map(m => m.tmdb_id).filter((x): x is number => typeof x === 'number');
+  if (tmdbIds.length > 0) {
+    try {
+      const liveMap = new Map<number, { id: number; slug: string | null }>();
+      // Chunk to avoid query string limits
+      const CHUNK = 100;
+      for (let i = 0; i < tmdbIds.length; i += CHUNK) {
+        const chunk = tmdbIds.slice(i, i + CHUNK);
+        const url = POSTGREST_URL + "/movies?tmdb_id=in.(" + chunk.join(",") + ")&has_downloads=eq.true&select=id,slug,tmdb_id";
+        const r = await fetch(url);
+        if (r.ok) {
+          const rows: Array<{id: number; slug: string | null; tmdb_id: number}> = await r.json();
+          for (const row of rows) {
+            liveMap.set(row.tmdb_id, { id: row.id, slug: row.slug });
+          }
+        }
+      }
+      movies = movies.map(m => {
+        if (m.tmdb_id && liveMap.has(m.tmdb_id)) {
+          const hit = liveMap.get(m.tmdb_id)!;
+          return { ...m, in_db: true, db_id: hit.id, db_slug: hit.slug };
+        }
+        // If JSON said in_db but PostgREST disagrees (e.g. removed/inactive), trust PostgREST
+        if (m.tmdb_id && !liveMap.has(m.tmdb_id)) {
+          return { ...m, in_db: false, db_id: null, db_slug: null };
+        }
+        return m;
+      });
+    } catch (e) {
+      console.error('top-movies live overlay failed:', e);
+      // Fall back silently to the JSON-frozen flags
+    }
+  }
+}
+
+const topMovie = movies[0];
+
+// OG image: #1 movie's poster (or fallback)
+const ogImage = topMovie?.poster_path
+  ? `https://image.tmdb.org/t/p/w780${topMovie.poster_path}`
+  : '/images/og-default.jpg';
+
+const pageTitle = `Top Movies of ${selectedYear} - TrendiMovies`;
+const pageDescription = topMovie
+  ? `#1: ${topMovie.title}. Browse the ${movies.length} top-rated movies of ${selectedYear}.`
+  : `Browse the top movies of ${selectedYear}.`;
+
+function posterUrl(path: string | null): string {
+  if (!path) return '/images/no-poster.svg';
+  return `https://image.tmdb.org/t/p/w342${path}`;
+}
+
+function movieHref(m: Entry): string {
+  // /movie/[id] route expects TMDB id (number)
+  if (m.in_db && m.tmdb_id) return `/movie/${m.tmdb_id}`;
+  // Not in DB: send to request flow with title prefilled
+  return `/request?title=${encodeURIComponent(m.title)}&year=${selectedYear}`;
+}
+---
+
+<BaseLayout
+  title={pageTitle}
+  description={pageDescription}
+  image={ogImage}
+>
+  <section class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+    <!-- Header -->
+    <div class="mb-6">
+      <h1 class="text-2xl md:text-4xl font-bold" style="color: var(--text-primary);">
+        Top Movies
+      </h1>
+      <p class="mt-2 text-sm md:text-base" style="color: var(--text-secondary);">
+        The highest rated movies, year by year. Click any title to watch, download, or request.
+      </p>
+    </div>
+
+    <!-- Year picker (sticky, scrollable with fades + chevrons) -->
+    <div class="sticky top-0 z-20 -mx-4 sm:-mx-6 lg:-mx-8 px-4 sm:px-6 lg:px-8 py-3 mb-6 backdrop-blur year-picker-wrap"
+         style="background-color: rgba(0,0,0,0.7); border-bottom: 1px solid var(--border);">
+      <div class="relative">
+        <!-- Left chevron (hidden on mobile) -->
+        <button
+          type="button"
+          aria-label="Scroll years left"
+          class="year-chevron year-chevron-left hidden md:flex items-center justify-center absolute left-0 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-black/80 text-white hover:bg-black z-10 transition"
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
+        </button>
+
+        <!-- Right chevron (hidden on mobile) -->
+        <button
+          type="button"
+          aria-label="Scroll years right"
+          class="year-chevron year-chevron-right hidden md:flex items-center justify-center absolute right-0 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-black/80 text-white hover:bg-black z-10 transition"
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+        </button>
+
+        <!-- Edge fade overlays -->
+        <div class="year-fade year-fade-left pointer-events-none absolute left-0 top-0 bottom-0 w-12 z-[5]"></div>
+        <div class="year-fade year-fade-right pointer-events-none absolute right-0 top-0 bottom-0 w-12 z-[5]"></div>
+
+        <!-- Scrollable strip -->
+        <div id="year-strip" class="flex gap-2 overflow-x-auto scrollbar-hide pb-1 md:px-10 scroll-smooth">
+          {years.map(y => (
+            <a
+              href={`/top-movies?year=${y}`}
+              data-year={y}
+              data-active={y === selectedYear ? 'true' : 'false'}
+              class={`px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-all ${
+                y === selectedYear
+                  ? 'bg-amber-500 text-black'
+                  : 'text-gray-300 bg-white/5 hover:bg-white/10'
+              }`}
+            >
+              {y}
+            </a>
+          ))}
+        </div>
+      </div>
+    </div>
+
+    <!-- Count -->
+    <div class="mb-4 text-sm" style="color: var(--text-muted);">
+      <strong>{movies.length}</strong> movies in {selectedYear}
+    </div>
+
+    <!-- Movie grid -->
+    {movies.length === 0 ? (
+      <div class="text-center py-12" style="color: var(--text-muted);">
+        No movies for {selectedYear}.
+      </div>
+    ) : (
+      <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+        {movies.map(m => (
+          <a
+            href={movieHref(m)}
+            class="group relative block rounded-lg overflow-hidden transition-transform hover:-translate-y-1"
+            style="background-color: var(--bg-card);"
+          >
+            <!-- Poster -->
+            <div class="aspect-[2/3] overflow-hidden bg-gray-800">
+              <img
+                src={posterUrl(m.poster_path)}
+                alt={m.title}
+                class="w-full h-full object-cover transition-transform group-hover:scale-105"
+                loading="lazy"
+              />
+            </div>
+
+            <!-- Rank badge -->
+            <div class="absolute top-2 left-2 w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold shadow-lg"
+                 style="background: linear-gradient(135deg, #fbbf24, #f59e0b); color: #000;">
+              {m.rank}
+            </div>
+
+            <!-- "Request" badge for not-in-db -->
+            {!m.in_db && (
+              <div class="absolute top-2 right-2 px-2 py-0.5 rounded-md text-[10px] font-bold bg-blue-600 text-white shadow-lg">
+                REQUEST
+              </div>
+            )}
+
+            <!-- IMDb badge -->
+            {m.imdb && (
+              <div class="absolute bottom-2 right-2 px-1.5 py-0.5 rounded text-[10px] font-bold flex items-center gap-1 bg-black/80 text-amber-400">
+                <span>★</span>
+                <span>{m.imdb.toFixed(1)}</span>
+              </div>
+            )}
+
+            <!-- Title -->
+            <div class="p-2">
+              <h3 class="text-xs font-medium line-clamp-2" style="color: var(--text-primary);" title={m.title}>
+                {m.title}
+              </h3>
+              <p class="text-[10px] mt-0.5" style="color: var(--text-muted);">
+                {m.rating}
+              </p>
+            </div>
+          </a>
+        ))}
+      </div>
+    )}
+
+    <!-- Source -->
+    <p class="mt-12 text-center text-xs" style="color: var(--text-muted);">
+      Top movie data sourced from dvdsreleasedates.com · Posters: TMDB
+    </p>
+  </section>
+</BaseLayout>
+
+<style>
+  .scrollbar-hide::-webkit-scrollbar { display: none; }
+  .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+  /* Edge fades for the year strip */
+  .year-fade-left  { background: linear-gradient(to right, rgba(0,0,0,0.95), rgba(0,0,0,0)); }
+  .year-fade-right { background: linear-gradient(to left,  rgba(0,0,0,0.95), rgba(0,0,0,0)); }
+</style>
+
+<script is:inline>
+  (function () {
+    const strip = document.getElementById('year-strip');
+    if (!strip) return;
+    // 1) Scroll the active year into view
+    const active = strip.querySelector('[data-active="true"]');
+    if (active) {
+      const stripRect = strip.getBoundingClientRect();
+      const aRect = active.getBoundingClientRect();
+      const offset = aRect.left - stripRect.left - (stripRect.width / 2) + (aRect.width / 2);
+      strip.scrollLeft = offset;
+    }
+    // 2) Wire up chevrons
+    const wrap = strip.parentElement;
+    const left = wrap.querySelector('.year-chevron-left');
+    const right = wrap.querySelector('.year-chevron-right');
+    const STEP = 300;
+    if (left) left.addEventListener('click', () => strip.scrollBy({ left: -STEP, behavior: 'smooth' }));
+    if (right) right.addEventListener('click', () => strip.scrollBy({ left: STEP, behavior: 'smooth' }));
+
+    // 3) Hide fades / chevrons when at the start or end
+    function updateEdges() {
+      const atStart = strip.scrollLeft <= 4;
+      const atEnd = strip.scrollLeft + strip.clientWidth >= strip.scrollWidth - 4;
+      const lf = wrap.querySelector('.year-fade-left');
+      const rf = wrap.querySelector('.year-fade-right');
+      if (lf) lf.style.opacity = atStart ? '0' : '1';
+      if (rf) rf.style.opacity = atEnd ? '0' : '1';
+      if (left) left.style.opacity = atStart ? '0' : '1';
+      if (right) right.style.opacity = atEnd ? '0' : '1';
+      if (left) left.style.pointerEvents = atStart ? 'none' : 'auto';
+      if (right) right.style.pointerEvents = atEnd ? 'none' : 'auto';
+    }
+    updateEdges();
+    strip.addEventListener('scroll', updateEdges, { passive: true });
+    window.addEventListener('resize', updateEdges);
+  })();
+</script>

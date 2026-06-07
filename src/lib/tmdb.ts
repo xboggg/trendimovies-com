@@ -30,6 +30,10 @@ export async function fetchFromTMDB<T>(endpoint: string, params: Record<string, 
     try {
       const response = await fetch(url.toString(), {
         signal: AbortSignal.timeout(8000),
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (TrendiMovies SSR)',
+          'Accept': 'application/json',
+        },
       });
 
       if (!response.ok) {

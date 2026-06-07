@@ -7,14 +7,22 @@ import Collections from '../components/Collections.svelte';
 import PickYourMood from '../components/PickYourMood.svelte';
 import ContinueWatching from '../components/ContinueWatching.svelte';
 import { getTrendingMovies, getNowPlayingMovies, getPopularMovies, getTopRatedMovies, getTrendingTV, getPopularTV, getOnTheAirTV, discoverMovies, getMovieDetails, getMovieGenres, getTVDetails, searchMovies } from '../lib/tmdb';
+import topMoviesData from '../data/top_movies_by_year.json';
 
 const POSTGREST_URL = import.meta.env.PUBLIC_SUPABASE_URL || 'http://localhost:3001';
 
 // Fetch latest additions from our database (movies with downloads, sorted by created_at)
 async function getLatestAdditions() {
+  // "Latest Additions" = recently-acquired recent-release content.
+  //   - year filter: only current year + previous year (rolls automatically)
+  //   - sort: by movies.updated_at DESC, which a PG trigger bumps whenever a
+  //     download_link is inserted/updated. So a movie that gets new files today
+  //     surfaces today, even if the row itself was created months ago.
+  const currentYear = new Date().getFullYear();
+  const minYear = currentYear - 1;
   try {
     const res = await fetch(
-      `${POSTGREST_URL}/movies?has_downloads=eq.true&order=created_at.desc&limit=20&select=tmdb_id,title,year,poster_path,backdrop_path,vote_average,vote_count,popularity,overview`
+      `${POSTGREST_URL}/movies?has_downloads=eq.true&year=gte.${minYear}&order=updated_at.desc&limit=20&select=tmdb_id,title,year,poster_path,backdrop_path,vote_average,vote_count,popularity,overview`
     );
     if (!res.ok) return [];
     return await res.json();
@@ -34,27 +42,30 @@ threeMonthsLater.setMonth(threeMonthsLater.getMonth() + 3);
 const futureStr = threeMonthsLater.toISOString().split('T')[0];
 
 // Fetch all data from TMDB and our database in parallel
+// All TMDB calls wrapped with safe fallbacks so one bad upstream call doesn't 500 the homepage.
+const ARR: any = [];
+const OBJ: any = { results: [] };
 const [trending, nowPlaying, popular, topRatedRecent, upcomingData, trendingTV, popularTV, onTheAirTV, actionMovies, comedyMovies, romanceMovies, thrillerMovies, animeMovies, kDramaMovies, movieGenres, latestAdditions] = await Promise.all([
-  getTrendingMovies('week'),
-  getNowPlayingMovies(),
-  getPopularMovies(),
-  discoverMovies({ sort_by: 'vote_average.desc', 'vote_count.gte': '1000', 'primary_release_date.gte': '2015-01-01' }),
+  getTrendingMovies('week').catch(() => ARR),
+  getNowPlayingMovies().catch(() => ARR),
+  getPopularMovies().catch(() => ARR),
+  discoverMovies({ sort_by: 'vote_average.desc', 'vote_count.gte': '1000', 'primary_release_date.gte': '2015-01-01' }).catch(() => OBJ),
   discoverMovies({
     'primary_release_date.gte': tomorrowStr,
     'primary_release_date.lte': futureStr,
     sort_by: 'popularity.desc'
-  }),
-  getTrendingTV('week'),
-  getPopularTV(),
-  getOnTheAirTV(),
-  discoverMovies({ with_genres: '28', sort_by: 'popularity.desc' }),
-  discoverMovies({ with_genres: '35', sort_by: 'popularity.desc' }),
-  discoverMovies({ with_genres: '10749', sort_by: 'popularity.desc' }),
-  discoverMovies({ with_genres: '53', sort_by: 'popularity.desc' }),
-  discoverMovies({ with_genres: '16', with_original_language: 'ja', sort_by: 'vote_average.desc', 'vote_count.gte': '500' }),
-  discoverMovies({ with_original_language: 'ko', sort_by: 'vote_average.desc', 'vote_count.gte': '200' }),
-  getMovieGenres(),
-  getLatestAdditions()
+  }).catch(() => OBJ),
+  getTrendingTV('week').catch(() => ARR),
+  getPopularTV().catch(() => ARR),
+  getOnTheAirTV().catch(() => ARR),
+  discoverMovies({ with_genres: '28', sort_by: 'popularity.desc' }).catch(() => OBJ),
+  discoverMovies({ with_genres: '35', sort_by: 'popularity.desc' }).catch(() => OBJ),
+  discoverMovies({ with_genres: '10749', sort_by: 'popularity.desc' }).catch(() => OBJ),
+  discoverMovies({ with_genres: '53', sort_by: 'popularity.desc' }).catch(() => OBJ),
+  discoverMovies({ with_genres: '16', with_original_language: 'ja', sort_by: 'vote_average.desc', 'vote_count.gte': '500' }).catch(() => OBJ),
+  discoverMovies({ with_original_language: 'ko', sort_by: 'vote_average.desc', 'vote_count.gte': '200' }).catch(() => OBJ),
+  getMovieGenres().catch(() => ARR),
+  getLatestAdditions().catch(() => ARR)
 ]);
 
 const upcoming = (upcomingData?.results || []).filter((m: any) => m.poster_path && m.release_date && new Date(m.release_date) > new Date());
@@ -67,14 +78,46 @@ const heroMovieIds = (trending || []).slice(0, 8).map((m: any) => m.id);
 const heroDetailsPromises = heroMovieIds.map((id: number) => getMovieDetails(id).catch(() => null));
 const heroDetails = await Promise.all(heroDetailsPromises);
 
+// Load custom poster/backdrop overrides — any movie whose poster_path or backdrop_path
+// in our DB starts with /images/ overrides TMDB on every section of the homepage.
+// (Detail page already does this; homepage sections pull from TMDB so we re-apply here.)
+async function getCustomImageOverrides(): Promise<Map<number, { poster_path?: string; backdrop_path?: string }>> {
+  const map = new Map<number, { poster_path?: string; backdrop_path?: string }>();
+  try {
+    const res = await fetch(`${POSTGREST_URL}/movies?or=(poster_path.like.%2Fimages%2F*,backdrop_path.like.%2Fimages%2F*)&select=tmdb_id,poster_path,backdrop_path`);
+    if (res.ok) {
+      const rows: any[] = await res.json();
+      for (const r of rows) {
+        if (!r.tmdb_id) continue;
+        const entry: { poster_path?: string; backdrop_path?: string } = {};
+        if (r.poster_path && r.poster_path.startsWith('/images/')) entry.poster_path = r.poster_path;
+        if (r.backdrop_path && r.backdrop_path.startsWith('/images/')) entry.backdrop_path = r.backdrop_path;
+        map.set(r.tmdb_id, entry);
+      }
+    }
+  } catch (e) {
+    console.error('Failed to load image overrides:', e);
+  }
+  return map;
+}
+const imageOverrides = await getCustomImageOverrides();
+function applyOverride(tmdbId: number, posterPath: string | null, backdropPath: string | null) {
+  const ov = imageOverrides.get(tmdbId);
+  return {
+    poster_path: ov?.poster_path ?? posterPath,
+    backdrop_path: ov?.backdrop_path ?? backdropPath
+  };
+}
+
 // Transform for components
 function transformMovie(m: any) {
+  const ov = applyOverride(m.id, m.poster_path, m.backdrop_path);
   return {
     id: m.id,
     tmdb_id: m.id,
     title: m.title,
-    poster_path: m.poster_path,
-    backdrop_path: m.backdrop_path,
+    poster_path: ov.poster_path,
+    backdrop_path: ov.backdrop_path,
     vote_average: m.vote_average,
     vote_count: m.vote_count,
     popularity: m.popularity,
@@ -87,12 +130,13 @@ function transformMovie(m: any) {
 }
 
 function transformTV(t: any) {
+  const ov = applyOverride(t.id, t.poster_path, t.backdrop_path);
   return {
     id: t.id,
     tmdb_id: t.id,
     title: t.name,
-    poster_path: t.poster_path,
-    backdrop_path: t.backdrop_path,
+    poster_path: ov.poster_path,
+    backdrop_path: ov.backdrop_path,
     vote_average: t.vote_average,
     vote_count: t.vote_count,
     popularity: t.popularity,
@@ -123,12 +167,13 @@ function transformDbMovie(m: any) {
 // Transform hero items with full details (tagline, runtime, genres)
 const heroItems = (trending || []).slice(0, 8).map((m: any, index: number) => {
   const details = heroDetails[index];
+  const ov = applyOverride(m.id, m.poster_path, m.backdrop_path);
   return {
     id: m.id,
     tmdb_id: m.id,
     title: m.title,
-    poster_path: m.poster_path,
-    backdrop_path: m.backdrop_path,
+    poster_path: ov.poster_path,
+    backdrop_path: ov.backdrop_path,
     vote_average: m.vote_average,
     vote_count: m.vote_count,
     popularity: m.popularity,
@@ -154,26 +199,53 @@ const topRatedItems = (topRatedRecent?.results || []).slice(0, 20).map(transform
 const latestAdditionItems = (latestAdditions || []).map(transformDbMovie);
 
 // Transform upcoming movies with full release date
-const upcomingItems = (upcoming || []).map((m: any) => ({
-  id: m.id,
-  tmdb_id: m.id,
-  title: m.title,
-  poster_path: m.poster_path,
-  vote_average: m.vote_average,
-  year: m.release_date ? new Date(m.release_date).getFullYear() : null,
-  release_date: m.release_date,
-  type: 'movie' as const
-}));
+const upcomingItems = (upcoming || []).map((m: any) => {
+  const ov = applyOverride(m.id, m.poster_path, null);
+  return {
+    id: m.id,
+    tmdb_id: m.id,
+    title: m.title,
+    poster_path: ov.poster_path,
+    vote_average: m.vote_average,
+    year: m.release_date ? new Date(m.release_date).getFullYear() : null,
+    release_date: m.release_date,
+    type: 'movie' as const
+  };
+});
 
 const tvItems = (trendingTV || []).map(transformTV);
 const popularTVItems = (popularTV || []).map(transformTV);
+
+// Fetch DB-assigned recent episodes (last 7 days) + TMDB on-the-air list
+let dbRecentEpisodes: any[] = [];
+try {
+  const dbRes = await fetch(`${POSTGREST_URL}/recent_episode_series?order=latest_added.desc&limit=30`);
+  if (dbRes.ok) dbRecentEpisodes = await dbRes.json();
+} catch(e) {}
+
+const dbOnAirItems = dbRecentEpisodes
+  .filter((r: any) => r.poster_path)
+  .map((r: any) => {
+    const s = String(r.season_number).padStart(2, '0');
+    const e = String(r.episode_number).padStart(2, '0');
+    return {
+      id: r.tmdb_id,
+      tmdb_id: r.tmdb_id,
+      title: r.title,
+      poster_path: r.poster_path,
+      vote_average: r.vote_average,
+      year: r.year,
+      type: 'series' as const,
+      episode_info: `S${s}E${e}`,
+    };
+  });
 
 // Fetch TV details for on-the-air shows to get last_episode_to_air data
 const onTheAirFiltered = (onTheAirTV || []).filter((t: any) => t.poster_path);
 const onTheAirDetails = await Promise.all(
   onTheAirFiltered.map((t: any) => getTVDetails(t.id).catch(() => null))
 );
-const onTheAirItems = onTheAirFiltered.map((t: any, index: number) => {
+const tmdbOnAirItems = onTheAirFiltered.map((t: any, index: number) => {
   const base = transformTV(t);
   const details = onTheAirDetails[index];
   const lastEp = details?.last_episode_to_air;
@@ -184,6 +256,12 @@ const onTheAirItems = onTheAirFiltered.map((t: any, index: number) => {
   }
   return base;
 });
+// Merge: DB results first, then TMDB (deduplicate by tmdb_id)
+const dbTmdbIds = new Set(dbOnAirItems.map((x: any) => x.tmdb_id));
+const onTheAirItems = [
+  ...dbOnAirItems,
+  ...tmdbOnAirItems.filter((x: any) => !dbTmdbIds.has(x.tmdb_id)),
+];
 const actionItems = (actionMovies?.results || []).slice(0, 15).map(transformMovie);
 const comedyItems = (comedyMovies?.results || []).slice(0, 15).map(transformMovie);
 const romanceItems = (romanceMovies?.results || []).slice(0, 15).map(transformMovie);
@@ -216,31 +294,34 @@ async function searchOscarMovie(title: string) {
 const oscarResults = await Promise.all(oscarTitles.map(searchOscarMovie));
 const oscarMovies = oscarResults.filter((m): m is NonNullable<typeof m> => m !== null);
 
-// Top movies by year ranges
-const [top2026Data, top2024_25Data, top2020_23Data] = await Promise.all([
-  discoverMovies({
-    'primary_release_date.gte': '2026-01-01',
-    'primary_release_date.lte': '2026-12-31',
-    sort_by: 'vote_average.desc',
-    'vote_count.gte': '50'
-  }),
-  discoverMovies({
-    'primary_release_date.gte': '2024-01-01',
-    'primary_release_date.lte': '2025-12-31',
-    sort_by: 'vote_average.desc',
-    'vote_count.gte': '200'
-  }),
-  discoverMovies({
-    'primary_release_date.gte': '2020-01-01',
-    'primary_release_date.lte': '2023-12-31',
-    sort_by: 'vote_average.desc',
-    'vote_count.gte': '500'
-  })
-]);
-
-const top2026 = (top2026Data?.results || []).slice(0, 20).map(transformMovie);
-const top2024_25 = (top2024_25Data?.results || []).slice(0, 20).map(transformMovie);
-const top2020_23 = (top2020_23Data?.results || []).slice(0, 20).map(transformMovie);
+// Top Movies (current year) - sourced from curated list shipped in JSON
+const currentYear = new Date().getFullYear();
+const _topMoviesYear = topMoviesData.by_year[String(currentYear)] || topMoviesData.by_year[String(topMoviesData.years[0])] || [];
+// Build PostgREST overlay so the homepage hero links to /movie/{slug} when we own the file
+const _topTmdbIds = _topMoviesYear.slice(0, 20).map((m: any) => m.tmdb_id).filter((x: any): x is number => typeof x === 'number');
+const _topLiveMap = new Map<number, { id: number; slug: string | null }>();
+if (_topTmdbIds.length > 0) {
+  try {
+    const _r = await fetch(POSTGREST_URL + "/movies?tmdb_id=in.(" + _topTmdbIds.join(",") + ")&has_downloads=eq.true&select=id,slug,tmdb_id");
+    if (_r.ok) {
+      const _rows: Array<{id: number; slug: string | null; tmdb_id: number}> = await _r.json();
+      for (const row of _rows) _topLiveMap.set(row.tmdb_id, { id: row.id, slug: row.slug });
+    }
+  } catch (_) { /* ignore, fall back to JSON */ }
+}
+const topMovies = _topMoviesYear.slice(0, 20).map((m: any) => {
+  const live = m.tmdb_id ? _topLiveMap.get(m.tmdb_id) : undefined;
+  return {
+    // FeaturedSection uses /movie/{id} where id is tmdb_id
+    id: m.tmdb_id || 0,
+    title: m.title,
+    poster_path: m.poster_path,
+    backdrop_path: m.backdrop_path,
+    vote_average: m.imdb || m.vote_average || 0,
+    year: parseInt(String(currentYear), 10),
+    in_db: !!live || (m.in_db && m.db_id),
+  };
+});
 
 // Fetch box office from database
 async function getBoxOfficeData() {
@@ -343,9 +424,7 @@ const boxOfficeWithPosters = await Promise.all(boxOfficeData.map(async (entry) =
   <FeaturedSection
     client:load
     oscarMovies={oscarMovies}
-    top2026={top2026}
-    top2024_25={top2024_25}
-    top2020_23={top2020_23}
+    topMovies={topMovies}
     boxOffice={boxOfficeWithPosters}
     comingSoon={upcoming.slice(0, 10).map(transformMovie)}
   />

@@ -37,7 +37,11 @@ const movies = topMovies.map(transformMovie);
 const series = topTV.map(transformSeries);
 ---
 
-<BaseLayout title="Top Rated" description="Highest rated movies and TV series">
+<BaseLayout
+  title="Top Rated"
+  description="Highest rated movies and TV series"
+  image={movies[0]?.poster_path ? `https://image.tmdb.org/t/p/w780${movies[0].poster_path}` : '/images/og-default.jpg'}
+>
   <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
     <h1 class="text-3xl font-bold mb-8" style="color: var(--text-primary);">Top Rated</h1>
 

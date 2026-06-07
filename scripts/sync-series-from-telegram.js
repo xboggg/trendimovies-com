@@ -56,6 +56,11 @@ const isStatsOnly = args.includes('--stats');
 const limitArg = args.find(a => a.startsWith('--limit'));
 const limitIdx = args.indexOf('--limit');
 const LIMIT = limitIdx >= 0 ? parseInt(args[limitIdx + 1]) : 0;
+// --match "term1,term2": only process series whose normalized name contains one of these substrings
+const matchIdx = args.indexOf('--match');
+const MATCH_TERMS = matchIdx >= 0 && args[matchIdx + 1]
+  ? args[matchIdx + 1].toLowerCase().split(',').map(s => s.trim()).filter(Boolean)
+  : [];
 
 // ============================================================
 // LOGGING
@@ -491,8 +496,19 @@ async function main() {
     return;
   }
 
-  // Apply limit
-  let targetSeries = LIMIT > 0 ? allSeries.slice(0, LIMIT) : allSeries;
+  // Apply --match filter (only specific series), else apply limit
+  let targetSeries;
+  if (MATCH_TERMS.length > 0) {
+    targetSeries = allSeries.filter(s => {
+      const hay = ((s.key || '') + ' ' + (s.parsedName || '') + ' ' + (s.name || '')).toLowerCase();
+      return MATCH_TERMS.some(t => hay.includes(t));
+    });
+    log(`\n--match active: ${MATCH_TERMS.join(', ')}`);
+    log(`Matched ${targetSeries.length} series:`);
+    for (const s of targetSeries) log(`   • ${s.name} (${s.fileCount} files, ${s.seasonCount} seasons, tmdb:${s.tmdb_id || 'none'})`);
+  } else {
+    targetSeries = LIMIT > 0 ? allSeries.slice(0, LIMIT) : allSeries;
+  }
 
   // Load progress if resuming
   const progress = isResume ? loadProgress() : { completed: [], failed: [], lastIndex: 0 };

@@ -143,8 +143,9 @@ function getCountdownData(dateStr: string): { days: number; hours: number; minut
 ---
 
 <BaseLayout
-  title={`Upcoming Movies - ${displayMonth} | TrendiMovies`}
-  description={`Discover movies releasing in ${displayMonth}. Get release dates, trailers, and details for upcoming films.`}
+  title="Upcoming Movies"
+  
+  image={movies[0]?.poster_path ? `https://image.tmdb.org/t/p/w780${movies[0].poster_path}` : '/images/og-default.jpg'}
 >
   <!-- Header -->
   <section class="relative py-8 overflow-hidden">

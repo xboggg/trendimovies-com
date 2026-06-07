@@ -4,7 +4,7 @@ module.exports = {
     script: './dist/server/entry.mjs',
     cwd: '/var/www/trendimovies',
     env: {
-      PORT: 4000,
+      PORT: 3000,
       NODE_ENV: 'production'
     },
     instances: 1,
