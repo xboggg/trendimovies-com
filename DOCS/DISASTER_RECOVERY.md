@@ -14,6 +14,50 @@
 | Deploy key (server side)     | regenerate; update GitHub secret `DEPLOY_SSH_KEY`           |
 | Telegram bot service         | separate box (38.242.195.0), has its own DR                |
 
+## Incident log
+
+### 2026-06-11 — Intermittent `ERR_CONNECTION_TIMED_OUT` (~3 days, on/off)
+
+**Symptom:** trendimovies.com loaded fine sometimes, timed out other
+times, for ~3 days. Repeated "fixes" to the Astro code did nothing
+because **the code was never the problem** — the Astro app answered
+`http://127.0.0.1:3000/` in ~1s the whole time.
+
+**Root cause:** the nightly `deep` cron (`run_cron.sh deep`) got stuck
+running for **34 hours**, pinning CPU (server load 12–16 on 6 cores). The
+bug: `auto_add_missing_season()` in `trendimovies_cron.py` made a fresh
+TMDB API call per file with **no negative cache**, so it re-queried the
+same TMDB-less seasons (e.g. `tmdb:65942 S3`) thousands of times. Under
+that load nginx couldn't reach the upstreams in time → intermittent
+connection timeouts. It re-broke daily because cron restarts the job at
+4am. Originated from the Telegram file-indexing work added shortly before.
+
+**Fix (all changes have `.bak.20260611*` backups on the server):**
+
+1. Killed the stuck job — `pkill -TERM -f 'run_cron.sh deep'`; load fell
+   15.8 → ~10.
+2. `trendimovies_cron.py`: added module-level `_TMDB_NO_SEASON_CACHE`
+   set; `auto_add_missing_season()` returns early for a cached
+   `(series_tmdb_id, season_number)` and records each TMDB no-data result.
+   Backup: `trendimovies_cron.py.bak.20260611-prenegcache`.
+3. Safety net: crontab deep line wrapped with `timeout -k 60 3h`, and
+   `run_cron.sh` last line changed to `exec python3 …` so the signal
+   reaches Python. Backups: `run_cron.sh.bak.20260611`,
+   `/root/crontab.bak.20260611`.
+
+**Verified:** trendimovies.com → HTTP 200 in ~1.2s (public, via
+Cloudflare with the monitor UA). See OPERATIONS.md → Troubleshooting for
+the reusable diagnosis runbook.
+
+**To roll back the code fix:**
+```bash
+ssh root@144.91.71.106
+cd /opt/trendimovies/bot
+cp trendimovies_cron.py.bak.20260611-prenegcache trendimovies_cron.py
+cp run_cron.sh.bak.20260611 run_cron.sh
+crontab /root/crontab.bak.20260611
+```
+
 ## Last-deploy rollback
 
 A failed deploy is the most common "disaster." The install script keeps

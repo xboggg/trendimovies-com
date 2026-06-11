@@ -134,3 +134,80 @@ free -h              # `astro build` can need ~1GB during prerender
 
 The deploy key is restricted via `/usr/local/bin/trendimovies-deploy`.
 Any rejected commands log to syslog with tag `trendimovies-deploy`.
+
+## Background jobs (cron)
+
+The site relies on a large `root` crontab on 144 (`crontab -l`). The
+heaviest job is the **nightly deep assignment**:
+
+```cron
+0 4 * * * nice -n 19 ionice -c 3 timeout -k 60 3h /opt/trendimovies/bot/run_cron.sh deep ...
+```
+
+`run_cron.sh deep` → `trendimovies_cron.py deep` runs
+`auto_assign_episodes(file_limit=None)` over **every** file (no LIMIT)
+to seed any missing TMDB seasons/episodes. Two guards keep it from
+running away (added 2026-06-11, see DISASTER_RECOVERY.md):
+
+- **`timeout -k 60 3h`** in the cron line — hard 3h ceiling. `run_cron.sh`
+  ends with `exec python3 …` so the timeout signal reaches Python (not
+  just the wrapper shell).
+- **`_TMDB_NO_SEASON_CACHE`** in `trendimovies_cron.py` — once TMDB
+  returns no data for a `(series, season)`, it's never re-queried that
+  run. Without this, the deep pass re-hit the TMDB API thousands of
+  times for the same missing seasons.
+
+## Troubleshooting
+
+### Site intermittently unreachable / `ERR_CONNECTION_TIMED_OUT`
+
+This is almost always **server CPU overload, not the Astro code.** A
+connection *timeout* (vs. a 500 / broken page) means the server couldn't
+answer in time. Diagnose in order:
+
+```bash
+ssh root@144.91.71.106
+
+# 1. Is it the CODE or the SERVER? If this is a fast 200, the app is
+#    fine and the problem is server load, NOT the website.
+curl -s -o /dev/null -w "astro %{http_code} %{time_total}s\n" http://127.0.0.1:3000/
+
+# 2. Is the box overloaded? load >> nproc (6 cores) = overload.
+uptime
+nproc
+
+# 3. Who's eating the CPU?
+ps -eo pid,user,%cpu,etime,cmd --sort=-%cpu | head -10
+```
+
+**Most common cause — a stuck `deep` cron** (a daily job pinning CPU for
+hours). If you see `trendimovies_cron.py deep` with a multi-hour ELAPSED:
+
+```bash
+# Kill the whole tree (the run_cron.sh wrapper AND the python child)
+pkill -TERM -f 'run_cron.sh deep'; pkill -TERM -f 'trendimovies_cron.py deep'
+# verify it's gone, then watch load fall over the next few minutes
+ps -eo pid,etime,cmd | grep -E 'run_cron.sh deep|cron.py deep' | grep -v grep
+uptime
+```
+
+Killing it is safe — it's background data enrichment, not the website.
+Load average is a trailing 1/5/15-min metric, so it falls gradually.
+
+Confirm what nginx is actually failing on:
+
+```bash
+# upstream timeouts to the Astro app (port 3000) = the box was too busy
+grep 'upstream timed out.*127.0.0.1:3000' /var/log/nginx/error.log | tail
+```
+
+**If timeouts persist with NO runaway job**, the box has simply outgrown
+its hardware. The 4 Telegram streaming workers (ports 8765–8768,
+`tgstream_pool`) each peg ~1 core under genuine streaming load, and 144
+co-hosts TechTrendi, TrendiCars, news bots, and Supabase/logflare. The
+real fix is then **more CPU cores** or **moving streaming to the
+dedicated box (38.242.195.0)** as originally architected — not a code
+change.
+
+To test the public site past Cloudflare's bot block, send the trusted
+monitor UA: `-H 'User-Agent: TrendiOps-Monitor/1.0 (b0c1ef67b9618b2b)'`.
