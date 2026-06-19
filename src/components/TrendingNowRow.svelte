@@ -154,7 +154,7 @@
 
   .poster-wrap {
     position: relative;
-    width: 130px;
+    width: 140px;
     aspect-ratio: 2/3;
     border-radius: 10px;
     overflow: hidden;
@@ -162,14 +162,14 @@
     background: var(--bg-hover);
     border: 1px solid var(--border);
   }
-  @media (min-width: 640px) { .poster-wrap { width: 160px; border-radius: 12px; } }
+  @media (min-width: 640px) { .poster-wrap { width: 165px; border-radius: 12px; } }
 
   .poster-img { width: 100%; height: 100%; object-fit: cover; transition: transform 0.5s; }
   .tn-card:hover .poster-img { transform: scale(1.06); }
 
   .poster-grad {
     position: absolute; inset: 0;
-    background: linear-gradient(0deg, rgba(0,0,0,0.9) 0%, rgba(0,0,0,0.1) 45%, transparent 70%);
+    background: linear-gradient(0deg, rgba(0,0,0,0.95) 0%, rgba(0,0,0,0.75) 22%, rgba(0,0,0,0.15) 48%, transparent 70%);
   }
 
   .views-badge {
@@ -207,7 +207,8 @@
     padding: 8px 9px; z-index: 2;
   }
   .title-text {
-    font-size: 12px; font-weight: 700; color: #fff; line-height: 1.15;
+    font-size: 12px; font-weight: 700; color: #fff; line-height: 1.2;
+    text-shadow: 0 1px 3px rgba(0,0,0,0.9);
   }
   @media (min-width: 640px) { .title-text { font-size: 13px; } }
   .year-text { font-size: 10px; font-weight: 600; color: rgba(251,191,36,0.9); }
