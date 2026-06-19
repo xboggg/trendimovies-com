@@ -10,7 +10,10 @@
   let showGenreDropdown = false;
   let showDiscoveryDropdown = false;
   let showEventsDropdown = false;
-  let currentPath = '';
+  // Server passes the current pathname so the header spacer renders correctly on
+  // first paint (no flash). Updated client-side on mount for SPA-style nav.
+  export let pathname = '';
+  let currentPath = pathname;
 
   // Live search autocomplete
   let suggestions: any[] = [];
@@ -34,8 +37,13 @@
   onMount(() => {
     isDark = document.documentElement.classList.contains('dark');
     currentPath = window.location.pathname;
+    // On the homepage the header floats transparently over the full-screen hero
+    // and only turns solid once you scroll PAST the hero. On other pages there's
+    // no hero, so it goes solid almost immediately for readability.
+    const isHome = window.location.pathname === '/';
+    const getThreshold = () => (isHome ? Math.max(window.innerHeight * 0.85, 200) : 50);
     const handleScroll = () => {
-      isScrolled = window.scrollY > 50;
+      isScrolled = window.scrollY > getThreshold();
     };
     const handleClickOutside = (e: MouseEvent) => {
       const target = e.target as HTMLElement;
@@ -441,20 +449,42 @@
   {/if}
 </header>
 
-<!-- Spacer for fixed header -->
-<div class="h-16 lg:h-20"></div>
+<!-- Spacer for fixed header — NOT on the homepage, where the hero sits under
+     the transparent header on purpose. Other pages need it so content isn't
+     hidden behind the fixed header. -->
+{#if currentPath !== '/'}
+  <div class="h-16 lg:h-20"></div>
+{/if}
 
 <style>
+  /* At the top of the page the header is FULLY transparent — the menu sits
+     directly on the hero image with no background/scrim at all. Legibility comes
+     from white text + a soft shadow. Once scrolled it becomes a solid bar. */
   .header-bg {
-    background: var(--bg-primary);
+    background: transparent;
+    background-image: none;
     border-bottom: 1px solid transparent;
-    backdrop-filter: blur(20px);
-    transition: all 0.3s ease;
+    transition: background-color 0.3s ease, box-shadow 0.3s ease, border-color 0.3s ease;
   }
   .header-bg.scrolled {
     background: var(--bg-primary);
+    background-image: none;
+    backdrop-filter: blur(20px);
     border-bottom: 1px solid var(--border);
     box-shadow: 0 1px 10px var(--shadow);
+  }
+
+  /* While transparent (over the dark hero image), force light text in BOTH
+     themes and add a soft shadow so it stays crisp over any backdrop.
+     Reverts to theme colors once scrolled. */
+  .header-bg:not(.scrolled) .nav-link,
+  .header-bg:not(.scrolled) .logo-text-dark {
+    color: #ffffff;
+    text-shadow: 0 1px 3px rgba(0,0,0,0.6);
+  }
+  .header-bg:not(.scrolled) .nav-link:hover {
+    color: #ffffff;
+    background: rgba(255,255,255,0.15);
   }
 
   .logo-text {

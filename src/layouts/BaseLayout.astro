@@ -109,31 +109,45 @@ const ogUrl = new URL(Astro.url.pathname + Astro.url.search, Astro.site || 'http
       z-index: -1;
     }
 
+    /* Compact, non-intrusive floating install card (bottom-right on desktop,
+       a slim floating card with margins on mobile — never a full-width bar,
+       so it doesn't cover the hero or the gold accent line). */
     #pwa-install-banner {
       position: fixed;
-      bottom: 0;
-      left: 0;
-      right: 0;
-      background: linear-gradient(135deg, #dc2626, #b91c1c);
-      padding: 16px;
+      bottom: 16px;
+      right: 16px;
+      left: auto;
+      width: 320px;
+      max-width: calc(100vw - 32px);
+      background: rgba(20, 20, 22, 0.85);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 16px;
+      padding: 12px 14px;
       display: flex;
       align-items: center;
       justify-content: space-between;
       z-index: 9999;
-      box-shadow: 0 -4px 20px rgba(0,0,0,0.3);
-      gap: 12px;
+      box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+      gap: 10px;
+      animation: pwa-slide-in 0.4s ease-out;
+    }
+    @keyframes pwa-slide-in {
+      from { opacity: 0; transform: translateY(20px); }
+      to   { opacity: 1; transform: translateY(0); }
     }
     #pwa-install-banner .pwa-info {
       display: flex;
       align-items: center;
-      gap: 12px;
+      gap: 10px;
       flex: 1;
       min-width: 0;
     }
     #pwa-install-banner img {
-      width: 48px;
-      height: 48px;
-      border-radius: 12px;
+      width: 40px;
+      height: 40px;
+      border-radius: 10px;
       flex-shrink: 0;
     }
     #pwa-install-banner .pwa-text {
@@ -142,50 +156,61 @@ const ogUrl = new URL(Astro.url.pathname + Astro.url.search, Astro.site || 'http
     #pwa-install-banner .pwa-title {
       font-weight: 700;
       color: white;
-      font-size: 14px;
+      font-size: 13px;
     }
     #pwa-install-banner .pwa-desc {
-      font-size: 12px;
-      color: rgba(255,255,255,0.8);
+      font-size: 11px;
+      color: rgba(255,255,255,0.65);
     }
     #pwa-install-banner .pwa-buttons {
       display: flex;
-      gap: 8px;
+      align-items: center;
+      gap: 6px;
       flex-shrink: 0;
     }
-    #pwa-install-banner button {
-      padding: 8px 16px;
+    #pwa-install-banner .btn-install {
+      padding: 7px 14px;
       border-radius: 8px;
       cursor: pointer;
-      font-size: 14px;
+      font-size: 13px;
       border: none;
+      background: linear-gradient(135deg, #fbbf24, #f59e0b);
+      color: #000;
+      font-weight: 700;
     }
+    /* Dismiss is a small unobtrusive × */
     #pwa-install-banner .btn-later {
-      background: transparent;
-      border: 1px solid rgba(255,255,255,0.3);
-      color: white;
+      width: 26px;
+      height: 26px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0;
+      border-radius: 50%;
+      cursor: pointer;
+      font-size: 16px;
+      line-height: 1;
+      background: rgba(255,255,255,0.08);
+      border: none;
+      color: rgba(255,255,255,0.7);
     }
-    #pwa-install-banner .btn-install {
-      background: white;
-      color: #dc2626;
-      font-weight: 600;
+    #pwa-install-banner .btn-later:hover {
+      background: rgba(255,255,255,0.18);
+      color: #fff;
     }
     @media (max-width: 480px) {
       #pwa-install-banner {
-        flex-direction: column;
-        gap: 12px;
-      }
-      #pwa-install-banner .pwa-buttons {
-        width: 100%;
-      }
-      #pwa-install-banner button {
-        flex: 1;
+        left: 12px;
+        right: 12px;
+        width: auto;
+        max-width: none;
+        bottom: 12px;
       }
     }
   </style>
 </head>
 <body class="min-h-screen flex flex-col">
-  <Header client:load />
+  <Header client:load pathname={Astro.url.pathname} />
 
   <main class="flex-1">
     <slot />
@@ -240,7 +265,7 @@ const ogUrl = new URL(Astro.url.pathname + Astro.url.search, Astro.site || 'http
       if (document.getElementById('pwa-install-banner')) return;
       var banner = document.createElement('div');
       banner.id = 'pwa-install-banner';
-      banner.innerHTML = '<div class="pwa-info"><img src="/icons/icon-72x72.png" alt="TrendiMovies"><div class="pwa-text"><div class="pwa-title">Install TrendiMovies</div><div class="pwa-desc">Add to home screen for quick access</div></div></div><div class="pwa-buttons"><button class="btn-later" onclick="dismissInstall()">Later</button><button class="btn-install" onclick="installPWA()">Install</button></div>';
+      banner.innerHTML = '<div class="pwa-info"><img src="/icons/icon-72x72.png" alt="TrendiMovies"><div class="pwa-text"><div class="pwa-title">Install TrendiMovies</div><div class="pwa-desc">Quick access from your home screen</div></div></div><div class="pwa-buttons"><button class="btn-install" onclick="installPWA()">Install</button><button class="btn-later" onclick="dismissInstall()" aria-label="Dismiss">&times;</button></div>';
       document.body.appendChild(banner);
     }
 
@@ -263,35 +288,24 @@ const ogUrl = new URL(Astro.url.pathname + Astro.url.search, Astro.site || 'http
 
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', function() {
-        navigator.serviceWorker.register('/sw.js').catch(function() {});
+        navigator.serviceWorker.register('/sw.js').then(function(reg) {
+          // Always check for an updated service worker on load.
+          reg.update();
+        }).catch(function() {});
+      });
+      // When a new service worker takes control, reload once so the fresh
+      // CSS/JS is applied immediately (prevents stale styles sticking around).
+      var swReloaded = false;
+      navigator.serviceWorker.addEventListener('controllerchange', function() {
+        if (swReloaded) return;
+        swReloaded = true;
+        window.location.reload();
       });
     }
   </script>
 
-  <!-- Continue Watching tracker -->
-  <script is:inline>
-    (function() {
-      var path = window.location.pathname;
-      var match = path.match(/^\/(movie|tv)\/(\d+)/);
-      if (!match) return;
-      var type = match[1] === "movie" ? "movie" : "series";
-      var id = parseInt(match[2]);
-      var ogTitle = document.querySelector("meta[property=\"og:title\"]");
-      var ogImage = document.querySelector("meta[property=\"og:image\"]");
-      if (!ogTitle) return;
-      var title = ogTitle.getAttribute("content") || "";
-      var image = ogImage ? ogImage.getAttribute("content") || "" : "";
-      var posterMatch = image.match(/\/t\/p\/\w+(\/[^"]+)$/);
-      var poster_path = posterMatch ? posterMatch[1] : null;
-      var KEY = "tm_continue_watching";
-      try {
-        var items = JSON.parse(localStorage.getItem(KEY) || "[]");
-        items = items.filter(function(i) { return i.id !== id; });
-        items.unshift({ id: id, title: title, poster_path: poster_path, backdrop_path: poster_path, type: type, href: path, visited_at: Date.now() });
-        if (items.length > 12) items = items.slice(0, 12);
-        localStorage.setItem(KEY, JSON.stringify(items));
-      } catch(e) {}
-    })();
-  </script>
+  <!-- "Jump Back In" is now recorded by the VideoPlayer component on mount
+       (real intent to watch + captures episode), not on every detail-page visit. -->
+
 </body>
 </html>

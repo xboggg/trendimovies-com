@@ -6,6 +6,7 @@ import FeaturedSection from '../components/FeaturedSection.svelte';
 import Collections from '../components/Collections.svelte';
 import PickYourMood from '../components/PickYourMood.svelte';
 import ContinueWatching from '../components/ContinueWatching.svelte';
+import TrendingNowRow from '../components/TrendingNowRow.svelte';
 import { getTrendingMovies, getNowPlayingMovies, getPopularMovies, getTopRatedMovies, getTrendingTV, getPopularTV, getOnTheAirTV, discoverMovies, getMovieDetails, getMovieGenres, getTVDetails, searchMovies } from '../lib/tmdb';
 import topMoviesData from '../data/top_movies_by_year.json';
 
@@ -32,6 +33,21 @@ async function getLatestAdditions() {
   }
 }
 
+// Fetch "Trending Now" — most-viewed movies based on REAL audience data
+// (page_views table, ~4M rows). The rpc/top_viewed_movies function returns
+// movies ranked by actual view_count with poster/title/year already joined.
+// This is OUR audience's real behaviour, distinct from TMDB's global trending.
+async function getMostViewed() {
+  try {
+    const res = await fetch(`${POSTGREST_URL}/rpc/top_viewed_movies`);
+    if (!res.ok) return [];
+    return await res.json();
+  } catch (e) {
+    console.error('Failed to fetch most-viewed movies:', e);
+    return [];
+  }
+}
+
 // Calculate date range for upcoming movies (future releases only - start from tomorrow)
 const today = new Date();
 const tomorrow = new Date(today);
@@ -45,7 +61,7 @@ const futureStr = threeMonthsLater.toISOString().split('T')[0];
 // All TMDB calls wrapped with safe fallbacks so one bad upstream call doesn't 500 the homepage.
 const ARR: any = [];
 const OBJ: any = { results: [] };
-const [trending, nowPlaying, popular, topRatedRecent, upcomingData, trendingTV, popularTV, onTheAirTV, actionMovies, comedyMovies, romanceMovies, thrillerMovies, animeMovies, kDramaMovies, movieGenres, latestAdditions] = await Promise.all([
+const [trending, nowPlaying, popular, topRatedRecent, upcomingData, trendingTV, popularTV, onTheAirTV, actionMovies, comedyMovies, romanceMovies, thrillerMovies, animeMovies, kDramaMovies, movieGenres, latestAdditions, mostViewed] = await Promise.all([
   getTrendingMovies('week').catch(() => ARR),
   getNowPlayingMovies().catch(() => ARR),
   getPopularMovies().catch(() => ARR),
@@ -65,7 +81,8 @@ const [trending, nowPlaying, popular, topRatedRecent, upcomingData, trendingTV, 
   discoverMovies({ with_genres: '16', with_original_language: 'ja', sort_by: 'vote_average.desc', 'vote_count.gte': '500' }).catch(() => OBJ),
   discoverMovies({ with_original_language: 'ko', sort_by: 'vote_average.desc', 'vote_count.gte': '200' }).catch(() => OBJ),
   getMovieGenres().catch(() => ARR),
-  getLatestAdditions().catch(() => ARR)
+  getLatestAdditions().catch(() => ARR),
+  getMostViewed().catch(() => ARR)
 ]);
 
 const upcoming = (upcomingData?.results || []).filter((m: any) => m.poster_path && m.release_date && new Date(m.release_date) > new Date());
@@ -209,6 +226,23 @@ const reelSpotlightIds = new Set(
     .map((m: any) => m.id)
 );
 const latestAdditionsRowItems = latestAdditionItems.filter((m: any) => !reelSpotlightIds.has(m.id));
+
+// "Trending Now" — real most-viewed movies (rpc/top_viewed_movies). Carries the
+// real view_count through so cards can show a "X views" badge. Only keep rows
+// with a poster + at least one view so the row looks credible.
+const mostViewedItems = (mostViewed || [])
+  .filter((m: any) => m.poster_path && (m.view_count || 0) > 0)
+  .map((m: any) => ({
+    id: m.tmdb_id,
+    tmdb_id: m.tmdb_id,
+    title: m.title,
+    poster_path: m.poster_path,
+    vote_average: 0,
+    year: m.year,
+    type: 'movie' as const,
+    has_downloads: true,
+    view_count: m.view_count || 0,
+  }));
 
 // Transform upcoming movies with full release date
 const upcomingItems = (upcoming || []).map((m: any) => {
@@ -429,6 +463,18 @@ const boxOfficeWithPosters = await Promise.all(boxOfficeData.map(async (entry) =
       items={trendingItems}
       seeAllLink="/trending"
       autoScroll={true}
+    />
+  )}
+
+  <!-- Trending Now — ranked by REAL views on TrendiMovies (page_views data).
+       Distinct from "Trending This Week" (TMDB global) via rank #s + view counts. -->
+  {mostViewedItems.length >= 5 && (
+    <TrendingNowRow
+      client:load
+      items={mostViewedItems}
+      title="Trending Now"
+      subtitle="Most watched on TrendiMovies"
+      seeAllLink="/trending"
     />
   )}
 

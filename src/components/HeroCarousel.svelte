@@ -91,7 +91,7 @@
   }
 </script>
 
-<section class="relative h-[70vh] md:h-[85vh] lg:h-[95vh] overflow-hidden bg-black">
+<section class="relative h-[100svh] xl:h-screen overflow-hidden bg-black">
   <!-- Background Image with Ken Burns effect -->
   <div class="absolute inset-0">
     {#key currentIndex}
@@ -99,45 +99,52 @@
         <img
           src={backdropUrl}
           alt={currentItem?.title || 'Featured'}
-          class="w-full h-full object-cover" fetchpriority="high"
+          class="w-full h-full object-cover object-top xl:object-center" fetchpriority="high"
         />
       </div>
     {/key}
 
-    <!-- Cinematic Overlays - stronger on mobile for readability -->
-    <div class="absolute inset-0 bg-gradient-to-r from-black via-black/80 md:via-black/70 to-black/50 md:to-transparent"></div>
-    <div class="absolute inset-0 bg-gradient-to-t from-black via-black/50 md:via-black/40 to-transparent"></div>
-    <div class="absolute inset-0 bg-gradient-to-b from-black/70 md:from-black/60 via-transparent to-transparent h-40"></div>
+    <!-- Cinematic Overlays - lighter on mobile so the image shows, darker only at the bottom where text sits -->
+    <div class="absolute inset-0 bg-gradient-to-r from-black/40 via-black/20 xl:via-black/70 to-transparent xl:to-transparent"></div>
+    <div class="absolute inset-0 bg-gradient-to-t from-black via-black/85 via-30% to-transparent to-65% xl:via-black/40 xl:via-50%"></div>
+    <div class="absolute inset-0 bg-gradient-to-b from-transparent xl:from-black/60 via-transparent to-transparent h-40"></div>
 
     <!-- Animated particles/grain effect -->
     <div class="absolute inset-0 opacity-[0.03] bg-noise"></div>
 
-    <!-- Golden accent line at bottom -->
-    <div class="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-amber-500 to-transparent opacity-50"></div>
+    <!-- Golden accent base line / track — pinned to the very bottom edge of the hero. -->
+    <div class="absolute bottom-0 left-0 right-0 h-1 bg-amber-500/20 z-20"></div>
+
+    <!-- Running gold line - sweeps edge-to-edge on load and on each slide -->
+    <div class="absolute bottom-0 left-0 right-0 h-1 z-20 overflow-hidden">
+      {#key currentIndex}
+        <div class="h-full bg-gradient-to-r from-amber-400 via-amber-300 to-amber-500 animate-progress shadow-[0_0_12px_2px_rgba(251,191,36,0.7)]"></div>
+      {/key}
+    </div>
   </div>
 
-  <!-- Navigation Arrows - Premium style -->
+  <!-- Navigation Arrows - Premium style (desktop only; mobile uses auto-slide) -->
   <button
     on:click={prevSlide}
-    class="absolute left-2 md:left-6 top-1/2 -translate-y-1/2 z-20 w-10 h-10 md:w-14 md:h-14 rounded-full flex items-center justify-center nav-arrow"
+    class="absolute left-6 top-1/2 -translate-y-1/2 z-20 w-14 h-14 rounded-full hidden xl:flex items-center justify-center nav-arrow"
   >
-    <ChevronLeft size={24} class="text-white md:w-8 md:h-8" />
+    <ChevronLeft size={32} class="text-white" />
   </button>
   <button
     on:click={nextSlide}
-    class="absolute right-2 md:right-6 top-1/2 -translate-y-1/2 z-20 w-10 h-10 md:w-14 md:h-14 rounded-full flex items-center justify-center nav-arrow"
+    class="absolute right-6 top-1/2 -translate-y-1/2 z-20 w-14 h-14 rounded-full hidden xl:flex items-center justify-center nav-arrow"
   >
-    <ChevronRight size={24} class="text-white md:w-8 md:h-8" />
+    <ChevronRight size={32} class="text-white" />
   </button>
 
   <div class="relative h-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-12">
-    <div class="flex h-full items-center pt-16 md:pt-20">
+    <div class="flex h-full items-end xl:items-center pb-10 xl:pb-0 pt-28 xl:pt-20">
       {#if currentItem}
         <div class="flex-1 flex items-center gap-12">
           <!-- Content -->
           <div class="flex-1 max-w-2xl">
-            <!-- Type Badge -->
-            <div class="inline-flex items-center gap-2 mb-4">
+            <!-- Type Badge — hidden on tablet only (md–lg); shown on phone and desktop -->
+            <div class="inline-flex md:hidden xl:inline-flex items-center gap-2 mb-4">
               <span class="px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider"
                 style="background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%); color: #000;">
                 {currentItem.type === 'movie' ? 'Movie' : 'Series'}
@@ -207,7 +214,7 @@
             {/if}
 
             <!-- Overview -->
-            <p class="text-gray-300 text-sm md:text-base lg:text-lg mb-4 md:mb-8 line-clamp-2 md:line-clamp-3 leading-relaxed max-w-xl">
+            <p class="text-gray-300 text-sm md:text-base lg:text-lg mb-4 md:mb-6 xl:mb-8 line-clamp-2 xl:line-clamp-3 leading-relaxed max-w-xl">
               {currentItem.overview || 'No description available.'}
             </p>
 
@@ -248,8 +255,8 @@
       {/if}
     </div>
 
-    <!-- Slide Indicators - Premium vertical style (hidden on small mobile) -->
-    <div class="absolute right-4 md:right-8 top-1/2 -translate-y-1/2 hidden sm:flex flex-col gap-2 md:gap-3 z-20">
+    <!-- Slide Indicators - Premium vertical style (desktop hero only) -->
+    <div class="absolute right-4 md:right-8 top-1/2 -translate-y-1/2 hidden xl:flex flex-col gap-2 md:gap-3 z-20">
       {#each carouselItems as item, index}
         <button
           on:click={() => goToSlide(index)}
@@ -266,12 +273,6 @@
       {/each}
     </div>
 
-    <!-- Progress Bar -->
-    <div class="absolute bottom-0 left-0 right-0 h-1 bg-white/10">
-      {#key currentIndex}
-        <div class="h-full bg-gradient-to-r from-amber-500 to-amber-400 animate-progress"></div>
-      {/key}
-    </div>
   </div>
 </section>
 

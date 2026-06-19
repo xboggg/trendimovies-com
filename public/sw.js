@@ -1,6 +1,6 @@
-const CACHE_NAME = 'trendimovies-v1';
-const STATIC_CACHE = 'trendimovies-static-v1';
-const DYNAMIC_CACHE = 'trendimovies-dynamic-v1';
+const CACHE_NAME = 'trendimovies-v3';
+const STATIC_CACHE = 'trendimovies-static-v3';
+const DYNAMIC_CACHE = 'trendimovies-dynamic-v3';
 
 // Assets to cache immediately
 const STATIC_ASSETS = [
@@ -47,6 +47,14 @@ self.addEventListener('fetch', (event) => {
 
   // Skip API requests and admin pages from caching
   if (url.pathname.startsWith('/api/') || url.pathname.startsWith('/admin')) {
+    return;
+  }
+
+  // Build assets (/_astro/*) are content-hashed. Always fetch them fresh from
+  // the network and never serve a stale cached copy — this prevents old CSS/JS
+  // (e.g. an outdated header style) from sticking around after a deploy.
+  if (url.origin === self.location.origin && url.pathname.startsWith('/_astro/')) {
+    event.respondWith(fetch(request));
     return;
   }
 

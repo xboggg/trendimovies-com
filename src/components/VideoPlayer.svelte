@@ -16,8 +16,44 @@
   let hasError = false;
   let iframeRef: HTMLIFrameElement;
 
+  // Record a "Jump Back In" entry — fires when the player actually mounts on a
+  // watch page (genuine intent to watch), NOT on every page visit. Captures the
+  // current episode for series so the homepage can say "Resume S2 E5".
+  function recordJumpBackIn() {
+    try {
+      const KEY = 'tm_continue_watching';
+      const og = (sel: string) => document.querySelector(sel)?.getAttribute('content') || '';
+      const title = og('meta[property="og:title"]') || document.title;
+      const image = og('meta[property="og:image"]');
+      const posterMatch = image.match(/\/t\/p\/\w+(\/[^"]+)$/);
+      const poster_path = posterMatch ? posterMatch[1] : null;
+      const isSeries = type === 'tv';
+      const entry: any = {
+        id: tmdbId,
+        title,
+        poster_path,
+        backdrop_path: poster_path,
+        type: isSeries ? 'series' : 'movie',
+        href: window.location.pathname,
+        visited_at: Date.now(),
+      };
+      if (isSeries) {
+        entry.season = season;
+        entry.episode = episode;
+        entry.episode_info = `S${season} E${episode}`;
+      }
+      let items = JSON.parse(localStorage.getItem(KEY) || '[]');
+      items = items.filter((i: any) => i.id !== tmdbId);
+      items.unshift(entry);
+      if (items.length > 12) items = items.slice(0, 12);
+      localStorage.setItem(KEY, JSON.stringify(items));
+    } catch (e) {}
+  }
+
   // Load saved server preference
   onMount(() => {
+    recordJumpBackIn();
+
     const savedServer = localStorage.getItem('preferredServer');
     if (savedServer && savedServer in STREAMING_SERVERS) {
       activeServer = savedServer as ServerKey;
