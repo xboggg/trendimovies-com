@@ -103,7 +103,41 @@
     return { phase: 'live' as const, dayOfFestival, daysUntil: 0, totalDays: 12 };
   }
 
-    function getDaysUntilRelease(dateStr: string | undefined): number | null {
+    // Awards Calendar — major 2026 film/TV festivals & award shows (verified dates).
+  // Sorted so UPCOMING events lead (soonest first), past events trail.
+  const _awardsRaw = [
+    { emoji: "🎿", name: "Sundance 2026",      startDate: "2026-01-22" },
+    { emoji: "⭐", name: "Critics' Choice",     startDate: "2026-01-04" },
+    { emoji: "🏅", name: "Golden Globes 2026",  startDate: "2026-01-11" },
+    { emoji: "🐻", name: "Berlinale 2026",      startDate: "2026-02-12" },
+    { emoji: "🎭", name: "BAFTA Film Awards",   startDate: "2026-02-22" },
+    { emoji: "🏆", name: "Oscars 2026",         startDate: "2026-03-15" },
+    { emoji: "🎸", name: "SXSW 2026",           startDate: "2026-03-12" },
+    { emoji: "🌴", name: "Cannes 2026",         startDate: "2026-05-12" },
+    { emoji: "🦁", name: "Venice 2026",         startDate: "2026-09-02" },
+    { emoji: "🍁", name: "TIFF 2026",           startDate: "2026-09-10" },
+    { emoji: "📺", name: "Primetime Emmys",     startDate: "2026-09-14" },
+  ];
+  $: awardsEvents = _awardsRaw
+    .map((e) => {
+      const d = new Date(e.startDate);
+      return {
+        ...e,
+        days: getDaysUntilRelease(e.startDate),
+        dateLabel: d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+        _t: d.getTime(),
+      };
+    })
+    // upcoming first (ascending by date), then past events (most recent first)
+    .sort((a, b) => {
+      const au = (a.days ?? 0) > 0, bu = (b.days ?? 0) > 0;
+      if (au && bu) return a._t - b._t;   // both upcoming: soonest first
+      if (au) return -1;                   // a upcoming beats past
+      if (bu) return 1;
+      return b._t - a._t;                  // both past: most recent first
+    });
+
+  function getDaysUntilRelease(dateStr: string | undefined): number | null {
     if (!dateStr) return null;
     const releaseDate = new Date(dateStr);
     const today = new Date();
@@ -765,21 +799,18 @@
           <span class="text-xs font-medium group-hover:text-yellow-300 transition-colors" style="color: var(--text-muted);">View All →</span>
         </div>
 
-        <div class="space-y-3">
-          {#each [
-            { emoji: "🌴", name: "Cannes 2026", date: "May 13", startDate: "2026-05-13", color: "#B50C1B" },
-            { emoji: "🎬", name: "MTV Awards", date: "Jun 7", startDate: "2026-06-07", color: "#FF0033" },
-            { emoji: "🦁", name: "Venice 2026", date: "Aug 26", startDate: "2026-08-26", color: "#8B0000" },
-            { emoji: "🏆", name: "Oscars 2026", date: "Mar 15", startDate: "2026-03-15", color: "#D4AF37" },
-          ].map(e => ({ ...e, days: getDaysUntilRelease(e.startDate) })) as event}
+        <div class="space-y-2.5">
+          {#each awardsEvents as event}
             <div class="flex items-center gap-3 p-2.5 rounded-xl transition-colors hover:bg-[var(--bg-hover)]">
               <span class="text-xl w-8 text-center flex-shrink-0">{event.emoji}</span>
               <div class="flex-1 min-w-0">
                 <p class="font-semibold text-sm truncate" style="color: var(--text-primary);">{event.name}</p>
-                <p class="text-xs" style="color: var(--text-muted);">{event.date}, 2026</p>
+                <p class="text-xs" style="color: var(--text-muted);">{event.dateLabel}</p>
               </div>
               {#if !event.days || event.days <= 0}
                 <span class="px-2 py-0.5 rounded text-[10px] font-bold" style="background: rgba(107,114,128,0.2); color: #9ca3af;">Past</span>
+              {:else if event.days <= 30}
+                <span class="px-2 py-1 rounded-lg text-xs font-bold" style="background: rgba(245,158,11,0.12); color: #fbbf24; border: 1px solid rgba(245,158,11,0.25);">{event.days}d</span>
               {:else}
                 <span class="px-2 py-1 rounded-lg text-xs font-bold" style="background: rgba(34,197,94,0.1); color: #4ade80; border: 1px solid rgba(34,197,94,0.2);">{event.days}d</span>
               {/if}
