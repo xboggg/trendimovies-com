@@ -195,6 +195,7 @@ export const filmEvents: FilmEvent[] = [
     categories: ['Grand Jury Prize Drama', 'Grand Jury Prize Documentary', 'Audience Award Drama', 'Audience Award Documentary'],
     highlights: ['2026 Edition', 'Jan 22 - Feb 1, 2026', 'Park City, Utah'],
     topAward: 'Grand Jury Prize',
+    winner: 'Josephine (Beth de Araújo)',
     edition: '2026',
   },
   {
@@ -216,6 +217,7 @@ export const filmEvents: FilmEvent[] = [
     categories: ['Best Film', 'Best Director', 'Best Actor', 'Best Actress', 'Outstanding British Film'],
     highlights: ['79th Edition', 'February 22, 2026', 'Royal Festival Hall, London'],
     topAward: 'Best Film',
+    winner: 'One Battle After Another',
     edition: '79th',
   },
   {
@@ -237,6 +239,7 @@ export const filmEvents: FilmEvent[] = [
     categories: ["Palme d'Or", 'Grand Prix', 'Jury Prize', 'Best Director', 'Best Actress', 'Best Actor'],
     highlights: ['78th Edition', 'May 13-24, 2025', 'Cannes, France'],
     topAward: "Palme d'Or",
+    winner: 'It Was Just an Accident (Jafar Panahi)',
     edition: '78th',
   },
   {
