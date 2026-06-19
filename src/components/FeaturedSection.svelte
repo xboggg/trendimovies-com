@@ -117,28 +117,29 @@
   // year is computed from the current date, so the calendar advances every year
   // with no manual edits. `prize` labels the top award; `winners` maps a year to
   // that year's winning film, shown inline once the event has passed.
+  // `slugBase` maps each row to its dedicated page at /event/<slugBase>-<year>.
   const _awardsRaw = [
-    { emoji: "⭐", label: "Critics' Choice", month: 1,  day: 4,  prize: "Best Picture",
+    { emoji: "⭐", label: "Critics' Choice", slugBase: "critics-choice", month: 1,  day: 4,  prize: "Best Picture",
       winners: { 2026: "One Battle After Another" } },
-    { emoji: "🏅", label: "Golden Globes",   month: 1,  day: 11, prize: "Best Drama",
+    { emoji: "🏅", label: "Golden Globes",   slugBase: "golden-globes", month: 1,  day: 11, prize: "Best Drama",
       winners: { 2026: "Hamnet" } },
-    { emoji: "🎿", label: "Sundance",        month: 1,  day: 22, prize: "Grand Jury",
+    { emoji: "🎿", label: "Sundance",        slugBase: "sundance", month: 1,  day: 22, prize: "Grand Jury",
       winners: { 2026: "Josephine" }, hideOnCard: true },
-    { emoji: "🐻", label: "Berlinale",       month: 2,  day: 12, prize: "Golden Bear",
+    { emoji: "🐻", label: "Berlinale",       slugBase: "berlinale", month: 2,  day: 12, prize: "Golden Bear",
       winners: { 2026: "Yellow Letters" }, hideOnCard: true },
-    { emoji: "🎭", label: "BAFTA Film",      month: 2,  day: 22, prize: "Best Film",
+    { emoji: "🎭", label: "BAFTA Film",      slugBase: "bafta", month: 2,  day: 22, prize: "Best Film",
       winners: { 2026: "One Battle After Another" } },
-    { emoji: "🎸", label: "SXSW",            month: 3,  day: 12, prize: "Narrative",
+    { emoji: "🎸", label: "SXSW",            slugBase: "sxsw", month: 3,  day: 12, prize: "Narrative",
       winners: { 2026: "Wishful Thinking" }, hideOnCard: true },
-    { emoji: "🏆", label: "Oscars",          month: 3,  day: 15, prize: "Best Picture",
+    { emoji: "🏆", label: "Oscars",          slugBase: "oscars", month: 3,  day: 15, prize: "Best Picture",
       winners: { 2026: "One Battle After Another" } },
-    { emoji: "🌴", label: "Cannes",          month: 5,  day: 12, prize: "Palme d'Or",
+    { emoji: "🌴", label: "Cannes",          slugBase: "cannes", month: 5,  day: 12, prize: "Palme d'Or",
       winners: { 2026: "Fjord" } },
-    { emoji: "🦁", label: "Venice",          month: 9,  day: 2,  prize: "Golden Lion",
+    { emoji: "🦁", label: "Venice",          slugBase: "venice", month: 9,  day: 2,  prize: "Golden Lion",
       winners: {} },
-    { emoji: "🍁", label: "TIFF",            month: 9,  day: 10, prize: "People's Choice",
+    { emoji: "🍁", label: "TIFF",            slugBase: "tiff", month: 9,  day: 10, prize: "People's Choice",
       winners: {} },
-    { emoji: "📺", label: "Primetime Emmys", month: 9,  day: 14, prize: "Best Drama Series",
+    { emoji: "📺", label: "Primetime Emmys", slugBase: "emmys", month: 9,  day: 14, prize: "Best Drama Series",
       winners: {} },
   ];
 
@@ -158,6 +159,7 @@
           days,
           past,
           winner,
+          href: `/event/${e.slugBase}-${yr}`,
           _t: d.getTime(),
         };
       })
@@ -848,8 +850,7 @@
     </div>
 
     <!-- Events Calendar Summary -->
-    <a href="/events" class="group block rounded-2xl overflow-hidden relative transition-all duration-300 hover:-translate-y-1 hover:shadow-xl"
-       style="background-color: var(--bg-card); border: 1px solid var(--border);">
+    <div class="rounded-2xl overflow-hidden relative" style="background-color: var(--bg-card); border: 1px solid var(--border);">
       <!-- Top bar -->
       <div class="absolute top-0 left-0 right-0 h-1" style="background: linear-gradient(90deg, #6366f1, #8b5cf6, #ec4899);"></div>
 
@@ -859,15 +860,15 @@
             <span class="text-2xl">📅</span>
             <h2 class="font-black text-lg" style="color: var(--text-primary);">Awards Calendar</h2>
           </div>
-          <span class="text-xs font-medium group-hover:text-yellow-300 transition-colors" style="color: var(--text-muted);">View All →</span>
+          <a href="/events" class="text-xs font-medium hover:text-yellow-300 transition-colors" style="color: var(--text-muted);">View All →</a>
         </div>
 
         <div class="space-y-2.5">
           {#each cardEvents as event}
-            <div class="flex items-center gap-3 p-2.5 rounded-xl transition-colors hover:bg-[var(--bg-hover)]">
+            <a href={event.href} class="flex items-center gap-3 p-2.5 rounded-xl transition-colors hover:bg-[var(--bg-hover)] group/row">
               <span class="text-xl w-8 text-center flex-shrink-0">{event.emoji}</span>
               <div class="flex-1 min-w-0">
-                <p class="font-semibold text-sm truncate" style="color: var(--text-primary);">{event.name}</p>
+                <p class="font-semibold text-sm truncate group-hover/row:text-yellow-300 transition-colors" style="color: var(--text-primary);">{event.name}</p>
                 {#if event.winner}
                   <p class="text-xs truncate flex items-center gap-1" style="color: #fbbf24;">
                     <Trophy size={11} class="flex-shrink-0" />
@@ -886,11 +887,11 @@
               {:else if !event.winner}
                 <span class="px-2 py-0.5 rounded text-[10px] font-bold flex-shrink-0" style="background: rgba(107,114,128,0.2); color: #9ca3af;">Past</span>
               {/if}
-            </div>
+            </a>
           {/each}
         </div>
       </div>
-    </a>
+    </div>
 
   </div>
   {/if}
