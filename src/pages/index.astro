@@ -22,7 +22,7 @@ async function getLatestAdditions() {
   const minYear = currentYear - 1;
   try {
     const res = await fetch(
-      `${POSTGREST_URL}/movies?has_downloads=eq.true&year=gte.${minYear}&order=updated_at.desc&limit=20&select=tmdb_id,title,year,poster_path,backdrop_path,vote_average,vote_count,popularity,overview`
+      `${POSTGREST_URL}/movies?has_downloads=eq.true&year=gte.${minYear}&order=updated_at.desc&limit=30&select=tmdb_id,title,year,poster_path,backdrop_path,vote_average,vote_count,popularity,overview,updated_at`
     );
     if (!res.ok) return [];
     return await res.json();
@@ -159,6 +159,7 @@ function transformDbMovie(m: any) {
     popularity: m.popularity || 0,
     year: m.year,
     overview: m.overview,
+    updated_at: m.updated_at,
     type: 'movie' as const,
     has_downloads: true
   };
@@ -197,6 +198,17 @@ const topRatedItems = (topRatedRecent?.results || []).slice(0, 20).map(transform
 
 // Transform latest additions from database
 const latestAdditionItems = (latestAdditions || []).map(transformDbMovie);
+
+// The "Just Dropped" reel inside FeaturedSection spotlights the first 8 items
+// that have artwork. Build the IDs it will use so the "Latest Additions" row
+// below can SKIP them — no movie appears in both sections.
+const reelSpotlightIds = new Set(
+  latestAdditionItems
+    .filter((m: any) => m.poster_path || m.backdrop_path)
+    .slice(0, 8)
+    .map((m: any) => m.id)
+);
+const latestAdditionsRowItems = latestAdditionItems.filter((m: any) => !reelSpotlightIds.has(m.id));
 
 // Transform upcoming movies with full release date
 const upcomingItems = (upcoming || []).map((m: any) => {
@@ -420,25 +432,38 @@ const boxOfficeWithPosters = await Promise.all(boxOfficeData.map(async (entry) =
     />
   )}
 
-  <!-- Featured Section: Oscar + Tabs -->
-  <FeaturedSection
-    client:load
-    oscarMovies={oscarMovies}
-    topMovies={topMovies}
-    boxOffice={boxOfficeWithPosters}
-    comingSoon={upcoming.slice(0, 10).map(transformMovie)}
-  />
+  <!-- Featured Section + Latest Additions:
+       Desktop (lg+) order: Featured then Latest Additions.
+       Mobile + tablet order: Latest Additions FIRST (directly below Trending
+       This Week), then Featured. Done via flex `order` so desktop is unchanged. -->
+  <div class="flex flex-col">
+    <!-- Featured Section: Oscar + Tabs -->
+    <div class="order-2 xl:order-1">
+      <FeaturedSection
+        client:load
+        oscarMovies={oscarMovies}
+        topMovies={topMovies}
+        boxOffice={boxOfficeWithPosters}
+        comingSoon={upcoming.slice(0, 10).map(transformMovie)}
+        latestAdditions={latestAdditionItems}
+      />
+    </div>
 
-  <!-- Latest Additions (from our database - movies with downloads) -->
-  {latestAdditionItems.length > 0 && (
-    <ContentRow
-      client:load
-      title="Latest Additions"
-      items={latestAdditionItems}
-      seeAllLink="/movies/latest"
-      autoScroll={false}
-    />
-  )}
+    <!-- Latest Additions (from our database - movies with downloads).
+         Excludes the titles already spotlighted in the "Just Dropped" reel
+         above so nothing appears twice. -->
+    {latestAdditionsRowItems.length > 0 && (
+      <div class="order-1 xl:order-2">
+        <ContentRow
+          client:load
+          title="More Just Added"
+          items={latestAdditionsRowItems}
+          seeAllLink="/movies/latest"
+          autoScroll={false}
+        />
+      </div>
+    )}
+  </div>
 
   <!-- Now Playing -->
   {nowPlayingItems.length > 0 && (
