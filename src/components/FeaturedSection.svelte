@@ -48,6 +48,15 @@
   let reelPaused = false;
   const REEL_MS = 4500;
 
+  // "Awards Season" collapsible bar — the Oscars + Awards Calendar cards are
+  // hidden behind a slim bar so the homepage stays quiet. Collapsed by default;
+  // remembers the visitor's choice via localStorage.
+  let awardsOpen = false;
+  function toggleAwards() {
+    awardsOpen = !awardsOpen;
+    try { localStorage.setItem('tm_awards_open', awardsOpen ? '1' : '0'); } catch {}
+  }
+
   $: currentReel = reelMovies[reelIndex] || null;
 
   // True if the title was added within the last 48h → shows a "NEW" pulse.
@@ -257,6 +266,9 @@
   // Auto-rotate coming soon carousel
   let comingSoonInterval: ReturnType<typeof setInterval>;
   onMount(() => {
+    // Restore the visitor's Awards Season expand/collapse choice.
+    try { awardsOpen = localStorage.getItem('tm_awards_open') === '1'; } catch {}
+
     comingSoonInterval = setInterval(() => {
       if (activeTab === 'comingsoon' && comingSoon.length > 1) {
         nextComingSoon();
@@ -727,9 +739,31 @@
   </div>
 </section>
 
-<!-- ── CANNES 2026 WIDGET ─────────────────────────────────────────────────── -->
+<!-- ── AWARDS SEASON (collapsible) ─────────────────────────────────────────── -->
 <section class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-  <div class="grid xl:grid-cols-2 gap-6">
+  <!-- Slim toggle bar: quiet by default, expands the Oscars + Awards cards -->
+  <button
+    type="button"
+    on:click={toggleAwards}
+    class="awards-bar w-full flex items-center justify-between gap-3 rounded-2xl px-5 py-4 transition-all"
+    class:open={awardsOpen}
+    aria-expanded={awardsOpen}
+  >
+    <span class="flex items-center gap-3 min-w-0">
+      <span class="text-2xl flex-shrink-0">🏆</span>
+      <span class="text-left min-w-0">
+        <span class="block font-black text-base sm:text-lg leading-tight" style="color: var(--text-primary);">Awards Season</span>
+        <span class="block text-xs truncate" style="color: var(--text-muted);">Oscars, Cannes, Venice &amp; more — winners and the full calendar</span>
+      </span>
+    </span>
+    <span class="awards-chevron flex-shrink-0 text-sm font-bold flex items-center gap-1.5" style="color: var(--text-secondary);">
+      <span class="hidden sm:inline">{awardsOpen ? 'Hide' : 'Show'}</span>
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style={`transform: rotate(${awardsOpen ? 180 : 0}deg); transition: transform 0.3s;`}><path d="M6 9l6 6 6-6"/></svg>
+    </span>
+  </button>
+
+  {#if awardsOpen}
+  <div class="grid xl:grid-cols-2 gap-6 mt-4 awards-reveal">
 
     <!-- Left Column: Oscar Nominations (moved here from top grid on 2026-06-19) -->
     <div class="rounded-2xl relative overflow-hidden" style="background-color: var(--bg-card); border: 1px solid var(--border);">
@@ -859,10 +893,36 @@
     </a>
 
   </div>
+  {/if}
 </section>
 
 
 <style>
+  .awards-bar {
+    background-color: var(--bg-card);
+    border: 1px solid var(--border);
+    cursor: pointer;
+  }
+  .awards-bar:hover {
+    border-color: rgba(247, 208, 0, 0.4);
+    background-color: var(--bg-hover);
+  }
+  .awards-bar.open {
+    border-color: rgba(247, 208, 0, 0.35);
+    border-bottom-left-radius: 0;
+    border-bottom-right-radius: 0;
+  }
+  .awards-reveal {
+    animation: awards-slide 0.35s ease-out;
+  }
+  @keyframes awards-slide {
+    from { opacity: 0; transform: translateY(-8px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .awards-reveal { animation: none; }
+  }
+
   .hide-scrollbar {
     -ms-overflow-style: none;
     scrollbar-width: none;

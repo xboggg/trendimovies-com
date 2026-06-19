@@ -1,0 +1,180 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import { filmEvents, getDaysUntil, type FilmEvent } from '../../lib/events';
+
+// Slugs that already have their own bespoke, hand-crafted pages — redirect
+// those to the richer dedicated pages instead of rendering the generic template.
+const BESPOKE: Record<string, string> = {
+  'cannes-2026': '/cannes-2026',
+  'oscars-2026': '/oscars-2026',
+};
+
+const { slug } = Astro.params;
+
+if (slug && BESPOKE[slug]) {
+  return Astro.redirect(BESPOKE[slug]);
+}
+
+const event = filmEvents.find((e) => e.slug === slug) as FilmEvent | undefined;
+
+if (!event) {
+  return Astro.redirect('/events');
+}
+
+const days = getDaysUntil(event.startDate);
+const isUpcoming = event.status === 'upcoming' || days > 0;
+const isLive = event.status === 'live';
+
+function fmt(dateStr: string): string {
+  return new Date(dateStr).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+}
+function dateRange(): string {
+  if (!event.endDate || event.endDate === event.startDate) return fmt(event.startDate);
+  const s = new Date(event.startDate), e = new Date(event.endDate);
+  const sameMonth = s.getMonth() === e.getMonth() && s.getFullYear() === e.getFullYear();
+  const opt: Intl.DateTimeFormatOptions = { month: 'short', day: 'numeric' };
+  if (sameMonth) {
+    return `${s.toLocaleDateString('en-US', opt)} – ${e.getDate()}, ${e.getFullYear()}`;
+  }
+  return `${s.toLocaleDateString('en-US', opt)} – ${e.toLocaleDateString('en-US', { ...opt, year: 'numeric' })}`;
+}
+
+const accent = event.accentColor === '#FFFFFF' ? '#F7D000' : event.accentColor;
+---
+
+<BaseLayout
+  title={`${event.name} — Winners, Dates & Awards | TrendiMovies`}
+  description={event.description}
+>
+  <!-- HERO -->
+  <section class="relative overflow-hidden flex items-end" style="min-height: 52vh;">
+    <!-- color gradient backdrop -->
+    <div class="absolute inset-0" style={`background: linear-gradient(135deg, #0a0a0a 0%, ${event.color}33 45%, #0a0a0a 100%);`}></div>
+    <div class="absolute inset-0 opacity-20 pointer-events-none" style={`background: radial-gradient(ellipse at 20% 40%, ${event.color}, transparent 60%), radial-gradient(ellipse at 85% 30%, ${accent}, transparent 55%);`}></div>
+    <div class="absolute inset-0" style="background: linear-gradient(to top, #000 0%, rgba(0,0,0,0.7) 45%, transparent 100%);"></div>
+    <!-- top accent line -->
+    <div class="absolute top-0 left-0 right-0 h-1" style={`background: linear-gradient(90deg, transparent, ${event.color} 30%, ${accent} 70%, transparent);`}></div>
+
+    <div class="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-14 w-full">
+      <a href="/events" class="inline-flex items-center gap-1.5 text-sm font-medium mb-5 transition-colors" style="color: var(--text-muted);">
+        ← All Events
+      </a>
+
+      <div class="flex items-start gap-4 sm:gap-5">
+        <span class="text-5xl sm:text-7xl drop-shadow-lg flex-shrink-0">{event.emoji}</span>
+        <div class="min-w-0">
+          <div class="flex items-center gap-2 flex-wrap mb-2">
+            {event.edition && (
+              <span class="text-xs font-bold px-2.5 py-1 rounded-full" style={`background: ${event.color}30; color: ${accent}; border: 1px solid ${event.color}55;`}>{event.edition} Edition</span>
+            )}
+            {isLive ? (
+              <span class="text-xs font-bold px-2.5 py-1 rounded-full animate-pulse" style="background: rgba(239,68,68,0.2); color:#f87171; border:1px solid rgba(239,68,68,0.4);">● LIVE NOW</span>
+            ) : isUpcoming ? (
+              <span class="text-xs font-bold px-2.5 py-1 rounded-full" style="background: rgba(34,197,94,0.12); color:#4ade80; border:1px solid rgba(34,197,94,0.3);">{days} days to go</span>
+            ) : (
+              <span class="text-xs font-bold px-2.5 py-1 rounded-full" style="background: rgba(107,114,128,0.2); color:#9ca3af;">Past</span>
+            )}
+          </div>
+          <h1 class="text-3xl sm:text-5xl md:text-6xl font-black text-white leading-none tracking-tight">{event.shortName}</h1>
+          <p class="mt-3 text-sm sm:text-base max-w-2xl" style="color: var(--text-secondary);">{event.description}</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- WINNER BANNER (past) or COUNTDOWN (upcoming) -->
+  {event.winner ? (
+    <section style={`background: linear-gradient(135deg, ${event.color}, ${event.color}cc);`}>
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-5 sm:py-6 flex items-center gap-4">
+        <span class="text-3xl sm:text-4xl flex-shrink-0">🏆</span>
+        <div class="min-w-0">
+          <p class="text-[11px] sm:text-xs uppercase tracking-widest font-bold" style="color: rgba(255,255,255,0.75);">{event.topAward ?? 'Top Award'}</p>
+          <p class="text-lg sm:text-2xl font-black text-white truncate">{event.winner}</p>
+        </div>
+      </div>
+    </section>
+  ) : isUpcoming ? (
+    <section style={`background: linear-gradient(135deg, ${event.color}22, transparent);`} class="border-y" >
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-5 flex items-center gap-4">
+        <span class="text-3xl flex-shrink-0">⏳</span>
+        <div>
+          <p class="text-xs uppercase tracking-widest font-bold" style={`color: ${accent};`}>Coming up</p>
+          <p class="text-lg sm:text-xl font-black text-white">{days} days until the {event.topAward ?? 'ceremony'}</p>
+        </div>
+      </div>
+    </section>
+  ) : null}
+
+  <!-- DETAILS GRID -->
+  <section class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-14">
+    <div class="grid lg:grid-cols-3 gap-6">
+
+      <!-- Left: facts -->
+      <div class="space-y-4">
+        <div class="rounded-2xl p-5" style="background-color: var(--bg-card); border: 1px solid var(--border);">
+          <h2 class="text-sm font-bold uppercase tracking-wider mb-4" style={`color: ${accent};`}>Festival Details</h2>
+          <dl class="space-y-3 text-sm">
+            <div class="flex items-start gap-3">
+              <span class="text-lg flex-shrink-0">📅</span>
+              <div><dt class="text-xs" style="color: var(--text-muted);">Dates</dt><dd class="font-semibold" style="color: var(--text-primary);">{dateRange()}</dd></div>
+            </div>
+            <div class="flex items-start gap-3">
+              <span class="text-lg flex-shrink-0">📍</span>
+              <div><dt class="text-xs" style="color: var(--text-muted);">Location</dt><dd class="font-semibold" style="color: var(--text-primary);">{event.location}</dd></div>
+            </div>
+            <div class="flex items-start gap-3">
+              <span class="text-lg flex-shrink-0">🏛️</span>
+              <div><dt class="text-xs" style="color: var(--text-muted);">Venue</dt><dd class="font-semibold" style="color: var(--text-primary);">{event.venue}</dd></div>
+            </div>
+            <div class="flex items-start gap-3">
+              <span class="text-lg flex-shrink-0">🏆</span>
+              <div><dt class="text-xs" style="color: var(--text-muted);">Top Prize</dt><dd class="font-semibold" style="color: var(--text-primary);">{event.topAward ?? '—'}</dd></div>
+            </div>
+          </dl>
+        </div>
+      </div>
+
+      <!-- Right: categories + highlights -->
+      <div class="lg:col-span-2 space-y-6">
+        {event.categories && event.categories.length > 0 && (
+          <div class="rounded-2xl p-5 sm:p-6" style="background-color: var(--bg-card); border: 1px solid var(--border);">
+            <h2 class="text-lg font-black mb-4" style="color: var(--text-primary);">Award Categories</h2>
+            <div class="flex flex-wrap gap-2">
+              {event.categories.map((cat) => (
+                <span class="px-3 py-1.5 rounded-lg text-xs sm:text-sm font-medium" style={`background: ${event.color}15; color: var(--text-secondary); border: 1px solid ${event.color}30;`}>{cat}</span>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {event.highlights && event.highlights.length > 0 && (
+          <div class="rounded-2xl p-5 sm:p-6" style="background-color: var(--bg-card); border: 1px solid var(--border);">
+            <h2 class="text-lg font-black mb-4" style="color: var(--text-primary);">Highlights</h2>
+            <ul class="space-y-2.5">
+              {event.highlights.map((h) => (
+                <li class="flex items-center gap-2.5 text-sm" style="color: var(--text-secondary);">
+                  <span style={`color: ${accent};`}>▸</span>{h}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+      </div>
+    </div>
+  </section>
+
+  <!-- CTA -->
+  <section class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-16">
+    <div class="rounded-2xl p-8 text-center relative overflow-hidden" style="background-color: var(--bg-card); border: 1px solid var(--border);">
+      <div class="absolute inset-0 opacity-25 pointer-events-none" style={`background: radial-gradient(ellipse at 30% 50%, ${event.color}, transparent 60%);`}></div>
+      <div class="relative">
+        <h2 class="text-xl sm:text-2xl font-black text-white mb-2">Explore more from {event.shortName}</h2>
+        <p class="text-sm mb-5" style="color: var(--text-secondary);">Browse award-winning films and the full festival calendar on TrendiMovies.</p>
+        <div class="flex flex-wrap items-center justify-center gap-3">
+          <a href="/movies" class="px-6 py-3 rounded-xl font-bold text-black transition-all hover:scale-105" style={`background: linear-gradient(135deg, ${accent}, ${event.color});`}>Browse Movies →</a>
+          <a href="/events" class="px-6 py-3 rounded-xl font-bold text-white transition-all hover:scale-105" style="background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.15);">All Events →</a>
+        </div>
+      </div>
+    </div>
+  </section>
+</BaseLayout>
