@@ -251,85 +251,126 @@
 
 <section class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
   <div class="grid xl:grid-cols-2 gap-6">
-    <!-- Left Column: Oscar Nominations -->
-    <div class="rounded-2xl relative overflow-hidden" style="background-color: var(--bg-card); border: 1px solid var(--border);">
-      <div class="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-amber-400 via-yellow-500 to-amber-400 z-10"></div>
+    <!-- ── JUST DROPPED — cinematic auto-reel (moved here to top grid 2026-06-19) ─ -->
+    <div class="reel-card rounded-2xl overflow-hidden relative"
+         style="background: linear-gradient(135deg, #0a0a0a 0%, #1a0f00 50%, #0a0a0a 100%); border: 1px solid rgba(247,208,0,0.25);"
+         on:mouseenter={() => reelPaused = true}
+         on:mouseleave={() => reelPaused = false}
+         role="region"
+         aria-label="Just dropped on TrendiMovies">
+      <!-- Top accent bar -->
+      <div class="absolute top-0 left-0 right-0 h-1 z-20" style="background: linear-gradient(90deg, #F7D000, #dc2626, #F7D000);"></div>
+      <!-- Ambient glow -->
+      <div class="absolute inset-0 opacity-20 pointer-events-none" style="background: radial-gradient(ellipse at 70% 0%, #F7D000, transparent 60%);"></div>
 
-      {#if featuredOscar}
-        <a href={`/movie/${featuredOscar.id}`} class="block relative h-[400px] overflow-hidden group">
-          <img
-            src="/images/oscars-2026.jpg"
-            alt="98th Academy Awards"
-            class="w-full h-full object-contain transition-transform group-hover:scale-105"
-            style="background: linear-gradient(135deg, #1a1a1a 0%, #0d0d0d 100%);"
-            loading="lazy"
-          />
-          <div class="absolute inset-0 bg-gradient-to-t from-black via-black/50 to-transparent"></div>
-          <div class="absolute bottom-4 left-4 right-4">
-            <div class="flex items-center gap-2 mb-2">
-              <span class="px-2 py-1 rounded text-xs font-bold bg-amber-500 text-black flex items-center gap-1"><Trophy size={12} /> Best Actor Winner</span>
-              <span class="flex items-center gap-1 text-amber-400 text-sm">
-                <Star size={14} fill="currentColor" />
-                {featuredOscar.vote_average.toFixed(1)}
-              </span>
+      <div class="relative p-5">
+        <!-- Header -->
+        <div class="flex items-start justify-between mb-4">
+          <div class="flex items-center gap-3">
+            <span class="text-4xl reel-sparkle">✨</span>
+            <div>
+              <p class="text-xs uppercase tracking-widest font-semibold mb-0.5" style="color: rgba(247,208,0,0.85);">Fresh on TrendiMovies</p>
+              <h2 class="text-xl font-black text-white">Just Dropped</h2>
             </div>
-            <h3 class="text-2xl font-bold text-white">{featuredOscar.title}</h3>
           </div>
+          {#if newThisWeekCount > 0}
+            <div class="text-right reel-counter">
+              <div class="text-3xl font-black leading-none" style="color: #F7D000;">{newThisWeekCount}</div>
+              <div class="text-[10px] uppercase tracking-wide font-bold" style="color: #F7D000;">New this week</div>
+            </div>
+          {:else}
+            <div class="text-right">
+              <div class="text-base font-black" style="color: #F7D000;">DAILY</div>
+              <div class="text-[10px] uppercase tracking-wide font-bold text-gray-400">Updated</div>
+            </div>
+          {/if}
+        </div>
 
-          <!-- Winners Announced Badge -->
-          <div class="absolute bottom-4 right-4 z-10" on:click|preventDefault|stopPropagation={() => window.location.href = '/oscars-2026'}>
-            <div class="oscar-winners-badge">
-              <Trophy size={16} class="text-amber-400" />
-              <div>
-                <span class="oscar-winners-title">Winners Announced</span>
-                <span class="oscar-winners-subtitle">98th Academy Awards</span>
+        {#if currentReel}
+          <!-- Big rotating spotlight -->
+          <a href={`/movie/${currentReel.id}`} class="block relative rounded-xl overflow-hidden group spotlight" style="aspect-ratio: 16/9;">
+            {#key reelIndex}
+              <img
+                src={getBackdropUrl(currentReel.backdrop_path || currentReel.poster_path)}
+                alt={currentReel.title}
+                class="w-full h-full object-cover spotlight-img"
+                loading="lazy"
+              />
+            {/key}
+            <div class="absolute inset-0 bg-gradient-to-t from-black via-black/45 to-transparent"></div>
+
+            <!-- NEW / JUST ADDED badge -->
+            <div class="absolute top-3 left-3 flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[10px] font-extrabold tracking-wider shadow-lg"
+                 style="background: linear-gradient(135deg, #F7D000, #f59e0b); color:#000;">
+              {#if isFresh(currentReel)}
+                <span class="reel-dot"></span> JUST ADDED
+              {:else}
+                NEW THIS WEEK
+              {/if}
+            </div>
+
+            <!-- Rating -->
+            {#if currentReel.vote_average}
+              <div class="absolute top-3 right-3 px-2 py-1 rounded-md text-xs font-bold flex items-center gap-1 bg-black/80 text-amber-400">
+                <Star size={12} fill="currentColor" />
+                <span>{currentReel.vote_average.toFixed(1)}</span>
+              </div>
+            {/if}
+
+            <!-- Title + meta -->
+            <div class="absolute bottom-0 left-0 right-0 p-4">
+              <h3 class="text-lg sm:text-xl font-bold text-white leading-tight line-clamp-1">{currentReel.title}</h3>
+              <div class="flex items-center gap-2 mt-1">
+                {#if currentReel.year}
+                  <span class="text-[11px] font-semibold text-amber-300">{currentReel.year}</span>
+                {/if}
+                <span class="inline-flex items-center gap-1 text-[11px] font-medium text-white/90 group-hover:text-amber-300 transition-colors">
+                  <Play size={11} fill="currentColor" /> Watch now
+                </span>
               </div>
             </div>
-          </div>
-        </a>
-      {/if}
 
-      <div class="p-4">
-        <div class="flex items-center justify-between mb-3">
-          <div class="flex items-center gap-2">
-            <Trophy size={18} class="text-amber-400" />
-            <h2 class="text-sm font-bold" style="color: var(--text-primary);">2026 Oscar Winners</h2>
-          </div>
-          <a href="/oscars-2026" class="text-xs font-medium text-amber-400 hover:text-amber-300 transition-colors">
-            View All →
+            <!-- Auto-advance progress bar -->
+            {#if reelMovies.length > 1}
+              {#key reelIndex}
+                <div class="absolute bottom-0 left-0 right-0 h-[3px] bg-white/10 z-10">
+                  <div class="reel-progress h-full" class:paused={reelPaused} style="background: linear-gradient(90deg, #F7D000, #f59e0b);"></div>
+                </div>
+              {/key}
+            {/if}
           </a>
-        </div>
 
-        <div
-          class="relative overflow-x-auto hide-scrollbar"
-          bind:this={scrollContainer}
-          on:mouseenter={pauseAnimation}
-          on:mouseleave={resumeAnimation}
-          on:touchstart={handleTouchStart}
-          on:touchmove={handleTouchMove}
-          on:touchend={handleTouchEnd}
-        >
-          <div class="oscar-scroll-container flex gap-3" class:paused={isPaused}>
-            {#each oscarMovies as movie, i}
-              <a href={`/movie/${movie.id}`} class="flex-shrink-0 w-24 group">
-                <div class="relative aspect-[2/3] rounded-lg overflow-hidden mb-1">
-                  <img src={getPosterUrl(movie.poster_path)} alt={movie.title} class="w-full h-full object-cover transition-transform group-hover:scale-110" loading="lazy" />
-                  <div class="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
-                </div>
-                <p class="text-[10px] font-medium line-clamp-1 text-center" style="color: var(--text-primary);">{movie.title}</p>
-              </a>
-            {/each}
-            {#each oscarMovies as movie, i}
-              <a href={`/movie/${movie.id}`} class="flex-shrink-0 w-24 group">
-                <div class="relative aspect-[2/3] rounded-lg overflow-hidden mb-1">
-                  <img src={getPosterUrl(movie.poster_path)} alt={movie.title} class="w-full h-full object-cover transition-transform group-hover:scale-110" loading="lazy" />
-                  <div class="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
-                </div>
-                <p class="text-[10px] font-medium line-clamp-1 text-center" style="color: var(--text-primary);">{movie.title}</p>
-              </a>
-            {/each}
+          <!-- Clickable filmstrip of what's in rotation -->
+          {#if reelMovies.length > 1}
+            <div class="flex gap-2 mt-3">
+              {#each reelMovies as m, i}
+                <button
+                  on:click={() => goToReel(i)}
+                  class="relative flex-1 rounded-md overflow-hidden aspect-[2/3] film-thumb"
+                  class:active={i === reelIndex}
+                  title={m.title}
+                  aria-label={`Show ${m.title}`}
+                >
+                  <img src={getPosterUrl(m.poster_path || m.backdrop_path)} alt={m.title} loading="lazy" class="w-full h-full object-cover" />
+                  {#if i !== reelIndex}<div class="absolute inset-0 bg-black/45"></div>{/if}
+                </button>
+              {/each}
+            </div>
+          {/if}
+        {:else}
+          <div class="flex items-center gap-2 mb-4 px-3 py-3 rounded-lg" style="background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.08);">
+            <span class="text-sm">🎬</span>
+            <span class="text-sm text-gray-300">New movies & series added daily — with download links.</span>
           </div>
-        </div>
+        {/if}
+
+        <!-- CTA -->
+        <a href="/movies/latest" class="cta-row flex items-center justify-between mt-4 group">
+          <p class="text-xs text-gray-500">Latest releases with download links</p>
+          <span class="px-4 py-2 rounded-lg text-sm font-bold text-black transition-all group-hover:scale-105 group-hover:shadow-lg" style="background: linear-gradient(135deg, #F7D000, #f59e0b);">
+            Browse New →
+          </span>
+        </a>
       </div>
     </div>
 
@@ -627,126 +668,85 @@
 <section class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
   <div class="grid xl:grid-cols-2 gap-6">
 
-    <!-- ── JUST DROPPED — cinematic auto-reel ─────────────────────────────── -->
-    <div class="reel-card rounded-2xl overflow-hidden relative"
-         style="background: linear-gradient(135deg, #0a0a0a 0%, #1a0f00 50%, #0a0a0a 100%); border: 1px solid rgba(247,208,0,0.25);"
-         on:mouseenter={() => reelPaused = true}
-         on:mouseleave={() => reelPaused = false}
-         role="region"
-         aria-label="Just dropped on TrendiMovies">
-      <!-- Top accent bar -->
-      <div class="absolute top-0 left-0 right-0 h-1 z-20" style="background: linear-gradient(90deg, #F7D000, #dc2626, #F7D000);"></div>
-      <!-- Ambient glow -->
-      <div class="absolute inset-0 opacity-20 pointer-events-none" style="background: radial-gradient(ellipse at 70% 0%, #F7D000, transparent 60%);"></div>
+    <!-- Left Column: Oscar Nominations (moved here from top grid on 2026-06-19) -->
+    <div class="rounded-2xl relative overflow-hidden" style="background-color: var(--bg-card); border: 1px solid var(--border);">
+      <div class="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-amber-400 via-yellow-500 to-amber-400 z-10"></div>
 
-      <div class="relative p-5">
-        <!-- Header -->
-        <div class="flex items-start justify-between mb-4">
-          <div class="flex items-center gap-3">
-            <span class="text-4xl reel-sparkle">✨</span>
-            <div>
-              <p class="text-xs uppercase tracking-widest font-semibold mb-0.5" style="color: rgba(247,208,0,0.85);">Fresh on TrendiMovies</p>
-              <h2 class="text-xl font-black text-white">Just Dropped</h2>
+      {#if featuredOscar}
+        <a href={`/movie/${featuredOscar.id}`} class="block relative h-[400px] overflow-hidden group">
+          <img
+            src="/images/oscars-2026.jpg"
+            alt="98th Academy Awards"
+            class="w-full h-full object-contain transition-transform group-hover:scale-105"
+            style="background: linear-gradient(135deg, #1a1a1a 0%, #0d0d0d 100%);"
+            loading="lazy"
+          />
+          <div class="absolute inset-0 bg-gradient-to-t from-black via-black/50 to-transparent"></div>
+          <div class="absolute bottom-4 left-4 right-4">
+            <div class="flex items-center gap-2 mb-2">
+              <span class="px-2 py-1 rounded text-xs font-bold bg-amber-500 text-black flex items-center gap-1"><Trophy size={12} /> Best Actor Winner</span>
+              <span class="flex items-center gap-1 text-amber-400 text-sm">
+                <Star size={14} fill="currentColor" />
+                {featuredOscar.vote_average.toFixed(1)}
+              </span>
+            </div>
+            <h3 class="text-2xl font-bold text-white">{featuredOscar.title}</h3>
+          </div>
+
+          <!-- Winners Announced Badge -->
+          <div class="absolute bottom-4 right-4 z-10" on:click|preventDefault|stopPropagation={() => window.location.href = '/oscars-2026'}>
+            <div class="oscar-winners-badge">
+              <Trophy size={16} class="text-amber-400" />
+              <div>
+                <span class="oscar-winners-title">Winners Announced</span>
+                <span class="oscar-winners-subtitle">98th Academy Awards</span>
+              </div>
             </div>
           </div>
-          {#if newThisWeekCount > 0}
-            <div class="text-right reel-counter">
-              <div class="text-3xl font-black leading-none" style="color: #F7D000;">{newThisWeekCount}</div>
-              <div class="text-[10px] uppercase tracking-wide font-bold" style="color: #F7D000;">New this week</div>
-            </div>
-          {:else}
-            <div class="text-right">
-              <div class="text-base font-black" style="color: #F7D000;">DAILY</div>
-              <div class="text-[10px] uppercase tracking-wide font-bold text-gray-400">Updated</div>
-            </div>
-          {/if}
+        </a>
+      {/if}
+
+      <div class="p-4">
+        <div class="flex items-center justify-between mb-3">
+          <div class="flex items-center gap-2">
+            <Trophy size={18} class="text-amber-400" />
+            <h2 class="text-sm font-bold" style="color: var(--text-primary);">2026 Oscar Winners</h2>
+          </div>
+          <a href="/oscars-2026" class="text-xs font-medium text-amber-400 hover:text-amber-300 transition-colors">
+            View All →
+          </a>
         </div>
 
-        {#if currentReel}
-          <!-- Big rotating spotlight -->
-          <a href={`/movie/${currentReel.id}`} class="block relative rounded-xl overflow-hidden group spotlight" style="aspect-ratio: 16/9;">
-            {#key reelIndex}
-              <img
-                src={getBackdropUrl(currentReel.backdrop_path || currentReel.poster_path)}
-                alt={currentReel.title}
-                class="w-full h-full object-cover spotlight-img"
-                loading="lazy"
-              />
-            {/key}
-            <div class="absolute inset-0 bg-gradient-to-t from-black via-black/45 to-transparent"></div>
-
-            <!-- NEW / JUST ADDED badge -->
-            <div class="absolute top-3 left-3 flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[10px] font-extrabold tracking-wider shadow-lg"
-                 style="background: linear-gradient(135deg, #F7D000, #f59e0b); color:#000;">
-              {#if isFresh(currentReel)}
-                <span class="reel-dot"></span> JUST ADDED
-              {:else}
-                NEW THIS WEEK
-              {/if}
-            </div>
-
-            <!-- Rating -->
-            {#if currentReel.vote_average}
-              <div class="absolute top-3 right-3 px-2 py-1 rounded-md text-xs font-bold flex items-center gap-1 bg-black/80 text-amber-400">
-                <Star size={12} fill="currentColor" />
-                <span>{currentReel.vote_average.toFixed(1)}</span>
-              </div>
-            {/if}
-
-            <!-- Title + meta -->
-            <div class="absolute bottom-0 left-0 right-0 p-4">
-              <h3 class="text-lg sm:text-xl font-bold text-white leading-tight line-clamp-1">{currentReel.title}</h3>
-              <div class="flex items-center gap-2 mt-1">
-                {#if currentReel.year}
-                  <span class="text-[11px] font-semibold text-amber-300">{currentReel.year}</span>
-                {/if}
-                <span class="inline-flex items-center gap-1 text-[11px] font-medium text-white/90 group-hover:text-amber-300 transition-colors">
-                  <Play size={11} fill="currentColor" /> Watch now
-                </span>
-              </div>
-            </div>
-
-            <!-- Auto-advance progress bar -->
-            {#if reelMovies.length > 1}
-              {#key reelIndex}
-                <div class="absolute bottom-0 left-0 right-0 h-[3px] bg-white/10 z-10">
-                  <div class="reel-progress h-full" class:paused={reelPaused} style="background: linear-gradient(90deg, #F7D000, #f59e0b);"></div>
+        <div
+          class="relative overflow-x-auto hide-scrollbar"
+          bind:this={scrollContainer}
+          on:mouseenter={pauseAnimation}
+          on:mouseleave={resumeAnimation}
+          on:touchstart={handleTouchStart}
+          on:touchmove={handleTouchMove}
+          on:touchend={handleTouchEnd}
+        >
+          <div class="oscar-scroll-container flex gap-3" class:paused={isPaused}>
+            {#each oscarMovies as movie, i}
+              <a href={`/movie/${movie.id}`} class="flex-shrink-0 w-24 group">
+                <div class="relative aspect-[2/3] rounded-lg overflow-hidden mb-1">
+                  <img src={getPosterUrl(movie.poster_path)} alt={movie.title} class="w-full h-full object-cover transition-transform group-hover:scale-110" loading="lazy" />
+                  <div class="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
                 </div>
-              {/key}
-            {/if}
-          </a>
-
-          <!-- Clickable filmstrip of what's in rotation -->
-          {#if reelMovies.length > 1}
-            <div class="flex gap-2 mt-3">
-              {#each reelMovies as m, i}
-                <button
-                  on:click={() => goToReel(i)}
-                  class="relative flex-1 rounded-md overflow-hidden aspect-[2/3] film-thumb"
-                  class:active={i === reelIndex}
-                  title={m.title}
-                  aria-label={`Show ${m.title}`}
-                >
-                  <img src={getPosterUrl(m.poster_path || m.backdrop_path)} alt={m.title} loading="lazy" class="w-full h-full object-cover" />
-                  {#if i !== reelIndex}<div class="absolute inset-0 bg-black/45"></div>{/if}
-                </button>
-              {/each}
-            </div>
-          {/if}
-        {:else}
-          <div class="flex items-center gap-2 mb-4 px-3 py-3 rounded-lg" style="background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.08);">
-            <span class="text-sm">🎬</span>
-            <span class="text-sm text-gray-300">New movies & series added daily — with download links.</span>
+                <p class="text-[10px] font-medium line-clamp-1 text-center" style="color: var(--text-primary);">{movie.title}</p>
+              </a>
+            {/each}
+            {#each oscarMovies as movie, i}
+              <a href={`/movie/${movie.id}`} class="flex-shrink-0 w-24 group">
+                <div class="relative aspect-[2/3] rounded-lg overflow-hidden mb-1">
+                  <img src={getPosterUrl(movie.poster_path)} alt={movie.title} class="w-full h-full object-cover transition-transform group-hover:scale-110" loading="lazy" />
+                  <div class="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                </div>
+                <p class="text-[10px] font-medium line-clamp-1 text-center" style="color: var(--text-primary);">{movie.title}</p>
+              </a>
+            {/each}
           </div>
-        {/if}
-
-        <!-- CTA -->
-        <a href="/movies/latest" class="cta-row flex items-center justify-between mt-4 group">
-          <p class="text-xs text-gray-500">Latest releases with download links</p>
-          <span class="px-4 py-2 rounded-lg text-sm font-bold text-black transition-all group-hover:scale-105 group-hover:shadow-lg" style="background: linear-gradient(135deg, #F7D000, #f59e0b);">
-            Browse New →
-          </span>
-        </a>
+        </div>
       </div>
     </div>
 
