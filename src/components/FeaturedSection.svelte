@@ -114,11 +114,13 @@
     { emoji: "🏅", label: "Golden Globes",   month: 1,  day: 11, prize: "Best Drama",
       winners: { 2026: "Hamnet" } },
     { emoji: "🎿", label: "Sundance",        month: 1,  day: 22, prize: "Grand Jury",
-      winners: { 2026: "Josephine" } },
+      winners: { 2026: "Josephine" }, hideOnCard: true },
+    { emoji: "🐻", label: "Berlinale",       month: 2,  day: 12, prize: "Golden Bear",
+      winners: { 2026: "Yellow Letters" }, hideOnCard: true },
     { emoji: "🎭", label: "BAFTA Film",      month: 2,  day: 22, prize: "Best Film",
       winners: { 2026: "One Battle After Another" } },
     { emoji: "🎸", label: "SXSW",            month: 3,  day: 12, prize: "Narrative",
-      winners: { 2026: "Wishful Thinking" } },
+      winners: { 2026: "Wishful Thinking" }, hideOnCard: true },
     { emoji: "🏆", label: "Oscars",          month: 3,  day: 15, prize: "Best Picture",
       winners: { 2026: "One Battle After Another" } },
     { emoji: "🌴", label: "Cannes",          month: 5,  day: 12, prize: "Palme d'Or",
@@ -158,6 +160,11 @@
         return b._t - a._t;
       });
   })();
+
+  // Homepage card shows a trimmed set (8) so its height matches the Oscar card
+  // beside it; the events flagged `hideOnCard` (Berlinale, Sundance, SXSW) are
+  // still in the data and appear in full on the /events page via "View All →".
+  $: cardEvents = awardsEvents.filter((e) => !e.hideOnCard);
 
   function getDaysUntilRelease(dateStr: string | undefined): number | null {
     if (!dateStr) return null;
@@ -822,7 +829,7 @@
         </div>
 
         <div class="space-y-2.5">
-          {#each awardsEvents as event}
+          {#each cardEvents as event}
             <div class="flex items-center gap-3 p-2.5 rounded-xl transition-colors hover:bg-[var(--bg-hover)]">
               <span class="text-xl w-8 text-center flex-shrink-0">{event.emoji}</span>
               <div class="flex-1 min-w-0">
