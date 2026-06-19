@@ -227,22 +227,44 @@ const reelSpotlightIds = new Set(
 );
 const latestAdditionsRowItems = latestAdditionItems.filter((m: any) => !reelSpotlightIds.has(m.id));
 
-// "Trending Now" — real most-viewed movies (rpc/top_viewed_movies). Carries the
-// real view_count through so cards can show a "X views" badge. Only keep rows
-// with a poster + at least one view so the row looks credible.
-const mostViewedItems = (mostViewed || [])
-  .filter((m: any) => m.poster_path && (m.view_count || 0) > 0)
-  .map((m: any) => ({
-    id: m.tmdb_id,
-    tmdb_id: m.tmdb_id,
-    title: m.title,
-    poster_path: m.poster_path,
-    vote_average: 0,
-    year: m.year,
-    type: 'movie' as const,
-    has_downloads: true,
-    view_count: m.view_count || 0,
-  }));
+// "Trending Now" — real most-viewed movies (rpc/top_viewed_movies). The RPC's
+// poster_path/year can be stale (e.g. dead .webp posters, wrong year), so we
+// enrich each row against the movies table (fresh poster/year) by tmdb_id.
+const mostViewedRaw = (mostViewed || []).filter((m: any) => (m.view_count || 0) > 0);
+let mvFresh: Record<number, any> = {};
+if (mostViewedRaw.length > 0) {
+  try {
+    const ids = mostViewedRaw.map((m: any) => m.tmdb_id).filter(Boolean).join(',');
+    const r = await fetch(`${POSTGREST_URL}/movies?tmdb_id=in.(${ids})&select=tmdb_id,title,year,poster_path,vote_average`);
+    if (r.ok) {
+      const rows = await r.json();
+      mvFresh = Object.fromEntries(rows.map((m: any) => [m.tmdb_id, m]));
+    }
+  } catch (e) { console.error('most-viewed enrich failed:', e); }
+}
+// Normalise a TMDB poster path: dead .webp variants 404, the .jpg works.
+const fixPoster = (p: string | null): string | null => {
+  if (!p) return null;
+  if (p.startsWith('/images/')) return p;
+  return p.replace(/\.webp$/i, '.jpg');
+};
+const mostViewedItems = mostViewedRaw
+  .map((m: any) => {
+    const fresh = mvFresh[m.tmdb_id] || {};
+    const poster = fixPoster(fresh.poster_path || m.poster_path);
+    return {
+      id: m.tmdb_id,
+      tmdb_id: m.tmdb_id,
+      title: fresh.title || m.title,
+      poster_path: poster,
+      vote_average: fresh.vote_average || 0,
+      year: fresh.year || m.year,
+      type: 'movie' as const,
+      has_downloads: true,
+      view_count: m.view_count || 0,
+    };
+  })
+  .filter((m: any) => m.poster_path);
 
 // Transform upcoming movies with full release date
 const upcomingItems = (upcoming || []).map((m: any) => {
@@ -479,12 +501,11 @@ const boxOfficeWithPosters = await Promise.all(boxOfficeData.map(async (entry) =
   )}
 
   <!-- Featured Section + Latest Additions:
-       Desktop (lg+) order: Featured then Latest Additions.
-       Mobile + tablet order: Latest Additions FIRST (directly below Trending
-       This Week), then Featured. Done via flex `order` so desktop is unchanged. -->
+       Featured (which now contains the "Just Dropped" reel) comes FIRST on all
+       breakpoints, then "More Just Added" below it. -->
   <div class="flex flex-col">
-    <!-- Featured Section: Oscar + Tabs -->
-    <div class="order-2 xl:order-1">
+    <!-- Featured Section: Oscar + Tabs + Just Dropped reel -->
+    <div class="order-1">
       <FeaturedSection
         client:load
         oscarMovies={oscarMovies}
@@ -499,7 +520,7 @@ const boxOfficeWithPosters = await Promise.all(boxOfficeData.map(async (entry) =
          Excludes the titles already spotlighted in the "Just Dropped" reel
          above so nothing appears twice. -->
     {latestAdditionsRowItems.length > 0 && (
-      <div class="order-1 xl:order-2">
+      <div class="order-2">
         <ContentRow
           client:load
           title="More Just Added"
