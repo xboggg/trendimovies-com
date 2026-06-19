@@ -105,6 +105,39 @@ const accent = event.accentColor === '#FFFFFF' ? '#F7D000' : event.accentColor;
     </section>
   ) : null}
 
+  <!-- WINNERS & NOMINEES (full per-category results) -->
+  {event.results && event.results.length > 0 && (
+    <section class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-10 sm:pt-14">
+      <div class="flex items-center gap-3 mb-6">
+        <span class="text-2xl">🏆</span>
+        <h2 class="text-2xl sm:text-3xl font-black" style="color: var(--text-primary);">Winners &amp; Nominees</h2>
+      </div>
+      <div class="grid sm:grid-cols-2 gap-4">
+        {event.results.map((r) => (
+          <div class="rounded-2xl p-5" style="background-color: var(--bg-card); border: 1px solid var(--border);">
+            <p class="text-[11px] uppercase tracking-wider font-bold mb-2.5" style={`color: ${accent};`}>{r.category}</p>
+            <div class="flex items-start gap-2.5 mb-3">
+              <span class="text-lg flex-shrink-0 leading-none mt-0.5">🏆</span>
+              <p class="font-bold text-sm sm:text-base leading-snug" style="color: var(--text-primary);">{r.winner}</p>
+            </div>
+            {r.nominees && r.nominees.length > 0 && (
+              <div style="border-top: 1px solid var(--border);" class="pt-3">
+                <p class="text-[10px] uppercase tracking-wider font-semibold mb-1.5" style="color: var(--text-muted);">Also nominated</p>
+                <ul class="space-y-1">
+                  {r.nominees.map((n) => (
+                    <li class="text-xs sm:text-sm flex items-start gap-2" style="color: var(--text-secondary);">
+                      <span style="color: var(--text-muted);" class="flex-shrink-0">•</span><span>{n}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    </section>
+  )}
+
   <!-- DETAILS GRID -->
   <section class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-14">
     <div class="grid lg:grid-cols-3 gap-6">

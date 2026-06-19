@@ -24,6 +24,14 @@ export interface FilmEvent {
   topAward?: string;
   winner?: string;
   edition?: string;
+  // Full per-category results (winner + nominees) for the dedicated event page.
+  results?: AwardResult[];
+}
+
+export interface AwardResult {
+  category: string;
+  winner: string;        // "Film" or "Person — Film"
+  nominees?: string[];   // other nominees in this category
 }
 
 export const filmEvents: FilmEvent[] = [
@@ -197,6 +205,16 @@ export const filmEvents: FilmEvent[] = [
     topAward: 'Grand Jury Prize',
     winner: 'Josephine (Beth de Araújo)',
     edition: '2026',
+    results: [
+      { category: 'U.S. Grand Jury Prize: Dramatic', winner: 'Josephine — Beth de Araújo' },
+      { category: 'U.S. Grand Jury Prize: Documentary', winner: 'Nuisance Bear' },
+      { category: 'World Cinema Grand Jury Prize: Dramatic', winner: 'Shame and Money' },
+      { category: 'World Cinema Grand Jury Prize: Documentary', winner: 'To Hold a Mountain' },
+      { category: 'Audience Award: Dramatic', winner: 'Josephine — Beth de Araújo' },
+      { category: 'U.S. Documentary Directing Award', winner: 'J.M. Harper — Soul Patrol' },
+      { category: 'Audience Award: NEXT', winner: 'Aanikoobijigan' },
+      { category: 'NEXT Special Jury Award', winner: 'TheyDream' },
+    ],
   },
   {
     id: 'bafta-2026',
@@ -219,6 +237,21 @@ export const filmEvents: FilmEvent[] = [
     topAward: 'Best Film',
     winner: 'One Battle After Another',
     edition: '79th',
+    results: [
+      { category: 'Best Film', winner: 'One Battle After Another', nominees: ['Hamnet', 'Sinners', 'Sentimental Value', 'The Secret Agent'] },
+      { category: 'Director', winner: 'Paul Thomas Anderson — One Battle After Another', nominees: ['Chloé Zhao — Hamnet', 'Ryan Coogler — Sinners', 'Joachim Trier — Sentimental Value'] },
+      { category: 'Leading Actress', winner: 'Jessie Buckley — Hamnet', nominees: ['Rose Byrne — If I Had Legs I’d Kick You', 'Renate Reinsve — Sentimental Value'] },
+      { category: 'Leading Actor', winner: 'Robert Aramayo — I Swear', nominees: ['Michael B. Jordan — Sinners', 'Wagner Moura — The Secret Agent'] },
+      { category: 'Supporting Actress', winner: 'Wunmi Mosaku — Sinners', nominees: ['Teyana Taylor — One Battle After Another'] },
+      { category: 'Supporting Actor', winner: 'Sean Penn — One Battle After Another', nominees: ['Stellan Skarsgård — Sentimental Value'] },
+      { category: 'Outstanding British Film', winner: 'Hamnet' },
+      { category: 'Original Screenplay', winner: 'Sinners' },
+      { category: 'Adapted Screenplay', winner: 'One Battle After Another' },
+      { category: 'Film Not in the English Language', winner: 'Sentimental Value' },
+      { category: 'Cinematography', winner: 'One Battle After Another' },
+      { category: 'Original Score', winner: 'Sinners' },
+      { category: 'Animated Film', winner: 'Zootropolis 2' },
+    ],
   },
   {
     id: 'cannes-2025',
@@ -285,6 +318,17 @@ export const filmEvents: FilmEvent[] = [
     topAward: 'Golden Bear',
     winner: 'Yellow Letters (İlker Çatak)',
     edition: '76th',
+    results: [
+      { category: 'Golden Bear (Best Film)', winner: 'Yellow Letters — İlker Çatak' },
+      { category: 'Silver Bear Grand Jury Prize', winner: 'Salvation — Emin Alper' },
+      { category: 'Silver Bear Jury Prize', winner: 'Queen at Sea — Lance Hammer' },
+      { category: 'Best Director', winner: 'Grant Gee — Everyone Digs Bill Evans' },
+      { category: 'Best Leading Performance', winner: 'Sandra Hüller — Rose' },
+      { category: 'Best Supporting Performance', winner: 'Anna Calder-Marshall & Tom Courtenay — Queen at Sea' },
+      { category: 'Best Screenplay', winner: 'Geneviève Dulude-De Celles — Nina Roza' },
+      { category: 'Outstanding Artistic Contribution', winner: 'Anna Fitch & Banker White — Yo (Love Is a Rebellious Bird)' },
+      { category: 'Documentary Award', winner: 'If Pigeons Turned To Gold — Pepa Lubojacki' },
+    ],
   },
   {
     id: 'sxsw-2026',
@@ -307,6 +351,14 @@ export const filmEvents: FilmEvent[] = [
     topAward: 'Narrative Feature',
     winner: 'Wishful Thinking (Graham Parkes)',
     edition: '2026',
+    results: [
+      { category: 'Narrative Feature (Jury)', winner: 'Wishful Thinking — Graham Parkes' },
+      { category: 'Headliner Audience Award', winner: 'Over Your Dead Body — Jorma Taccone' },
+      { category: 'Special Jury Award (Performance)', winner: 'Susan Kent — The Snake' },
+      { category: 'TV Premiere (Audience)', winner: 'Monsters of God' },
+      { category: 'Music Video (Audience)', winner: 'OK Go — “Love”' },
+      { category: 'Texas Short (Audience)', winner: 'Stalin Boys' },
+    ],
   },
   {
     id: 'critics-choice-2026',
@@ -329,6 +381,16 @@ export const filmEvents: FilmEvent[] = [
     topAward: 'Best Picture',
     winner: 'One Battle After Another',
     edition: '31st',
+    results: [
+      { category: 'Best Picture', winner: 'One Battle After Another', nominees: ['Hamnet', 'Sinners', 'Frankenstein', 'Sentimental Value', 'Marty Supreme'] },
+      { category: 'Best Director', winner: 'Paul Thomas Anderson — One Battle After Another', nominees: ['Ryan Coogler — Sinners', 'Chloé Zhao — Hamnet'] },
+      { category: 'Best Actor', winner: 'Timothée Chalamet — Marty Supreme', nominees: ['Michael B. Jordan — Sinners', 'Leonardo DiCaprio — One Battle After Another'] },
+      { category: 'Best Actress', winner: 'Jessie Buckley — Hamnet', nominees: ['Rose Byrne — If I Had Legs I’d Kick You', 'Renate Reinsve — Sentimental Value'] },
+      { category: 'Best Supporting Actor', winner: 'Jacob Elordi — Frankenstein', nominees: ['Sean Penn — One Battle After Another', 'Stellan Skarsgård — Sentimental Value'] },
+      { category: 'Best Supporting Actress', winner: 'Amy Madigan — Weapons', nominees: ['Teyana Taylor — One Battle After Another', 'Wunmi Mosaku — Sinners'] },
+      { category: 'Best Adapted Screenplay', winner: 'Paul Thomas Anderson — One Battle After Another' },
+      { category: 'Best Original Screenplay', winner: 'Ryan Coogler — Sinners' },
+    ],
   },
 ];
 
