@@ -115,8 +115,6 @@
       winners: { 2026: "Hamnet" } },
     { emoji: "🎿", label: "Sundance",        month: 1,  day: 22, prize: "Grand Jury",
       winners: { 2026: "Josephine" } },
-    { emoji: "🐻", label: "Berlinale",       month: 2,  day: 12, prize: "Golden Bear",
-      winners: { 2026: "Yellow Letters" } },
     { emoji: "🎭", label: "BAFTA Film",      month: 2,  day: 22, prize: "Best Film",
       winners: { 2026: "One Battle After Another" } },
     { emoji: "🎸", label: "SXSW",            month: 3,  day: 12, prize: "Narrative",
