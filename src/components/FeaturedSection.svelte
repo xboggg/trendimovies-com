@@ -103,39 +103,63 @@
     return { phase: 'live' as const, dayOfFestival, daysUntil: 0, totalDays: 12 };
   }
 
-    // Awards Calendar — major 2026 film/TV festivals & award shows (verified dates).
-  // Sorted so UPCOMING events lead (soonest first), past events trail.
+  // Awards Calendar — major film/TV festivals & award shows.
+  // AUTO-ROLLS: each event stores month/day (not a fixed year). The displayed
+  // year is computed from the current date, so the calendar advances every year
+  // with no manual edits. `prize` labels the top award; `winners` maps a year to
+  // that year's winning film, shown inline once the event has passed.
   const _awardsRaw = [
-    { emoji: "🎿", name: "Sundance 2026",      startDate: "2026-01-22" },
-    { emoji: "⭐", name: "Critics' Choice",     startDate: "2026-01-04" },
-    { emoji: "🏅", name: "Golden Globes 2026",  startDate: "2026-01-11" },
-    { emoji: "🐻", name: "Berlinale 2026",      startDate: "2026-02-12" },
-    { emoji: "🎭", name: "BAFTA Film Awards",   startDate: "2026-02-22" },
-    { emoji: "🏆", name: "Oscars 2026",         startDate: "2026-03-15" },
-    { emoji: "🎸", name: "SXSW 2026",           startDate: "2026-03-12" },
-    { emoji: "🌴", name: "Cannes 2026",         startDate: "2026-05-12" },
-    { emoji: "🦁", name: "Venice 2026",         startDate: "2026-09-02" },
-    { emoji: "🍁", name: "TIFF 2026",           startDate: "2026-09-10" },
-    { emoji: "📺", name: "Primetime Emmys",     startDate: "2026-09-14" },
+    { emoji: "⭐", label: "Critics' Choice", month: 1,  day: 4,  prize: "Best Picture",
+      winners: { 2026: "One Battle After Another" } },
+    { emoji: "🏅", label: "Golden Globes",   month: 1,  day: 11, prize: "Best Drama",
+      winners: { 2026: "Hamnet" } },
+    { emoji: "🎿", label: "Sundance",        month: 1,  day: 22, prize: "Grand Jury",
+      winners: { 2026: "Josephine" } },
+    { emoji: "🐻", label: "Berlinale",       month: 2,  day: 12, prize: "Golden Bear",
+      winners: { 2026: "Yellow Letters" } },
+    { emoji: "🎭", label: "BAFTA Film",      month: 2,  day: 22, prize: "Best Film",
+      winners: { 2026: "One Battle After Another" } },
+    { emoji: "🎸", label: "SXSW",            month: 3,  day: 12, prize: "Narrative",
+      winners: { 2026: "Wishful Thinking" } },
+    { emoji: "🏆", label: "Oscars",          month: 3,  day: 15, prize: "Best Picture",
+      winners: { 2026: "One Battle After Another" } },
+    { emoji: "🌴", label: "Cannes",          month: 5,  day: 12, prize: "Palme d'Or",
+      winners: { 2026: "Fjord" } },
+    { emoji: "🦁", label: "Venice",          month: 9,  day: 2,  prize: "Golden Lion",
+      winners: {} },
+    { emoji: "🍁", label: "TIFF",            month: 9,  day: 10, prize: "People's Choice",
+      winners: {} },
+    { emoji: "📺", label: "Primetime Emmys", month: 9,  day: 14, prize: "Best Drama Series",
+      winners: {} },
   ];
-  $: awardsEvents = _awardsRaw
-    .map((e) => {
-      const d = new Date(e.startDate);
-      return {
-        ...e,
-        days: getDaysUntilRelease(e.startDate),
-        dateLabel: d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
-        _t: d.getTime(),
-      };
-    })
-    // upcoming first (ascending by date), then past events (most recent first)
-    .sort((a, b) => {
-      const au = (a.days ?? 0) > 0, bu = (b.days ?? 0) > 0;
-      if (au && bu) return a._t - b._t;   // both upcoming: soonest first
-      if (au) return -1;                   // a upcoming beats past
-      if (bu) return 1;
-      return b._t - a._t;                  // both past: most recent first
-    });
+
+  $: awardsEvents = (() => {
+    const now = new Date();
+    const yr = now.getFullYear();
+    return _awardsRaw
+      .map((e) => {
+        const d = new Date(yr, e.month - 1, e.day);
+        const days = Math.ceil((d.getTime() - now.getTime()) / 86400000);
+        const past = days <= 0;
+        const winner = past ? (e.winners as Record<number, string>)[yr] : null;
+        return {
+          ...e,
+          name: `${e.label} ${yr}`,
+          dateLabel: d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+          days,
+          past,
+          winner,
+          _t: d.getTime(),
+        };
+      })
+      // upcoming first (soonest), then past events (most recent first)
+      .sort((a, b) => {
+        if (!a.past && !b.past) return a._t - b._t;
+        if (!a.past) return -1;
+        if (!b.past) return 1;
+        return b._t - a._t;
+      });
+  })();
 
   function getDaysUntilRelease(dateStr: string | undefined): number | null {
     if (!dateStr) return null;
@@ -805,14 +829,23 @@
               <span class="text-xl w-8 text-center flex-shrink-0">{event.emoji}</span>
               <div class="flex-1 min-w-0">
                 <p class="font-semibold text-sm truncate" style="color: var(--text-primary);">{event.name}</p>
-                <p class="text-xs" style="color: var(--text-muted);">{event.dateLabel}</p>
+                {#if event.winner}
+                  <p class="text-xs truncate flex items-center gap-1" style="color: #fbbf24;">
+                    <Trophy size={11} class="flex-shrink-0" />
+                    <span class="truncate">{event.prize}: {event.winner}</span>
+                  </p>
+                {:else}
+                  <p class="text-xs" style="color: var(--text-muted);">{event.dateLabel}</p>
+                {/if}
               </div>
-              {#if !event.days || event.days <= 0}
-                <span class="px-2 py-0.5 rounded text-[10px] font-bold" style="background: rgba(107,114,128,0.2); color: #9ca3af;">Past</span>
-              {:else if event.days <= 30}
-                <span class="px-2 py-1 rounded-lg text-xs font-bold" style="background: rgba(245,158,11,0.12); color: #fbbf24; border: 1px solid rgba(245,158,11,0.25);">{event.days}d</span>
-              {:else}
-                <span class="px-2 py-1 rounded-lg text-xs font-bold" style="background: rgba(34,197,94,0.1); color: #4ade80; border: 1px solid rgba(34,197,94,0.2);">{event.days}d</span>
+              {#if !event.past}
+                {#if event.days <= 30}
+                  <span class="px-2 py-1 rounded-lg text-xs font-bold flex-shrink-0" style="background: rgba(245,158,11,0.12); color: #fbbf24; border: 1px solid rgba(245,158,11,0.25);">{event.days}d</span>
+                {:else}
+                  <span class="px-2 py-1 rounded-lg text-xs font-bold flex-shrink-0" style="background: rgba(34,197,94,0.1); color: #4ade80; border: 1px solid rgba(34,197,94,0.2);">{event.days}d</span>
+                {/if}
+              {:else if !event.winner}
+                <span class="px-2 py-0.5 rounded text-[10px] font-bold flex-shrink-0" style="background: rgba(107,114,128,0.2); color: #9ca3af;">Past</span>
               {/if}
             </div>
           {/each}
