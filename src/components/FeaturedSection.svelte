@@ -327,7 +327,7 @@
 </script>
 
 <section class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-  <div class="grid xl:grid-cols-2 gap-6">
+  <div class="grid lg:grid-cols-2 gap-6">
     <!-- ── JUST DROPPED — cinematic auto-reel (moved here to top grid 2026-06-19) ─ -->
     <div class="reel-card rounded-2xl overflow-hidden relative"
          style="background: linear-gradient(135deg, #0a0a0a 0%, #1a0f00 50%, #0a0a0a 100%); border: 1px solid rgba(247,208,0,0.25);"
@@ -765,7 +765,7 @@
   </button>
 
   {#if awardsOpen}
-  <div class="grid xl:grid-cols-2 gap-6 mt-4 awards-reveal">
+  <div class="grid lg:grid-cols-2 gap-6 mt-4 awards-reveal">
 
     <!-- Left Column: Oscar Nominations (moved here from top grid on 2026-06-19) -->
     <div class="rounded-2xl relative overflow-hidden" style="background-color: var(--bg-card); border: 1px solid var(--border);">
