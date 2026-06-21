@@ -600,7 +600,7 @@
             <p class="text-center py-12 text-[#666]">No upcoming movies</p>
           {/if}
           <a href="/upcoming" class="block text-center text-sm font-medium text-purple-400 hover:text-purple-300 mt-3 pt-3" style="border-top: 1px solid var(--border);">
-            View All Upcoming →
+            View Full Release Schedule →
           </a>
         {:else if activeTab === 'boxoffice'}
           <!-- Box Office List -->

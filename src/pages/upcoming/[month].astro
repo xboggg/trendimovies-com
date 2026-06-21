@@ -47,35 +47,26 @@ if (year === today.getFullYear() && monthNum === today.getMonth()) {
 
 const endStr = endDate.toISOString().split('T')[0];
 
-// Fetch movies for this month (3 pages = 60 movies max)
-const [page1, page2, page3] = await Promise.all([
-  discoverMovies({
-    'primary_release_date.gte': startStr,
-    'primary_release_date.lte': endStr,
-    sort_by: 'popularity.desc',
-    page: 1
-  }),
-  discoverMovies({
-    'primary_release_date.gte': startStr,
-    'primary_release_date.lte': endStr,
-    sort_by: 'popularity.desc',
-    page: 2
-  }),
-  discoverMovies({
-    'primary_release_date.gte': startStr,
-    'primary_release_date.lte': endStr,
-    sort_by: 'popularity.desc',
-    page: 3
-  })
-]);
+// Fetch movies for this month — 5 pages (~100 films) for a fuller schedule.
+const PAGES = [1, 2, 3, 4, 5];
+const pageResults = await Promise.all(
+  PAGES.map((page) =>
+    discoverMovies({
+      'primary_release_date.gte': startStr,
+      'primary_release_date.lte': endStr,
+      sort_by: 'popularity.desc',
+      page,
+    }).catch(() => ({ results: [] }))
+  )
+);
 
-const movies = [
-  ...(page1?.results || []),
-  ...(page2?.results || []),
-  ...(page3?.results || [])
-].filter((m: any) => m.poster_path && m.release_date);
+const movies = pageResults
+  .flatMap((r: any) => r?.results || [])
+  .filter((m: any) => m.poster_path && m.release_date);
 
-// Generate all month tabs (from current month to Dec 2026)
+// Movie Release Schedule covers ALL 12 months of 2026 and 2027 (full schedule,
+// not just current-month onward). A year switch (2026 | 2027) keeps the month
+// tabs to 12 at a time. The tabs shown are for the year of the ACTIVE month.
 interface MonthTab {
   label: string;
   shortLabel: string;
@@ -84,28 +75,20 @@ interface MonthTab {
   isActive: boolean;
 }
 
+const SCHEDULE_YEARS = [2026, 2027];
 const allMonths: MonthTab[] = [];
-const currentYear = today.getFullYear();
-const currentMonth = today.getMonth();
 
-for (let y = currentYear; y <= 2026; y++) {
-  const startM = y === currentYear ? currentMonth : 0;
-  const endM = y === 2026 ? 11 : 11;
-
-  for (let m = startM; m <= endM; m++) {
-    const d = new Date(y, m, 1);
-    const label = d.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
-    const shortLabel = d.toLocaleDateString('en-US', { month: 'short' });
-    const slug = `${d.toLocaleDateString('en-US', { month: 'long' }).toLowerCase()}-${y}`;
-
-    allMonths.push({
-      label,
-      shortLabel,
-      year: y,
-      slug,
-      isActive: slug === month
-    });
-  }
+// month tabs for the active year only
+for (let m = 0; m <= 11; m++) {
+  const d = new Date(year, m, 1);
+  const slug = `${d.toLocaleDateString('en-US', { month: 'long' }).toLowerCase()}-${year}`;
+  allMonths.push({
+    label: d.toLocaleDateString('en-US', { month: 'long', year: 'numeric' }),
+    shortLabel: d.toLocaleDateString('en-US', { month: 'short' }),
+    year,
+    slug,
+    isActive: slug === month,
+  });
 }
 
 const displayMonth = `${monthName} ${year}`;
@@ -143,8 +126,8 @@ function getCountdownData(dateStr: string): { days: number; hours: number; minut
 ---
 
 <BaseLayout
-  title={`Release Calendar — ${displayMonth} | TrendiMovies`}
-  description={`Movie release calendar for ${displayMonth}. Browse what's coming out each month, month by month.`}
+  title={`Movie Release Schedule ${year} — ${displayMonth} | TrendiMovies`}
+  description={`The full ${year} movie release schedule. Browse every film coming out in ${displayMonth} and across the year, month by month.`}
   image={movies[0]?.poster_path ? `https://image.tmdb.org/t/p/w780${movies[0].poster_path}` : '/images/og-default.jpg'}
 >
   <!-- Header -->
@@ -153,7 +136,7 @@ function getCountdownData(dateStr: string): { days: number; hours: number; minut
     <div class="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
       <div class="text-center">
         <h1 class="text-3xl md:text-4xl font-black mb-2" style="color: var(--text-primary);">
-          <span class="text-purple-500">Release</span> Calendar
+          <span class="text-purple-500">Movie Release</span> Schedule
         </h1>
         <p class="text-lg" style="color: var(--text-secondary);">
           {movies.length} movies releasing in {displayMonth}
@@ -161,6 +144,19 @@ function getCountdownData(dateStr: string): { days: number; hours: number; minut
         <a href="/movies/upcoming" class="inline-flex items-center gap-1 mt-3 text-sm font-medium text-purple-400 hover:text-purple-300 transition-colors">
           Browse all upcoming movies →
         </a>
+
+        <!-- Year switch -->
+        <div class="flex items-center justify-center gap-2 mt-5">
+          {SCHEDULE_YEARS.map((y) => (
+            <a
+              href={`/upcoming/january-${y}`}
+              class:list={["px-5 py-2 rounded-full text-sm font-bold transition-all", { 'active-year': y === year }]}
+              style={y !== year ? "background-color: var(--bg-card); border: 1px solid var(--border); color: var(--text-secondary);" : "background: linear-gradient(135deg, #a855f7, #ec4899); color: #fff;"}
+            >
+              {y} Schedule
+            </a>
+          ))}
+        </div>
       </div>
     </div>
   </section>
