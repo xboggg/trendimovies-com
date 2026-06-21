@@ -161,6 +161,68 @@ function eventTemplate(p: {
   };
 }
 
+// ── List template (Trending / Box Office / Top Movies / Franchises / etc.) ──────
+
+function listTemplate(p: {
+  label: string; emoji: string; titles: string[];
+  backdrop: string | null; color: string;
+}) {
+  const accent = p.color || '#e50914';
+  // up to 4 titles, joined with a dot separator
+  const titleLine = p.titles.slice(0, 4).map(t => t.length > 22 ? t.slice(0, 21) + '…' : t).join('  ·  ');
+
+  const centerContent: any[] = [
+    // Label row: emoji + big label
+    {
+      type: 'div', props: {
+        style: row({ alignItems: 'center', gap: '18px' }),
+        children: [
+          txt(p.emoji, { fontSize: '56px' }),
+          txt(p.label.toUpperCase(), { fontSize: '58px', fontWeight: 700, color: '#fff', lineHeight: '1.05' }),
+        ],
+      },
+    },
+  ];
+  // Titles line (what's actually in the list)
+  if (titleLine) {
+    centerContent.push({
+      type: 'div', props: {
+        style: row({ marginTop: '22px', maxWidth: '1000px' }),
+        children: [txt(titleLine, { fontSize: '28px', color: '#d1d5db', lineHeight: '1.3' })],
+      },
+    });
+  }
+  // Branding row
+  centerContent.push({
+    type: 'div', props: {
+      style: row({ alignItems: 'center', gap: '12px', marginTop: '40px' }),
+      children: [
+        txt('👑', { fontSize: '26px' }),
+        txt('TrendiMovies', { fontSize: '24px', fontWeight: 700, color: '#fff' }),
+        txt('trendimovies.com', { fontSize: '18px', color: '#6b7280', marginLeft: '14px' }),
+      ],
+    },
+  });
+
+  return {
+    type: 'div', props: {
+      style: { display: 'flex', width: '1200px', height: '630px', fontFamily: 'Roboto', background: '#0a0a0f', position: 'relative', overflow: 'hidden' },
+      children: [
+        // Backdrop background (dimmed)
+        p.backdrop
+          ? { type: 'img', props: { src: p.backdrop, style: { position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', objectFit: 'cover', opacity: 0.22 } } }
+          : { type: 'div', props: { style: { position: 'absolute', top: 0, left: 0, width: '4px', height: '4px' } } },
+        // dark gradient overlay for text legibility
+        { type: 'div', props: { style: { position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', background: 'linear-gradient(90deg, rgba(10,10,15,0.92) 0%, rgba(10,10,15,0.7) 60%, rgba(10,10,15,0.5) 100%)' } } },
+        // accent bar
+        { type: 'div', props: { style: { position: 'absolute', top: 0, left: 0, width: '6px', height: '100%', background: `linear-gradient(180deg,${accent},${accent}66)` } } },
+        // content
+        { type: 'div', props: { style: col({ position: 'relative', justifyContent: 'center', width: '100%', height: '100%', padding: '60px 70px' }), children: centerContent } },
+      ],
+    },
+  };
+}
+
 // ── Default template ──────────────────────────────────────────────────────────
 
 function defaultTemplate() {
@@ -207,6 +269,8 @@ export const GET: APIRoute = async ({ url }) => {
   const date     = p.get('date') || '';
   const color    = p.get('color') || '#e50914';
   const emoji    = p.get('emoji') || '🎬';
+  const label    = p.get('label') || '';
+  const titles   = (p.get('titles') || '').split('|').map(t => t.trim()).filter(Boolean);
 
   try {
     const [posterData, backdropData] = await Promise.all([
@@ -219,6 +283,8 @@ export const GET: APIRoute = async ({ url }) => {
       node = movieTemplate({ title, year, rating, genres, poster: posterData, backdrop: backdropData, isSeries: type === 'series' });
     } else if (type === 'event') {
       node = eventTemplate({ name, subtitle, date, color, emoji, backdrop: backdropData });
+    } else if (type === 'list') {
+      node = listTemplate({ label, emoji, titles, color, backdrop: backdropData });
     } else {
       node = defaultTemplate();
     }
@@ -229,6 +295,20 @@ export const GET: APIRoute = async ({ url }) => {
         { name: 'Roboto', data: fontBold,    weight: 700, style: 'normal' },
         { name: 'Roboto', data: fontRegular, weight: 400, style: 'normal' },
       ],
+      // Render emojis (🔥 👑 ✨ …) as Twemoji SVGs — without this satori shows tofu boxes.
+      loadAdditionalAsset: async (code: string, segment: string) => {
+        if (code !== 'emoji') return segment;
+        try {
+          const cp = Array.from(segment)
+            .map((c) => c.codePointAt(0)!.toString(16))
+            .filter((h) => h !== 'fe0f') // drop variation selector
+            .join('-');
+          const r = await fetch(`https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/svg/${cp}.svg`, { signal: AbortSignal.timeout(4000) });
+          if (!r.ok) return segment;
+          const svgTxt = await r.text();
+          return `data:image/svg+xml;base64,${Buffer.from(svgTxt).toString('base64')}`;
+        } catch { return segment; }
+      },
     });
 
     const png = new Resvg(svg, { fitTo: { mode: 'width', value: 1200 } }).render().asPng();

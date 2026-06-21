@@ -55,7 +55,7 @@ function transformToItem(movie: any) {
 <BaseLayout
   title="Latest Additions"
   description="Recently added movies available for download"
-  image={movies[0]?.poster_path ? `https://image.tmdb.org/t/p/w780${movies[0].poster_path}` : '/images/og-default.jpg'}
+  image={`/api/og.png?type=list&label=${encodeURIComponent('Just Added')}&emoji=${encodeURIComponent('✨')}&color=%23f7d000&backdrop=${encodeURIComponent(movies.find((m: any) => m.backdrop_path)?.backdrop_path || movies[0]?.poster_path || '')}&titles=${encodeURIComponent(movies.slice(0, 4).map((m: any) => m.title).join('|'))}`}
 >
   <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
     <div class="flex flex-col md:flex-row md:items-center md:justify-between mb-8">

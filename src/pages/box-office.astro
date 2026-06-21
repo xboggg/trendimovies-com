@@ -93,7 +93,7 @@ function getPosterUrl(path: string | null): string {
 <BaseLayout
   title="Weekend Box Office - Movie Earnings & Charts"
   description="Latest weekend box office results, movie earnings, and charts. Track the highest-grossing films of the week."
-  image={boxOfficeData[0]?.poster_path ? `https://image.tmdb.org/t/p/w780${boxOfficeData[0].poster_path}` : '/images/og-default.jpg'}
+  image={`/api/og.png?type=list&label=${encodeURIComponent('Weekend Box Office')}&emoji=${encodeURIComponent('📊')}&color=%2322c55e&backdrop=${encodeURIComponent(boxOfficeData.find((e: any) => e.backdrop_path)?.backdrop_path || boxOfficeData[0]?.poster_path || '')}&titles=${encodeURIComponent(boxOfficeData.slice(0, 4).map((e: any) => e.movie_title).join('|'))}`}
 >
   <!-- Header -->
   <section class="relative py-12 overflow-hidden">

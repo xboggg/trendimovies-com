@@ -77,10 +77,10 @@ let movies = (data.by_year[String(selectedYear)] || []).slice();
 
 const topMovie = movies[0];
 
-// OG image: #1 movie's poster (or fallback)
-const ogImage = topMovie?.poster_path
-  ? `https://image.tmdb.org/t/p/w780${topMovie.poster_path}`
-  : '/images/og-default.jpg';
+// Branded OG banner (1200×630) via /api/og.png
+const _ogBackdrop = movies.find((m: any) => m.backdrop_path)?.backdrop_path || topMovie?.poster_path || '';
+const _ogTitles = movies.slice(0, 4).map((m: any) => m.title).join('|');
+const ogImage = `/api/og.png?type=list&label=${encodeURIComponent('Top Movies ' + selectedYear)}&emoji=${encodeURIComponent('🏆')}&color=%23fbbf24&backdrop=${encodeURIComponent(_ogBackdrop)}&titles=${encodeURIComponent(_ogTitles)}`;
 
 const pageTitle = `Top Movies of ${selectedYear} - TrendiMovies`;
 const pageDescription = topMovie

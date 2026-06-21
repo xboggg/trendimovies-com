@@ -153,7 +153,7 @@ function getBackdropUrl(path: string | null): string {
 <BaseLayout
   title="Movie Franchises - Complete Collections"
   description="Explore complete movie franchise collections including Marvel, DC, Star Wars, Harry Potter, and more."
-  image={franchises[0]?.backdrop_path ? `https://image.tmdb.org/t/p/w1280${franchises[0].backdrop_path}` : '/images/og-default.jpg'}
+  image={`/api/og.png?type=list&label=${encodeURIComponent('Movie Franchises')}&emoji=${encodeURIComponent('🎬')}&color=%23e50914&backdrop=${encodeURIComponent(franchises.find((f: any) => f.backdrop_path)?.backdrop_path || '')}&titles=${encodeURIComponent(franchises.slice(0, 4).map((f: any) => f.name).join('|'))}`}
 >
   <!-- Header -->
   <section class="relative py-12 overflow-hidden">
