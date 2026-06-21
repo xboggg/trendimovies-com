@@ -489,7 +489,7 @@
           class:text-white={activeTab === 'comingsoon'}
           style={activeTab !== 'comingsoon' ? 'color: var(--text-secondary); background-color: var(--bg-hover);' : ''}
         >
-          Coming Soon
+          Release Schedule
         </button>
       </div>
 
