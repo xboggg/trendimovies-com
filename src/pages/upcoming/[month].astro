@@ -143,8 +143,8 @@ function getCountdownData(dateStr: string): { days: number; hours: number; minut
 ---
 
 <BaseLayout
-  title="Upcoming Movies"
-  
+  title={`Release Calendar — ${displayMonth} | TrendiMovies`}
+  description={`Movie release calendar for ${displayMonth}. Browse what's coming out each month, month by month.`}
   image={movies[0]?.poster_path ? `https://image.tmdb.org/t/p/w780${movies[0].poster_path}` : '/images/og-default.jpg'}
 >
   <!-- Header -->
@@ -153,11 +153,14 @@ function getCountdownData(dateStr: string): { days: number; hours: number; minut
     <div class="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
       <div class="text-center">
         <h1 class="text-3xl md:text-4xl font-black mb-2" style="color: var(--text-primary);">
-          <span class="text-purple-500">Upcoming</span> Movies
+          <span class="text-purple-500">Release</span> Calendar
         </h1>
         <p class="text-lg" style="color: var(--text-secondary);">
-          {movies.length} movies in {displayMonth}
+          {movies.length} movies releasing in {displayMonth}
         </p>
+        <a href="/movies/upcoming" class="inline-flex items-center gap-1 mt-3 text-sm font-medium text-purple-400 hover:text-purple-300 transition-colors">
+          Browse all upcoming movies →
+        </a>
       </div>
     </div>
   </section>
