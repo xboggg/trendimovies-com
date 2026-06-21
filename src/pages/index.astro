@@ -93,7 +93,24 @@ const genreMap = new Map(movieGenres.map((g: any) => [g.id, g.name]));
 // Fetch detailed info for hero carousel items (top 8 trending)
 const heroMovieIds = (trending || []).slice(0, 8).map((m: any) => m.id);
 const heroDetailsPromises = heroMovieIds.map((id: number) => getMovieDetails(id).catch(() => null));
-const heroDetails = await Promise.all(heroDetailsPromises);
+
+// PERF: kick off all the independent downstream fetches NOW (in parallel) instead
+// of awaiting each one sequentially further down. They don't depend on each other,
+// only on the main batch above. This collapses ~5 serial round-trips into 1.
+const _heroDetailsP    = Promise.all(heroDetailsPromises);
+const _imageOverridesP = getCustomImageOverrides();
+const _boxOfficeDataP  = getBoxOfficeData();
+const _moodGenresP = Promise.all([
+  discoverMovies({ with_genres: "10751", sort_by: "vote_average.desc", "vote_count.gte": "200" }),
+  discoverMovies({ with_genres: "27", sort_by: "popularity.desc" }),
+  discoverMovies({ with_genres: "878", sort_by: "vote_average.desc", "vote_count.gte": "300" }),
+  discoverMovies({ with_genres: "18", sort_by: "vote_average.desc", "vote_count.gte": "500" }),
+  discoverMovies({ with_original_language: "hi", sort_by: "popularity.desc" }),
+  discoverMovies({ with_genres: "16", sort_by: "popularity.desc" }),
+  discoverMovies({ with_genres: "36", sort_by: "vote_average.desc", "vote_count.gte": "500" }),
+]);
+
+const heroDetails = await _heroDetailsP;
 
 // Load custom poster/backdrop overrides — any movie whose poster_path or backdrop_path
 // in our DB starts with /images/ overrides TMDB on every section of the homepage.
@@ -117,7 +134,7 @@ async function getCustomImageOverrides(): Promise<Map<number, { poster_path?: st
   }
   return map;
 }
-const imageOverrides = await getCustomImageOverrides();
+const imageOverrides = await _imageOverridesP;
 function applyOverride(tmdbId: number, posterPath: string | null, backdropPath: string | null) {
   const ov = imageOverrides.get(tmdbId);
   return {
@@ -415,16 +432,8 @@ async function getBoxOfficeData() {
   }
 }
 
-// Fetch mood-specific genres
-const [familyMovies, horrorMovies, sciFiMovies, dramaMovies, hindiMovies, animationMovies, historyMovies] = await Promise.all([
-  discoverMovies({ with_genres: "10751", sort_by: "vote_average.desc", "vote_count.gte": "200" }),
-  discoverMovies({ with_genres: "27", sort_by: "popularity.desc" }),
-  discoverMovies({ with_genres: "878", sort_by: "vote_average.desc", "vote_count.gte": "300" }),
-  discoverMovies({ with_genres: "18", sort_by: "vote_average.desc", "vote_count.gte": "500" }),
-  discoverMovies({ with_original_language: "hi", sort_by: "popularity.desc" }),
-  discoverMovies({ with_genres: "16", sort_by: "popularity.desc" }),
-  discoverMovies({ with_genres: "36", sort_by: "vote_average.desc", "vote_count.gte": "500" }),
-]);
+// Mood-specific genres (kicked off in parallel up top for perf)
+const [familyMovies, horrorMovies, sciFiMovies, dramaMovies, hindiMovies, animationMovies, historyMovies] = await _moodGenresP;
 
 const familyItems = (familyMovies?.results || []).slice(0, 8).map(transformMovie);
 const horrorItems = (horrorMovies?.results || []).slice(0, 8).map(transformMovie);
@@ -452,7 +461,7 @@ const collectionsData = [
   { id: "top-rated", title: "Highest Rated of All Time", subtitle: "The all-time greatest", link: "/top-rated", gradient: "linear-gradient(135deg, #f59e0b 0%, #ef4444 100%)", posters: topRatedItems.slice(0, 4).map((i) => i.poster_path).filter(Boolean) },
 ];
 
-const boxOfficeData = await getBoxOfficeData();
+const boxOfficeData = await _boxOfficeDataP;
 
 // Search TMDB for box office movies to get posters
 const boxOfficeWithPosters = await Promise.all(boxOfficeData.map(async (entry) => {
