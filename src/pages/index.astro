@@ -354,6 +354,14 @@ const thrillerItems = (thrillerMovies?.results || []).slice(0, 15).map(transform
 const animeItems = (animeMovies?.results || []).slice(0, 15).map(transformMovie);
 const kDramaItems = (kDramaMovies?.results || []).slice(0, 15).map(transformMovie);
 
+// Movie Guides — curated topic lists (replaces Anime/Korean rows). Pulls a few
+// published topics to showcase on the homepage; each links to /guides/<slug>.
+let movieGuides: any[] = [];
+try {
+  const _gr = await fetch(`${POSTGREST_URL}/movie_topics?is_published=eq.true&order=sort_order.asc&limit=6&select=slug,title,intro,emoji,color`);
+  if (_gr.ok) movieGuides = await _gr.json();
+} catch (e) {}
+
 // Oscar 2026 nominees - search TMDB for each
 const oscarTitles = [
   'Sinners', 'One Battle After Another', 'Bugonia', 'F1', 'Frankenstein',
@@ -641,24 +649,33 @@ const boxOfficeWithPosters = await Promise.all(boxOfficeData.map(async (entry) =
     />
   )}
 
-  <!-- Anime Movies -->
-  {animeItems.length > 0 && (
-    <ContentRow
-      client:visible
-      title="Top Anime Movies"
-      items={animeItems}
-      seeAllLink="/movies/anime"
-    />
-  )}
-
-  <!-- Korean Movies -->
-  {kDramaItems.length > 0 && (
-    <ContentRow
-      client:visible
-      title="Top Korean Movies"
-      items={kDramaItems}
-      seeAllLink="/movies/korean"
-    />
+  <!-- Movie Guides — curated topic lists (replaced Anime/Korean rows) -->
+  {movieGuides.length > 0 && (
+    <section class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+      <div class="flex items-center justify-between mb-4">
+        <div class="flex items-center gap-2.5">
+          <span class="text-2xl">🎬</span>
+          <h2 class="text-lg sm:text-2xl md:text-3xl font-extrabold" style="color: var(--text-primary);">Movie Guides</h2>
+        </div>
+        <a href="/guides" class="text-sm font-medium text-purple-400 hover:text-purple-300 transition-colors">See All →</a>
+      </div>
+      <p class="text-sm mb-4 -mt-2" style="color: var(--text-muted);">Hand-picked lists for every mood and era.</p>
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        {movieGuides.map((g: any) => (
+          <a href={`/guides/${g.slug}`} class="group block rounded-2xl p-5 relative overflow-hidden transition-all duration-300 hover:-translate-y-1" style="background-color: var(--bg-card); border: 1px solid var(--border);">
+            <div class="absolute top-0 left-0 right-0 h-1" style={`background: linear-gradient(90deg, ${g.color}, ${g.color}55);`}></div>
+            <div class="flex items-start gap-3">
+              <span class="text-3xl flex-shrink-0">{g.emoji}</span>
+              <div class="min-w-0">
+                <h3 class="font-black text-base sm:text-lg leading-tight group-hover:text-purple-300 transition-colors" style="color: var(--text-primary);">{g.title}</h3>
+                {g.intro && <p class="mt-1.5 text-xs line-clamp-2" style="color: var(--text-muted);">{g.intro}</p>}
+                <span class="inline-block mt-2 text-xs font-semibold" style={`color: ${g.color};`}>View list →</span>
+              </div>
+            </div>
+          </a>
+        ))}
+      </div>
+    </section>
   )}
 
 </BaseLayout>

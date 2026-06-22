@@ -1,0 +1,121 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import MovieCard from '../../components/MovieCard.svelte';
+
+const POSTGREST_URL = import.meta.env.PUBLIC_SUPABASE_URL || 'http://localhost:3001';
+const { slug } = Astro.params;
+
+// Topic + its items
+async function getTopic() {
+  try {
+    const tRes = await fetch(`${POSTGREST_URL}/movie_topics?slug=eq.${slug}&is_published=eq.true&select=*`);
+    if (!tRes.ok) return null;
+    const topics = await tRes.json();
+    if (!topics.length) return null;
+    const topic = topics[0];
+    const iRes = await fetch(`${POSTGREST_URL}/movie_topic_items?topic_id=eq.${topic.id}&order=position.asc&select=tmdb_id,title,year,blurb`);
+    topic.items = iRes.ok ? await iRes.json() : [];
+    return topic;
+  } catch (e) { return null; }
+}
+
+const topic = await getTopic();
+if (!topic) return Astro.redirect('/guides');
+
+// Resolve each item against our library: owned films get slug + has_downloads +
+// our poster/backdrop (image overrides); un-owned still show (marked) via TMDB.
+const tmdbIds = topic.items.map((i: any) => i.tmdb_id).filter(Boolean);
+let owned: Record<number, any> = {};
+if (tmdbIds.length) {
+  try {
+    const r = await fetch(`${POSTGREST_URL}/movies?tmdb_id=in.(${tmdbIds.join(',')})&select=tmdb_id,slug,poster_path,backdrop_path,vote_average,year,has_downloads`);
+    if (r.ok) owned = Object.fromEntries((await r.json()).map((m: any) => [m.tmdb_id, m]));
+  } catch (e) {}
+}
+
+function posterFor(tmdbId: number, fallbackTitle: string) {
+  const o = owned[tmdbId];
+  // owned movie with a local /images poster → use it; else TMDB poster handled by card
+  return o?.poster_path && o.poster_path.startsWith('/images/') ? o.poster_path : null;
+}
+
+const items = topic.items.map((i: any) => {
+  const o = owned[i.tmdb_id] || {};
+  return {
+    id: i.tmdb_id,
+    tmdb_id: i.tmdb_id,
+    title: i.title,
+    slug: o.slug || undefined,
+    poster_path: posterFor(i.tmdb_id, i.title),
+    year: i.year || o.year || null,
+    vote_average: o.vote_average || 0,
+    type: 'movie' as const,
+    has_downloads: !!o.has_downloads,
+    blurb: i.blurb || '',
+  };
+});
+// Need TMDB posters for items where we have no local override — fetch w342 path from owned, else build from TMDB tmdb path stored? We only have tmdb_id, so let the card use TMDB via tmdb poster path. Pull poster_path from TMDB for un-owned:
+// (owned rows already carried poster_path; for un-owned we fetch TMDB image base path on the fly)
+const ownedCount = items.filter((i: any) => i.has_downloads).length;
+
+// Branded OG banner (reuses /api/og.png list template)
+const _ogTitles = items.slice(0, 4).map((i: any) => i.title).join('|');
+const _ogBackdrop = (Object.values(owned).find((m: any) => m.backdrop_path && !m.backdrop_path.startsWith('/images/')) as any)?.backdrop_path || '';
+const ogImage = `/api/og.png?type=list&label=${encodeURIComponent(topic.title)}&emoji=${encodeURIComponent(topic.emoji || '🎬')}&color=${encodeURIComponent(topic.color || '#e50914')}&backdrop=${encodeURIComponent(_ogBackdrop)}&titles=${encodeURIComponent(_ogTitles)}`;
+
+function tmdbPoster(p: string | null) {
+  if (!p) return null;
+  if (p.startsWith('/images/')) return p;
+  return `https://image.tmdb.org/t/p/w342${p}`;
+}
+// Attach TMDB poster_path for un-owned items (owned ones carried local poster)
+for (const it of items) {
+  if (!it.poster_path) it.poster_path = owned[it.tmdb_id]?.poster_path || null;
+}
+---
+
+<BaseLayout title={`${topic.title} | TrendiMovies`} description={topic.intro || `${topic.title} — curated on TrendiMovies.`} image={ogImage}>
+  <!-- Header -->
+  <section class="relative overflow-hidden">
+    <div class="absolute inset-0" style={`background: linear-gradient(135deg, #0a0a0f 0%, ${topic.color}22 50%, #0a0a0f 100%);`}></div>
+    <div class="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-10 pb-6">
+      <a href="/guides" class="inline-flex items-center gap-1.5 text-sm font-medium mb-4" style="color: var(--text-muted);">← All Movie Guides</a>
+      <div class="flex items-start gap-4">
+        <span class="text-5xl sm:text-6xl flex-shrink-0">{topic.emoji}</span>
+        <div>
+          <h1 class="text-3xl sm:text-4xl md:text-5xl font-black leading-tight" style="color: var(--text-primary);">{topic.title}</h1>
+          {topic.intro && <p class="mt-3 text-base sm:text-lg max-w-3xl leading-relaxed" style="color: var(--text-secondary);">{topic.intro}</p>}
+          <p class="mt-3 text-xs" style="color: var(--text-muted);">{items.length} films · {ownedCount} available to watch now on TrendiMovies</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Grid -->
+  <section class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 sm:gap-5">
+      {items.map((item: any, idx: number) => (
+        <div class="relative">
+          <span class="absolute -top-2 -left-2 z-20 w-7 h-7 rounded-full flex items-center justify-center text-xs font-black shadow-lg" style={`background: ${topic.color}; color: #fff;`}>{idx + 1}</span>
+          <MovieCard client:visible item={item} />
+          {!item.has_downloads && (
+            <span class="absolute top-2 right-2 z-20 px-2 py-0.5 rounded text-[10px] font-bold" style="background: rgba(0,0,0,0.75); color: #fbbf24; border: 1px solid rgba(251,191,36,0.4);">Request</span>
+          )}
+          {item.blurb && <p class="mt-2 text-xs leading-snug" style="color: var(--text-muted);">{item.blurb}</p>}
+        </div>
+      ))}
+    </div>
+  </section>
+
+  <!-- CTA -->
+  <section class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-16">
+    <div class="rounded-2xl p-8 text-center relative overflow-hidden" style="background-color: var(--bg-card); border: 1px solid var(--border);">
+      <div class="absolute inset-0 opacity-25 pointer-events-none" style={`background: radial-gradient(ellipse at 30% 50%, ${topic.color}, transparent 60%);`}></div>
+      <div class="relative">
+        <h2 class="text-xl sm:text-2xl font-black text-white mb-2">More Movie Guides</h2>
+        <p class="text-sm mb-5" style="color: var(--text-secondary);">Hand-picked lists for every mood and era.</p>
+        <a href="/guides" class="px-6 py-3 rounded-xl font-bold text-black inline-block" style={`background: linear-gradient(135deg, ${topic.color}, ${topic.color}aa);`}>Browse All Guides →</a>
+      </div>
+    </div>
+  </section>
+</BaseLayout>

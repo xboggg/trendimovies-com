@@ -1,0 +1,55 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+
+const POSTGREST_URL = import.meta.env.PUBLIC_SUPABASE_URL || 'http://localhost:3001';
+
+async function getTopics() {
+  try {
+    const r = await fetch(`${POSTGREST_URL}/movie_topics?is_published=eq.true&order=sort_order.asc&select=slug,title,category,intro,emoji,color`);
+    return r.ok ? await r.json() : [];
+  } catch (e) { return []; }
+}
+const topics = await getTopics();
+
+const CATS: Record<string, string> = { mood: 'By Mood', decade: 'By Decade', hidden: 'Hidden Gems', 'best-of': 'Best Of' };
+const grouped: Record<string, any[]> = {};
+for (const t of topics) (grouped[t.category] ||= []).push(t);
+const catOrder = ['mood', 'decade', 'hidden', 'best-of', ...Object.keys(grouped)].filter((c, i, a) => a.indexOf(c) === i && grouped[c]);
+---
+
+<BaseLayout title="Movie Guides — Curated Lists for Every Mood & Era | TrendiMovies" description="Hand-picked movie guides: tearjerkers, feel-good films, mind-benders, best of each decade and hidden gems. Find your next watch on TrendiMovies.">
+  <section class="relative overflow-hidden">
+    <div class="absolute inset-0" style="background: linear-gradient(135deg, #0a0a0f 0%, #1a0f2e 50%, #0a0a0f 100%);"></div>
+    <div class="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-12 pb-6 text-center">
+      <h1 class="text-4xl sm:text-5xl font-black" style="color: var(--text-primary);">🎬 <span class="text-purple-400">Movie</span> Guides</h1>
+      <p class="mt-3 text-lg max-w-2xl mx-auto" style="color: var(--text-secondary);">Hand-picked lists for every mood and era — find your next obsession.</p>
+    </div>
+  </section>
+
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    {topics.length === 0 && <p class="text-center py-16" style="color: var(--text-muted);">Guides coming soon.</p>}
+    {catOrder.map((cat) => (
+      <section class="mb-10">
+        <h2 class="text-xl sm:text-2xl font-black mb-5 flex items-center gap-2" style="color: var(--text-primary);">
+          <span class="w-1 h-7 rounded-full" style="background: linear-gradient(180deg, #a855f7, #ec4899);"></span>
+          {CATS[cat] || cat}
+        </h2>
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {grouped[cat].map((t: any) => (
+            <a href={`/guides/${t.slug}`} class="group block rounded-2xl p-5 relative overflow-hidden transition-all duration-300 hover:-translate-y-1" style={`background-color: var(--bg-card); border: 1px solid var(--border);`}>
+              <div class="absolute top-0 left-0 right-0 h-1" style={`background: linear-gradient(90deg, ${t.color}, ${t.color}55);`}></div>
+              <div class="flex items-start gap-3">
+                <span class="text-3xl flex-shrink-0">{t.emoji}</span>
+                <div class="min-w-0">
+                  <h3 class="font-black text-base sm:text-lg leading-tight group-hover:text-purple-300 transition-colors" style="color: var(--text-primary);">{t.title}</h3>
+                  {t.intro && <p class="mt-1.5 text-xs line-clamp-2" style="color: var(--text-muted);">{t.intro}</p>}
+                  <span class="inline-block mt-2 text-xs font-semibold" style={`color: ${t.color};`}>View list →</span>
+                </div>
+              </div>
+            </a>
+          ))}
+        </div>
+      </section>
+    ))}
+  </div>
+</BaseLayout>
