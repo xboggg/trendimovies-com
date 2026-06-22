@@ -714,25 +714,27 @@ const boxOfficeWithPosters = await Promise.all(boxOfficeData.map(async (entry) =
 
   .vinyl-card { display: flex; flex-direction: column; align-items: center; width: 100%; max-width: 170px; text-decoration: none; }
 
-  /* Mobile (< 640px): horizontal auto-sliding carousel, discs keep spinning */
+  /* Mobile (< 640px): manual finger-swipe carousel (no auto-slide). Discs still spin. */
   @media (max-width: 639px) {
     .vinyl-grid {
       display: block;
-      overflow: hidden;            /* clip the off-screen part of the track */
-      -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 6%, #000 94%, transparent 100%);
-              mask-image: linear-gradient(90deg, transparent 0, #000 6%, #000 94%, transparent 100%);
+      overflow-x: auto;                 /* swipe horizontally with your finger */
+      overflow-y: hidden;
+      -webkit-overflow-scrolling: touch;
+      scroll-snap-type: x proximity;
+      scrollbar-width: none;            /* hide scrollbar (Firefox) */
+      -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 5%, #000 95%, transparent 100%);
+              mask-image: linear-gradient(90deg, transparent 0, #000 5%, #000 95%, transparent 100%);
     }
+    .vinyl-grid::-webkit-scrollbar { display: none; }   /* hide scrollbar (WebKit) */
     .vinyl-track {
       display: flex;
       width: max-content;
       gap: 22px;
-      animation: vinyl-slide 36s linear infinite;
-      will-change: transform;
+      padding: 0 4px 4px;
     }
-    .vinyl-grid:active .vinyl-track,
-    .vinyl-track:hover { animation-play-state: paused; }   /* pause on touch */
-    .vinyl-dupe { display: flex; }     /* show the second set so the loop is seamless */
-    .vinyl-card { width: 132px; max-width: 132px; flex: 0 0 auto; }
+    .vinyl-dupe { display: none; }      /* manual scroll → no duplicate set needed */
+    .vinyl-card { width: 132px; max-width: 132px; flex: 0 0 auto; scroll-snap-align: center; }
   }
 
   .vinyl-disc {
@@ -770,9 +772,6 @@ const boxOfficeWithPosters = await Promise.all(boxOfficeData.map(async (entry) =
 
   @media (prefers-reduced-motion: reduce) {
     .vinyl-disc { animation: none; }
-    .vinyl-track { animation: none; }   /* no auto-slide for reduced-motion users */
   }
   @keyframes vinyl-spin { to { transform: rotate(360deg); } }
-  /* slide exactly one full set width; the duplicate set fills the gap → seamless loop */
-  @keyframes vinyl-slide { to { transform: translateX(-50%); } }
 </style>
