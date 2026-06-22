@@ -112,7 +112,8 @@ def curate_ai(topic):
             continue
         items.append({"tmdb_id": hit["id"], "title": hit.get("title") or f.get("title"),
                       "year": int((hit.get("release_date") or "0")[:4] or 0) or f.get("year"),
-                      "blurb": (f.get("blurb") or "").strip()})
+                      "blurb": (f.get("blurb") or "").strip(),
+                      "poster_path": hit.get("poster_path"), "backdrop_path": hit.get("backdrop_path")})
         time.sleep(0.08)
     return intro, items
 
@@ -125,7 +126,8 @@ def curate_filter(topic):
             continue
         seen.add(m["id"])
         items.append({"tmdb_id": m["id"], "title": m.get("title"),
-                      "year": int((m.get("release_date") or "0")[:4] or 0), "blurb": ""})
+                      "year": int((m.get("release_date") or "0")[:4] or 0), "blurb": "",
+                      "poster_path": m.get("poster_path"), "backdrop_path": m.get("backdrop_path")})
         if len(items) >= 20:
             break
     # short auto-intro
@@ -147,9 +149,10 @@ def upsert_topic(cur, topic, intro, items):
     tid = cur.fetchone()[0]
     cur.execute("DELETE FROM movie_topic_items WHERE topic_id=%s", (tid,))
     for pos, it in enumerate(items):
-        cur.execute("""INSERT INTO movie_topic_items (topic_id, tmdb_id, title, year, blurb, position)
-                       VALUES (%s,%s,%s,%s,%s,%s)""",
-                    (tid, it["tmdb_id"], it["title"], it["year"], it["blurb"] or None, pos))
+        cur.execute("""INSERT INTO movie_topic_items (topic_id, tmdb_id, title, year, blurb, position, poster_path, backdrop_path)
+                       VALUES (%s,%s,%s,%s,%s,%s,%s,%s)""",
+                    (tid, it["tmdb_id"], it["title"], it["year"], it["blurb"] or None, pos,
+                     it.get("poster_path"), it.get("backdrop_path")))
     return tid, len(items)
 
 def main():

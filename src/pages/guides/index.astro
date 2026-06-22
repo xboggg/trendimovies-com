@@ -5,11 +5,26 @@ const POSTGREST_URL = import.meta.env.PUBLIC_SUPABASE_URL || 'http://localhost:3
 
 async function getTopics() {
   try {
-    const r = await fetch(`${POSTGREST_URL}/movie_topics?is_published=eq.true&order=sort_order.asc&select=slug,title,category,intro,emoji,color`);
-    return r.ok ? await r.json() : [];
+    const r = await fetch(`${POSTGREST_URL}/movie_topics?is_published=eq.true&order=sort_order.asc&select=id,slug,title,category,intro,emoji,color`);
+    if (!r.ok) return [];
+    const topics = await r.json();
+    // fetch top 4 posters per topic for the collage
+    await Promise.all(topics.map(async (t: any) => {
+      try {
+        const ir = await fetch(`${POSTGREST_URL}/movie_topic_items?topic_id=eq.${t.id}&order=position.asc&limit=5&select=poster_path`);
+        const items = ir.ok ? await ir.json() : [];
+        t.posters = items.map((i: any) => i.poster_path).filter(Boolean).slice(0, 4);
+      } catch (e) { t.posters = []; }
+    }));
+    return topics;
   } catch (e) { return []; }
 }
 const topics = await getTopics();
+
+function poster(p: string) {
+  if (!p) return '/images/no-poster.svg';
+  return p.startsWith('/images/') ? p : `https://image.tmdb.org/t/p/w342${p}`;
+}
 
 const CATS: Record<string, string> = { mood: 'By Mood', decade: 'By Decade', hidden: 'Hidden Gems', 'best-of': 'Best Of' };
 const grouped: Record<string, any[]> = {};
@@ -18,33 +33,41 @@ const catOrder = ['mood', 'decade', 'hidden', 'best-of', ...Object.keys(grouped)
 ---
 
 <BaseLayout title="Movie Guides — Curated Lists for Every Mood & Era | TrendiMovies" description="Hand-picked movie guides: tearjerkers, feel-good films, mind-benders, best of each decade and hidden gems. Find your next watch on TrendiMovies.">
+  <!-- Cinematic hero -->
   <section class="relative overflow-hidden">
-    <div class="absolute inset-0" style="background: linear-gradient(135deg, #0a0a0f 0%, #1a0f2e 50%, #0a0a0f 100%);"></div>
-    <div class="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-12 pb-6 text-center">
-      <h1 class="text-4xl sm:text-5xl font-black" style="color: var(--text-primary);">🎬 <span class="text-purple-400">Movie</span> Guides</h1>
-      <p class="mt-3 text-lg max-w-2xl mx-auto" style="color: var(--text-secondary);">Hand-picked lists for every mood and era — find your next obsession.</p>
+    <div class="absolute inset-0" style="background: linear-gradient(135deg, #0a0a0f 0%, #1a0f2e 45%, #2d0a2e 100%);"></div>
+    <div class="absolute inset-0 opacity-30 pointer-events-none" style="background: radial-gradient(ellipse at 25% 20%, #a855f7, transparent 55%), radial-gradient(ellipse at 80% 60%, #ec4899, transparent 50%);"></div>
+    <div class="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-14 pb-8 text-center">
+      <h1 class="text-4xl sm:text-6xl font-black tracking-tight" style="color: #fff;">🎬 <span style="background: linear-gradient(135deg,#c084fc,#f472b6); -webkit-background-clip: text; background-clip: text; color: transparent;">Movie Guides</span></h1>
+      <p class="mt-4 text-lg sm:text-xl max-w-2xl mx-auto" style="color: rgba(255,255,255,0.7);">Hand-picked lists for every mood and era — find your next obsession.</p>
     </div>
   </section>
 
   <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
     {topics.length === 0 && <p class="text-center py-16" style="color: var(--text-muted);">Guides coming soon.</p>}
     {catOrder.map((cat) => (
-      <section class="mb-10">
-        <h2 class="text-xl sm:text-2xl font-black mb-5 flex items-center gap-2" style="color: var(--text-primary);">
-          <span class="w-1 h-7 rounded-full" style="background: linear-gradient(180deg, #a855f7, #ec4899);"></span>
+      <section class="mb-12">
+        <h2 class="text-xl sm:text-2xl font-black mb-6 flex items-center gap-3" style="color: var(--text-primary);">
+          <span class="w-1.5 h-8 rounded-full" style="background: linear-gradient(180deg, #a855f7, #ec4899);"></span>
           {CATS[cat] || cat}
         </h2>
-        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
           {grouped[cat].map((t: any) => (
-            <a href={`/guides/${t.slug}`} class="group block rounded-2xl p-5 relative overflow-hidden transition-all duration-300 hover:-translate-y-1" style={`background-color: var(--bg-card); border: 1px solid var(--border);`}>
-              <div class="absolute top-0 left-0 right-0 h-1" style={`background: linear-gradient(90deg, ${t.color}, ${t.color}55);`}></div>
-              <div class="flex items-start gap-3">
-                <span class="text-3xl flex-shrink-0">{t.emoji}</span>
-                <div class="min-w-0">
-                  <h3 class="font-black text-base sm:text-lg leading-tight group-hover:text-purple-300 transition-colors" style="color: var(--text-primary);">{t.title}</h3>
-                  {t.intro && <p class="mt-1.5 text-xs line-clamp-2" style="color: var(--text-muted);">{t.intro}</p>}
-                  <span class="inline-block mt-2 text-xs font-semibold" style={`color: ${t.color};`}>View list →</span>
-                </div>
+            <a href={`/guides/${t.slug}`} class="guide-card group relative block rounded-2xl overflow-hidden">
+              <!-- poster collage background -->
+              <div class="poster-stack">
+                {(t.posters || []).map((p: string, i: number) => (
+                  <img src={poster(p)} alt="" loading="lazy" class={`pstr pstr-${i}`} />
+                ))}
+              </div>
+              <!-- dark gradient for legibility -->
+              <div class="card-grad"></div>
+              <div class="card-accent" style={`background: linear-gradient(90deg, ${t.color}, ${t.color}55);`}></div>
+              <!-- content -->
+              <div class="relative z-10 p-5 h-full flex flex-col justify-end">
+                <span class="text-3xl mb-1 drop-shadow-lg">{t.emoji}</span>
+                <h3 class="font-black text-lg sm:text-xl leading-tight text-white drop-shadow-md">{t.title}</h3>
+                <span class="inline-flex items-center gap-1 mt-2 text-xs font-bold" style={`color: ${t.color === '#475569' ? '#cbd5e1' : '#fff'};`}>View list →</span>
               </div>
             </a>
           ))}
@@ -53,3 +76,38 @@ const catOrder = ['mood', 'decade', 'hidden', 'best-of', ...Object.keys(grouped)
     ))}
   </div>
 </BaseLayout>
+
+<style>
+  .guide-card {
+    aspect-ratio: 16 / 10;
+    background: #14141c;
+    border: 1px solid var(--border);
+    transition: transform 0.35s ease, box-shadow 0.35s ease;
+  }
+  .guide-card:hover {
+    transform: translateY(-6px);
+    box-shadow: 0 24px 50px -16px rgba(0,0,0,0.7);
+  }
+  .card-accent { position: absolute; top: 0; left: 0; right: 0; height: 4px; z-index: 11; }
+  .card-grad {
+    position: absolute; inset: 0; z-index: 5;
+    background: linear-gradient(0deg, rgba(10,10,15,0.97) 0%, rgba(10,10,15,0.7) 45%, rgba(10,10,15,0.4) 100%);
+  }
+  /* fanned poster collage in the upper-right */
+  .poster-stack { position: absolute; inset: 0; z-index: 1; overflow: hidden; }
+  .pstr {
+    position: absolute; top: -8%; height: 150%; width: auto; border-radius: 8px;
+    object-fit: cover; box-shadow: 0 8px 20px rgba(0,0,0,0.5);
+    transition: transform 0.4s ease;
+  }
+  .pstr-0 { right: 6%;  transform: rotate(6deg);  z-index: 4; }
+  .pstr-1 { right: 26%; transform: rotate(-3deg); z-index: 3; opacity: 0.95; }
+  .pstr-2 { right: 46%; transform: rotate(4deg);  z-index: 2; opacity: 0.85; }
+  .pstr-3 { right: 64%; transform: rotate(-5deg); z-index: 1; opacity: 0.7; }
+  .guide-card:hover .pstr-0 { transform: rotate(3deg) scale(1.05); }
+  .guide-card:hover .pstr-1 { transform: rotate(-1deg) scale(1.03); }
+
+  @media (prefers-reduced-motion: reduce) {
+    .guide-card, .pstr { transition: none; }
+  }
+</style>

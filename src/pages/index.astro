@@ -355,11 +355,19 @@ const animeItems = (animeMovies?.results || []).slice(0, 15).map(transformMovie)
 const kDramaItems = (kDramaMovies?.results || []).slice(0, 15).map(transformMovie);
 
 // Movie Guides — curated topic lists (replaces Anime/Korean rows). Pulls a few
-// published topics to showcase on the homepage; each links to /guides/<slug>.
+// published topics + their top posters for a cinematic collage card.
 let movieGuides: any[] = [];
 try {
-  const _gr = await fetch(`${POSTGREST_URL}/movie_topics?is_published=eq.true&order=sort_order.asc&limit=6&select=slug,title,intro,emoji,color`);
-  if (_gr.ok) movieGuides = await _gr.json();
+  const _gr = await fetch(`${POSTGREST_URL}/movie_topics?is_published=eq.true&order=sort_order.asc&limit=6&select=id,slug,title,intro,emoji,color`);
+  if (_gr.ok) {
+    movieGuides = await _gr.json();
+    await Promise.all(movieGuides.map(async (g: any) => {
+      try {
+        const ir = await fetch(`${POSTGREST_URL}/movie_topic_items?topic_id=eq.${g.id}&order=position.asc&limit=4&select=poster_path`);
+        g.posters = (ir.ok ? await ir.json() : []).map((i: any) => i.poster_path).filter(Boolean);
+      } catch (e) { g.posters = []; }
+    }));
+  }
 } catch (e) {}
 
 // Oscar 2026 nominees - search TMDB for each
@@ -660,17 +668,20 @@ const boxOfficeWithPosters = await Promise.all(boxOfficeData.map(async (entry) =
         <a href="/guides" class="text-sm font-medium text-purple-400 hover:text-purple-300 transition-colors">See All →</a>
       </div>
       <p class="text-sm mb-4 -mt-2" style="color: var(--text-muted);">Hand-picked lists for every mood and era.</p>
-      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
         {movieGuides.map((g: any) => (
-          <a href={`/guides/${g.slug}`} class="group block rounded-2xl p-5 relative overflow-hidden transition-all duration-300 hover:-translate-y-1" style="background-color: var(--bg-card); border: 1px solid var(--border);">
-            <div class="absolute top-0 left-0 right-0 h-1" style={`background: linear-gradient(90deg, ${g.color}, ${g.color}55);`}></div>
-            <div class="flex items-start gap-3">
-              <span class="text-3xl flex-shrink-0">{g.emoji}</span>
-              <div class="min-w-0">
-                <h3 class="font-black text-base sm:text-lg leading-tight group-hover:text-purple-300 transition-colors" style="color: var(--text-primary);">{g.title}</h3>
-                {g.intro && <p class="mt-1.5 text-xs line-clamp-2" style="color: var(--text-muted);">{g.intro}</p>}
-                <span class="inline-block mt-2 text-xs font-semibold" style={`color: ${g.color};`}>View list →</span>
-              </div>
+          <a href={`/guides/${g.slug}`} class="mg-card group relative block rounded-2xl overflow-hidden">
+            <div class="mg-stack">
+              {(g.posters || []).map((p: string, i: number) => (
+                <img src={p && p.startsWith('/images/') ? p : `https://image.tmdb.org/t/p/w342${p}`} alt="" loading="lazy" class={`mg-p mg-p-${i}`} />
+              ))}
+            </div>
+            <div class="mg-grad"></div>
+            <div class="mg-accent" style={`background: linear-gradient(90deg, ${g.color}, ${g.color}55);`}></div>
+            <div class="relative z-10 p-5 h-full flex flex-col justify-end">
+              <span class="text-3xl mb-1 drop-shadow-lg">{g.emoji}</span>
+              <h3 class="font-black text-lg leading-tight text-white drop-shadow-md">{g.title}</h3>
+              <span class="inline-block mt-2 text-xs font-bold text-white">View list →</span>
             </div>
           </a>
         ))}
@@ -679,3 +690,25 @@ const boxOfficeWithPosters = await Promise.all(boxOfficeData.map(async (entry) =
   )}
 
 </BaseLayout>
+
+<style>
+  /* Movie Guides cinematic collage cards */
+  .mg-card {
+    aspect-ratio: 16 / 10;
+    background: #14141c;
+    border: 1px solid var(--border);
+    transition: transform 0.35s ease, box-shadow 0.35s ease;
+  }
+  .mg-card:hover { transform: translateY(-6px); box-shadow: 0 24px 50px -16px rgba(0,0,0,0.7); }
+  .mg-accent { position: absolute; top: 0; left: 0; right: 0; height: 4px; z-index: 11; }
+  .mg-grad { position: absolute; inset: 0; z-index: 5; background: linear-gradient(0deg, rgba(10,10,15,0.97) 0%, rgba(10,10,15,0.7) 45%, rgba(10,10,15,0.4) 100%); }
+  .mg-stack { position: absolute; inset: 0; z-index: 1; overflow: hidden; }
+  .mg-p { position: absolute; top: -8%; height: 150%; width: auto; border-radius: 8px; object-fit: cover; box-shadow: 0 8px 20px rgba(0,0,0,0.5); transition: transform 0.4s ease; }
+  .mg-p-0 { right: 6%;  transform: rotate(6deg);  z-index: 4; }
+  .mg-p-1 { right: 26%; transform: rotate(-3deg); z-index: 3; opacity: 0.95; }
+  .mg-p-2 { right: 46%; transform: rotate(4deg);  z-index: 2; opacity: 0.85; }
+  .mg-p-3 { right: 64%; transform: rotate(-5deg); z-index: 1; opacity: 0.7; }
+  .mg-card:hover .mg-p-0 { transform: rotate(3deg) scale(1.05); }
+  .mg-card:hover .mg-p-1 { transform: rotate(-1deg) scale(1.03); }
+  @media (prefers-reduced-motion: reduce) { .mg-card, .mg-p { transition: none; } }
+</style>
