@@ -6,6 +6,7 @@ import FeaturedSection from '../components/FeaturedSection.svelte';
 import Collections from '../components/Collections.svelte';
 import PickYourMood from '../components/PickYourMood.svelte';
 import ContinueWatching from '../components/ContinueWatching.svelte';
+import TrendingNowRow from '../components/TrendingNowRow.svelte';
 import { getTrendingMovies, getNowPlayingMovies, getPopularMovies, getTopRatedMovies, getTrendingTV, getPopularTV, getOnTheAirTV, discoverMovies, getMovieDetails, getMovieGenres, getTVDetails, searchMovies } from '../lib/tmdb';
 import topMoviesData from '../data/top_movies_by_year.json';
 
@@ -22,12 +23,27 @@ async function getLatestAdditions() {
   const minYear = currentYear - 1;
   try {
     const res = await fetch(
-      `${POSTGREST_URL}/movies?has_downloads=eq.true&year=gte.${minYear}&order=updated_at.desc&limit=20&select=tmdb_id,title,year,poster_path,backdrop_path,vote_average,vote_count,popularity,overview`
+      `${POSTGREST_URL}/movies?has_downloads=eq.true&year=gte.${minYear}&order=updated_at.desc&limit=30&select=tmdb_id,title,year,poster_path,backdrop_path,vote_average,vote_count,popularity,overview,updated_at`
     );
     if (!res.ok) return [];
     return await res.json();
   } catch (e) {
     console.error('Failed to fetch latest additions:', e);
+    return [];
+  }
+}
+
+// Fetch "Trending Now" — most-viewed movies based on REAL audience data
+// (page_views table, ~4M rows). The rpc/top_viewed_movies function returns
+// movies ranked by actual view_count with poster/title/year already joined.
+// This is OUR audience's real behaviour, distinct from TMDB's global trending.
+async function getMostViewed() {
+  try {
+    const res = await fetch(`${POSTGREST_URL}/rpc/top_viewed_movies`);
+    if (!res.ok) return [];
+    return await res.json();
+  } catch (e) {
+    console.error('Failed to fetch most-viewed movies:', e);
     return [];
   }
 }
@@ -45,7 +61,7 @@ const futureStr = threeMonthsLater.toISOString().split('T')[0];
 // All TMDB calls wrapped with safe fallbacks so one bad upstream call doesn't 500 the homepage.
 const ARR: any = [];
 const OBJ: any = { results: [] };
-const [trending, nowPlaying, popular, topRatedRecent, upcomingData, trendingTV, popularTV, onTheAirTV, actionMovies, comedyMovies, romanceMovies, thrillerMovies, animeMovies, kDramaMovies, movieGenres, latestAdditions] = await Promise.all([
+const [trending, nowPlaying, popular, topRatedRecent, upcomingData, trendingTV, popularTV, onTheAirTV, actionMovies, comedyMovies, romanceMovies, thrillerMovies, animeMovies, kDramaMovies, movieGenres, latestAdditions, mostViewed] = await Promise.all([
   getTrendingMovies('week').catch(() => ARR),
   getNowPlayingMovies().catch(() => ARR),
   getPopularMovies().catch(() => ARR),
@@ -65,7 +81,8 @@ const [trending, nowPlaying, popular, topRatedRecent, upcomingData, trendingTV, 
   discoverMovies({ with_genres: '16', with_original_language: 'ja', sort_by: 'vote_average.desc', 'vote_count.gte': '500' }).catch(() => OBJ),
   discoverMovies({ with_original_language: 'ko', sort_by: 'vote_average.desc', 'vote_count.gte': '200' }).catch(() => OBJ),
   getMovieGenres().catch(() => ARR),
-  getLatestAdditions().catch(() => ARR)
+  getLatestAdditions().catch(() => ARR),
+  getMostViewed().catch(() => ARR)
 ]);
 
 const upcoming = (upcomingData?.results || []).filter((m: any) => m.poster_path && m.release_date && new Date(m.release_date) > new Date());
@@ -76,7 +93,24 @@ const genreMap = new Map(movieGenres.map((g: any) => [g.id, g.name]));
 // Fetch detailed info for hero carousel items (top 8 trending)
 const heroMovieIds = (trending || []).slice(0, 8).map((m: any) => m.id);
 const heroDetailsPromises = heroMovieIds.map((id: number) => getMovieDetails(id).catch(() => null));
-const heroDetails = await Promise.all(heroDetailsPromises);
+
+// PERF: kick off all the independent downstream fetches NOW (in parallel) instead
+// of awaiting each one sequentially further down. They don't depend on each other,
+// only on the main batch above. This collapses ~5 serial round-trips into 1.
+const _heroDetailsP    = Promise.all(heroDetailsPromises);
+const _imageOverridesP = getCustomImageOverrides();
+const _boxOfficeDataP  = getBoxOfficeData();
+const _moodGenresP = Promise.all([
+  discoverMovies({ with_genres: "10751", sort_by: "vote_average.desc", "vote_count.gte": "200" }),
+  discoverMovies({ with_genres: "27", sort_by: "popularity.desc" }),
+  discoverMovies({ with_genres: "878", sort_by: "vote_average.desc", "vote_count.gte": "300" }),
+  discoverMovies({ with_genres: "18", sort_by: "vote_average.desc", "vote_count.gte": "500" }),
+  discoverMovies({ with_original_language: "hi", sort_by: "popularity.desc" }),
+  discoverMovies({ with_genres: "16", sort_by: "popularity.desc" }),
+  discoverMovies({ with_genres: "36", sort_by: "vote_average.desc", "vote_count.gte": "500" }),
+]);
+
+const heroDetails = await _heroDetailsP;
 
 // Load custom poster/backdrop overrides — any movie whose poster_path or backdrop_path
 // in our DB starts with /images/ overrides TMDB on every section of the homepage.
@@ -100,7 +134,7 @@ async function getCustomImageOverrides(): Promise<Map<number, { poster_path?: st
   }
   return map;
 }
-const imageOverrides = await getCustomImageOverrides();
+const imageOverrides = await _imageOverridesP;
 function applyOverride(tmdbId: number, posterPath: string | null, backdropPath: string | null) {
   const ov = imageOverrides.get(tmdbId);
   return {
@@ -159,6 +193,7 @@ function transformDbMovie(m: any) {
     popularity: m.popularity || 0,
     year: m.year,
     overview: m.overview,
+    updated_at: m.updated_at,
     type: 'movie' as const,
     has_downloads: true
   };
@@ -197,6 +232,56 @@ const topRatedItems = (topRatedRecent?.results || []).slice(0, 20).map(transform
 
 // Transform latest additions from database
 const latestAdditionItems = (latestAdditions || []).map(transformDbMovie);
+
+// The "Just Dropped" reel inside FeaturedSection spotlights the first 8 items
+// that have artwork. Build the IDs it will use so the "Latest Additions" row
+// below can SKIP them — no movie appears in both sections.
+const reelSpotlightIds = new Set(
+  latestAdditionItems
+    .filter((m: any) => m.poster_path || m.backdrop_path)
+    .slice(0, 8)
+    .map((m: any) => m.id)
+);
+const latestAdditionsRowItems = latestAdditionItems.filter((m: any) => !reelSpotlightIds.has(m.id));
+
+// "Trending Now" — real most-viewed movies (rpc/top_viewed_movies). The RPC's
+// poster_path/year can be stale (e.g. dead .webp posters, wrong year), so we
+// enrich each row against the movies table (fresh poster/year) by tmdb_id.
+const mostViewedRaw = (mostViewed || []).filter((m: any) => (m.view_count || 0) > 0);
+let mvFresh: Record<number, any> = {};
+if (mostViewedRaw.length > 0) {
+  try {
+    const ids = mostViewedRaw.map((m: any) => m.tmdb_id).filter(Boolean).join(',');
+    const r = await fetch(`${POSTGREST_URL}/movies?tmdb_id=in.(${ids})&select=tmdb_id,title,year,poster_path,vote_average`);
+    if (r.ok) {
+      const rows = await r.json();
+      mvFresh = Object.fromEntries(rows.map((m: any) => [m.tmdb_id, m]));
+    }
+  } catch (e) { console.error('most-viewed enrich failed:', e); }
+}
+// Normalise a TMDB poster path: dead .webp variants 404, the .jpg works.
+const fixPoster = (p: string | null): string | null => {
+  if (!p) return null;
+  if (p.startsWith('/images/')) return p;
+  return p.replace(/\.webp$/i, '.jpg');
+};
+const mostViewedItems = mostViewedRaw
+  .map((m: any) => {
+    const fresh = mvFresh[m.tmdb_id] || {};
+    const poster = fixPoster(fresh.poster_path || m.poster_path);
+    return {
+      id: m.tmdb_id,
+      tmdb_id: m.tmdb_id,
+      title: fresh.title || m.title,
+      poster_path: poster,
+      vote_average: fresh.vote_average || 0,
+      year: fresh.year || m.year,
+      type: 'movie' as const,
+      has_downloads: true,
+      view_count: m.view_count || 0,
+    };
+  })
+  .filter((m: any) => m.poster_path);
 
 // Transform upcoming movies with full release date
 const upcomingItems = (upcoming || []).map((m: any) => {
@@ -268,6 +353,22 @@ const romanceItems = (romanceMovies?.results || []).slice(0, 15).map(transformMo
 const thrillerItems = (thrillerMovies?.results || []).slice(0, 15).map(transformMovie);
 const animeItems = (animeMovies?.results || []).slice(0, 15).map(transformMovie);
 const kDramaItems = (kDramaMovies?.results || []).slice(0, 15).map(transformMovie);
+
+// Movie Guides — curated topic lists (replaces Anime/Korean rows). Pulls a few
+// published topics + their top posters for a cinematic collage card.
+let movieGuides: any[] = [];
+try {
+  const _gr = await fetch(`${POSTGREST_URL}/movie_topics?is_published=eq.true&order=sort_order.asc&limit=6&select=id,slug,title,intro,emoji,color`);
+  if (_gr.ok) {
+    movieGuides = await _gr.json();
+    await Promise.all(movieGuides.map(async (g: any) => {
+      try {
+        const ir = await fetch(`${POSTGREST_URL}/movie_topic_items?topic_id=eq.${g.id}&order=position.asc&limit=4&select=poster_path`);
+        g.posters = (ir.ok ? await ir.json() : []).map((i: any) => i.poster_path).filter(Boolean);
+      } catch (e) { g.posters = []; }
+    }));
+  }
+} catch (e) {}
 
 // Oscar 2026 nominees - search TMDB for each
 const oscarTitles = [
@@ -347,16 +448,8 @@ async function getBoxOfficeData() {
   }
 }
 
-// Fetch mood-specific genres
-const [familyMovies, horrorMovies, sciFiMovies, dramaMovies, hindiMovies, animationMovies, historyMovies] = await Promise.all([
-  discoverMovies({ with_genres: "10751", sort_by: "vote_average.desc", "vote_count.gte": "200" }),
-  discoverMovies({ with_genres: "27", sort_by: "popularity.desc" }),
-  discoverMovies({ with_genres: "878", sort_by: "vote_average.desc", "vote_count.gte": "300" }),
-  discoverMovies({ with_genres: "18", sort_by: "vote_average.desc", "vote_count.gte": "500" }),
-  discoverMovies({ with_original_language: "hi", sort_by: "popularity.desc" }),
-  discoverMovies({ with_genres: "16", sort_by: "popularity.desc" }),
-  discoverMovies({ with_genres: "36", sort_by: "vote_average.desc", "vote_count.gte": "500" }),
-]);
+// Mood-specific genres (kicked off in parallel up top for perf)
+const [familyMovies, horrorMovies, sciFiMovies, dramaMovies, hindiMovies, animationMovies, historyMovies] = await _moodGenresP;
 
 const familyItems = (familyMovies?.results || []).slice(0, 8).map(transformMovie);
 const horrorItems = (horrorMovies?.results || []).slice(0, 8).map(transformMovie);
@@ -384,7 +477,7 @@ const collectionsData = [
   { id: "top-rated", title: "Highest Rated of All Time", subtitle: "The all-time greatest", link: "/top-rated", gradient: "linear-gradient(135deg, #f59e0b 0%, #ef4444 100%)", posters: topRatedItems.slice(0, 4).map((i) => i.poster_path).filter(Boolean) },
 ];
 
-const boxOfficeData = await getBoxOfficeData();
+const boxOfficeData = await _boxOfficeDataP;
 
 // Search TMDB for box office movies to get posters
 const boxOfficeWithPosters = await Promise.all(boxOfficeData.map(async (entry) => {
@@ -420,25 +513,49 @@ const boxOfficeWithPosters = await Promise.all(boxOfficeData.map(async (entry) =
     />
   )}
 
-  <!-- Featured Section: Oscar + Tabs -->
-  <FeaturedSection
-    client:load
-    oscarMovies={oscarMovies}
-    topMovies={topMovies}
-    boxOffice={boxOfficeWithPosters}
-    comingSoon={upcoming.slice(0, 10).map(transformMovie)}
-  />
-
-  <!-- Latest Additions (from our database - movies with downloads) -->
-  {latestAdditionItems.length > 0 && (
-    <ContentRow
+  <!-- Trending Now — ranked by REAL views on TrendiMovies (page_views data).
+       Distinct from "Trending This Week" (TMDB global) via rank #s + view counts. -->
+  {mostViewedItems.length >= 5 && (
+    <TrendingNowRow
       client:load
-      title="Latest Additions"
-      items={latestAdditionItems}
-      seeAllLink="/movies/latest"
-      autoScroll={false}
+      items={mostViewedItems}
+      title="Trending Now"
+      subtitle="Most watched on TrendiMovies"
+      seeAllLink="/trending"
     />
   )}
+
+  <!-- Featured Section + Latest Additions:
+       Featured (which now contains the "Just Dropped" reel) comes FIRST on all
+       breakpoints, then "More Just Added" below it. -->
+  <div class="flex flex-col">
+    <!-- Featured Section: Oscar + Tabs + Just Dropped reel -->
+    <div class="order-1">
+      <FeaturedSection
+        client:load
+        oscarMovies={oscarMovies}
+        topMovies={topMovies}
+        boxOffice={boxOfficeWithPosters}
+        comingSoon={upcoming.slice(0, 10).map(transformMovie)}
+        latestAdditions={latestAdditionItems}
+      />
+    </div>
+
+    <!-- Latest Additions (from our database - movies with downloads).
+         Excludes the titles already spotlighted in the "Just Dropped" reel
+         above so nothing appears twice. -->
+    {latestAdditionsRowItems.length > 0 && (
+      <div class="order-2">
+        <ContentRow
+          client:load
+          title="More Just Added"
+          items={latestAdditionsRowItems}
+          seeAllLink="/movies/latest"
+          autoScroll={false}
+        />
+      </div>
+    )}
+  </div>
 
   <!-- Now Playing -->
   {nowPlayingItems.length > 0 && (
@@ -540,24 +657,80 @@ const boxOfficeWithPosters = await Promise.all(boxOfficeData.map(async (entry) =
     />
   )}
 
-  <!-- Anime Movies -->
-  {animeItems.length > 0 && (
-    <ContentRow
-      client:visible
-      title="Top Anime Movies"
-      items={animeItems}
-      seeAllLink="/movies/anime"
-    />
-  )}
-
-  <!-- Korean Movies -->
-  {kDramaItems.length > 0 && (
-    <ContentRow
-      client:visible
-      title="Top Korean Movies"
-      items={kDramaItems}
-      seeAllLink="/movies/korean"
-    />
+  <!-- Movie Guides — curated topic lists (replaced Anime/Korean rows) -->
+  {movieGuides.length > 0 && (
+    <section class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+      <div class="flex items-center justify-between mb-4">
+        <div class="flex items-center gap-2.5">
+          <span class="text-2xl">🎬</span>
+          <h2 class="text-lg sm:text-2xl md:text-3xl font-extrabold" style="color: var(--text-primary);">Movie Guides</h2>
+        </div>
+        <a href="/guides" class="text-sm font-medium text-purple-400 hover:text-purple-300 transition-colors">See All →</a>
+      </div>
+      <p class="text-sm mb-6 -mt-2" style="color: var(--text-muted);">Hand-picked lists for every mood and era.</p>
+      <div class="vinyl-grid">
+        {movieGuides.map((g: any) => (
+          <a href={`/guides/${g.slug}`} class="vinyl-card group" style={`--c: ${g.color};`}>
+            <div class="vinyl-disc">
+              <img src={g.posters?.[0] && g.posters[0].startsWith('/images/') ? g.posters[0] : `https://image.tmdb.org/t/p/w342${g.posters?.[0]}`} alt="" loading="lazy" class="vinyl-label" />
+              <div class="vinyl-sheen"></div>
+              <div class="vinyl-hole"></div>
+            </div>
+            <p class="vinyl-name"><span class="vinyl-emoji">{g.emoji}</span> {g.title}</p>
+          </a>
+        ))}
+      </div>
+    </section>
   )}
 
 </BaseLayout>
+
+<style>
+  /* Movie Guides — auto-spinning vinyl/film-reel discs (works on mobile + desktop) */
+  .vinyl-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);   /* mobile: 2 per row */
+    gap: 24px 16px;
+    justify-items: center;
+  }
+  @media (min-width: 640px) { .vinyl-grid { grid-template-columns: repeat(3, 1fr); } }
+  @media (min-width: 1024px) { .vinyl-grid { grid-template-columns: repeat(6, 1fr); } }
+
+  .vinyl-card { display: flex; flex-direction: column; align-items: center; width: 100%; max-width: 170px; text-decoration: none; }
+
+  .vinyl-disc {
+    position: relative; width: 100%; aspect-ratio: 1; border-radius: 50%; overflow: hidden;
+    background: radial-gradient(circle at 50% 50%, #1a1a1a 0 30%, #0a0a0a 30%);
+    box-shadow: 0 10px 28px rgba(0,0,0,0.55), inset 0 0 0 7px #111, inset 0 0 0 8px var(--c);
+    /* concentric vinyl grooves */
+    background-image:
+      repeating-radial-gradient(circle at 50% 50%, rgba(255,255,255,0.04) 0 1px, transparent 1px 4px);
+    animation: vinyl-spin 14s linear infinite;     /* AUTO-SPIN — no hover needed */
+    will-change: transform;
+  }
+  .vinyl-card:hover .vinyl-disc { animation-duration: 4s; }   /* desktop bonus: spin faster on hover */
+
+  .vinyl-label {
+    position: absolute; top: 28%; left: 28%; width: 44%; height: 44%;
+    object-fit: cover; border-radius: 50%; box-shadow: 0 0 0 2px rgba(255,255,255,0.15);
+  }
+  .vinyl-sheen {
+    position: absolute; inset: 0; border-radius: 50%; pointer-events: none;
+    background: linear-gradient(125deg, rgba(255,255,255,0.18) 0 18%, transparent 38% 62%, rgba(255,255,255,0.08) 82% 100%);
+  }
+  .vinyl-hole {
+    position: absolute; top: 47%; left: 47%; width: 6%; height: 6%; border-radius: 50%;
+    background: #000; box-shadow: 0 0 0 2px #333; z-index: 3;
+  }
+
+  .vinyl-name {
+    margin-top: 12px; font: 700 12px/1.25 system-ui; color: var(--text-primary);
+    text-align: center; max-width: 160px;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+  }
+  .vinyl-card:hover .vinyl-name { color: #fff; }
+  .vinyl-emoji { font-size: 14px; }
+
+  @media (prefers-reduced-motion: reduce) { .vinyl-disc { animation: none; } }
+  @keyframes vinyl-spin { to { transform: rotate(360deg); } }
+</style>

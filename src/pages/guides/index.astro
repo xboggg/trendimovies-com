@@ -1,0 +1,107 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+
+const POSTGREST_URL = import.meta.env.PUBLIC_SUPABASE_URL || 'http://localhost:3001';
+
+async function getTopics() {
+  try {
+    const r = await fetch(`${POSTGREST_URL}/movie_topics?is_published=eq.true&order=sort_order.asc&select=id,slug,title,category,intro,emoji,color`);
+    if (!r.ok) return [];
+    const topics = await r.json();
+    // fetch top 4 posters per topic for the collage
+    await Promise.all(topics.map(async (t: any) => {
+      try {
+        const ir = await fetch(`${POSTGREST_URL}/movie_topic_items?topic_id=eq.${t.id}&order=position.asc&limit=5&select=poster_path`);
+        const items = ir.ok ? await ir.json() : [];
+        t.posters = items.map((i: any) => i.poster_path).filter(Boolean).slice(0, 4);
+      } catch (e) { t.posters = []; }
+    }));
+    return topics;
+  } catch (e) { return []; }
+}
+const topics = await getTopics();
+
+function poster(p: string) {
+  if (!p) return '/images/no-poster.svg';
+  return p.startsWith('/images/') ? p : `https://image.tmdb.org/t/p/w342${p}`;
+}
+
+const CATS: Record<string, string> = { mood: 'By Mood', decade: 'By Decade', hidden: 'Hidden Gems', 'best-of': 'Best Of' };
+const grouped: Record<string, any[]> = {};
+for (const t of topics) (grouped[t.category] ||= []).push(t);
+const catOrder = ['mood', 'decade', 'hidden', 'best-of', ...Object.keys(grouped)].filter((c, i, a) => a.indexOf(c) === i && grouped[c]);
+---
+
+<BaseLayout title="Movie Guides — Curated Lists for Every Mood & Era | TrendiMovies" description="Hand-picked movie guides: tearjerkers, feel-good films, mind-benders, best of each decade and hidden gems. Find your next watch on TrendiMovies.">
+  <!-- Cinematic hero -->
+  <section class="relative overflow-hidden">
+    <div class="absolute inset-0" style="background: linear-gradient(135deg, #0a0a0f 0%, #1a0f2e 45%, #2d0a2e 100%);"></div>
+    <div class="absolute inset-0 opacity-30 pointer-events-none" style="background: radial-gradient(ellipse at 25% 20%, #a855f7, transparent 55%), radial-gradient(ellipse at 80% 60%, #ec4899, transparent 50%);"></div>
+    <div class="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-14 pb-8 text-center">
+      <h1 class="text-4xl sm:text-6xl font-black tracking-tight" style="color: #fff;">🎬 <span style="background: linear-gradient(135deg,#c084fc,#f472b6); -webkit-background-clip: text; background-clip: text; color: transparent;">Movie Guides</span></h1>
+      <p class="mt-4 text-lg sm:text-xl max-w-2xl mx-auto" style="color: rgba(255,255,255,0.7);">Hand-picked lists for every mood and era — find your next obsession.</p>
+    </div>
+  </section>
+
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    {topics.length === 0 && <p class="text-center py-16" style="color: var(--text-muted);">Guides coming soon.</p>}
+    {catOrder.map((cat) => (
+      <section class="mb-12">
+        <h2 class="text-xl sm:text-2xl font-black mb-6 flex items-center gap-3" style="color: var(--text-primary);">
+          <span class="w-1.5 h-8 rounded-full" style="background: linear-gradient(180deg, #a855f7, #ec4899);"></span>
+          {CATS[cat] || cat}
+        </h2>
+        <div class="vinyl-grid">
+          {grouped[cat].map((t: any) => (
+            <a href={`/guides/${t.slug}`} class="vinyl-card group" style={`--c: ${t.color};`}>
+              <div class="vinyl-disc">
+                <img src={poster(t.posters?.[0])} alt="" loading="lazy" class="vinyl-label" />
+                <div class="vinyl-sheen"></div>
+                <div class="vinyl-hole"></div>
+              </div>
+              <p class="vinyl-name"><span class="vinyl-emoji">{t.emoji}</span> {t.title}</p>
+            </a>
+          ))}
+        </div>
+      </section>
+    ))}
+  </div>
+</BaseLayout>
+
+<style>
+  /* auto-spinning vinyl/film-reel discs (works on mobile + desktop) */
+  .vinyl-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 28px 18px;
+    justify-items: center;
+  }
+  @media (min-width: 640px) { .vinyl-grid { grid-template-columns: repeat(3, 1fr); } }
+  @media (min-width: 1024px) { .vinyl-grid { grid-template-columns: repeat(4, 1fr); } }
+
+  .vinyl-card { display: flex; flex-direction: column; align-items: center; width: 100%; max-width: 200px; text-decoration: none; }
+
+  .vinyl-disc {
+    position: relative; width: 100%; aspect-ratio: 1; border-radius: 50%; overflow: hidden;
+    background: radial-gradient(circle at 50% 50%, #1a1a1a 0 30%, #0a0a0a 30%);
+    box-shadow: 0 12px 32px rgba(0,0,0,0.55), inset 0 0 0 8px #111, inset 0 0 0 9px var(--c);
+    background-image: repeating-radial-gradient(circle at 50% 50%, rgba(255,255,255,0.04) 0 1px, transparent 1px 4px);
+    animation: vinyl-spin 14s linear infinite;
+    will-change: transform;
+  }
+  .vinyl-card:hover .vinyl-disc { animation-duration: 4s; }
+
+  .vinyl-label { position: absolute; top: 28%; left: 28%; width: 44%; height: 44%; object-fit: cover; border-radius: 50%; box-shadow: 0 0 0 2px rgba(255,255,255,0.15); }
+  .vinyl-sheen { position: absolute; inset: 0; border-radius: 50%; pointer-events: none; background: linear-gradient(125deg, rgba(255,255,255,0.18) 0 18%, transparent 38% 62%, rgba(255,255,255,0.08) 82% 100%); }
+  .vinyl-hole { position: absolute; top: 47%; left: 47%; width: 6%; height: 6%; border-radius: 50%; background: #000; box-shadow: 0 0 0 2px #333; z-index: 3; }
+
+  .vinyl-name {
+    margin-top: 14px; font: 700 13px/1.3 system-ui; color: var(--text-primary); text-align: center; max-width: 190px;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+  }
+  .vinyl-card:hover .vinyl-name { color: #fff; }
+  .vinyl-emoji { font-size: 15px; }
+
+  @media (prefers-reduced-motion: reduce) { .vinyl-disc { animation: none; } }
+  @keyframes vinyl-spin { to { transform: rotate(360deg); } }
+</style>
