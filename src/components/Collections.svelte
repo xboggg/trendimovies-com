@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { onMount, onDestroy } from 'svelte';
   import { ChevronRight } from 'lucide-svelte';
 
   interface Collection {
@@ -12,16 +13,53 @@
 
   export let collections: Collection[] = [];
 
-  // Duplicate the list so the marquee can loop seamlessly (translate -50% then reset).
+  // Duplicate so we can wrap scroll seamlessly at the halfway point.
   $: loop = collections.length ? [...collections, ...collections] : [];
-  // Slower for fewer cards, capped — ~6s per card feels gentle.
-  $: durationS = Math.max(24, collections.length * 6);
+
+  let track: HTMLDivElement;
+  let raf = 0;
+  let paused = false;          // hover / touch
+  let resumeTimer: ReturnType<typeof setTimeout>;
+  const SPEED = 0.4;           // px per frame (~24px/s) — gentle continuous glide
+
+  function tick() {
+    if (typeof requestAnimationFrame === 'undefined') return; // SSR guard
+    if (track && !paused) {
+      const half = track.scrollWidth / 2;
+      let next = track.scrollLeft + SPEED;
+      if (next >= half) next -= half;   // seamless wrap (duplicated list)
+      track.scrollLeft = next;
+    }
+    raf = requestAnimationFrame(tick);
+  }
+
+  // Manual swipe/drag: pause auto-glide while the user interacts, resume shortly after.
+  function hold() { paused = true; clearTimeout(resumeTimer); }
+  function release() { clearTimeout(resumeTimer); resumeTimer = setTimeout(() => (paused = false), 2500); }
+
+  // pointer drag-to-scroll (desktop mouse); touch scroll is native
+  let dragging = false, startX = 0, startScroll = 0;
+  function down(e: PointerEvent) {
+    dragging = true; hold();
+    startX = e.clientX; startScroll = track.scrollLeft;
+    track.setPointerCapture?.(e.pointerId);
+  }
+  function move(e: PointerEvent) {
+    if (!dragging) return;
+    track.scrollLeft = startScroll - (e.clientX - startX);
+  }
+  function up() { dragging = false; release(); }
+
+  onMount(() => { raf = requestAnimationFrame(tick); });
+  onDestroy(() => {
+    if (typeof cancelAnimationFrame !== 'undefined' && raf) cancelAnimationFrame(raf);
+    clearTimeout(resumeTimer);
+  });
 </script>
 
 {#if collections.length > 0}
 <section class="py-8">
   <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-    <!-- Header -->
     <div class="flex items-center justify-between mb-6">
       <div class="flex items-center gap-3">
         <h2 class="text-2xl md:text-3xl font-extrabold" style="color: var(--text-primary);">Collections</h2>
@@ -30,16 +68,27 @@
     </div>
   </div>
 
-  <!-- Continuous marquee track (full-bleed so cards flow off both edges) -->
   <div class="marquee-viewport">
-    <div class="marquee-track" style={`animation-duration: ${durationS}s;`}>
+    <div
+      bind:this={track}
+      class="marquee-track"
+      class:dragging
+      on:mouseenter={hold}
+      on:mouseleave={release}
+      on:touchstart={hold}
+      on:touchend={release}
+      on:pointerdown={down}
+      on:pointermove={move}
+      on:pointerup={up}
+      on:pointercancel={up}
+    >
       {#each loop as collection, i}
-        <a href={collection.link} class="collection-card group" aria-hidden={i >= collections.length ? 'true' : undefined}>
+        <a href={collection.link} class="collection-card group" aria-hidden={i >= collections.length ? 'true' : undefined} draggable="false">
           <div class="card-bg" style="background: {collection.gradient}">
             <div class="poster-stack">
               {#each collection.posters.slice(0, 4) as poster, j}
                 <div class="stacked-poster" style="--offset: {j * 28}px; --rotate: {-6 + j * 4}deg; z-index: {4 - j}">
-                  <img src={`https://image.tmdb.org/t/p/w185${poster}`} alt="" class="stacked-img" loading="lazy" />
+                  <img src={`https://image.tmdb.org/t/p/w185${poster}`} alt="" class="stacked-img" loading="lazy" draggable="false" />
                 </div>
               {/each}
             </div>
@@ -63,38 +112,28 @@
 
 <style>
   .marquee-viewport {
-    overflow: hidden;
     width: 100%;
-    /* fade the edges so cards flow in/out smoothly */
     -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 4%, #000 96%, transparent 100%);
     mask-image: linear-gradient(90deg, transparent 0, #000 4%, #000 96%, transparent 100%);
   }
   .marquee-track {
     display: flex;
     gap: 16px;
-    width: max-content;
     padding: 4px 16px;
-    animation-name: marquee;
-    animation-timing-function: linear;
-    animation-iteration-count: infinite;
-    will-change: transform;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+    cursor: grab;
+    touch-action: pan-x;        /* allow native horizontal swipe */
   }
-  /* translate exactly half (since the list is duplicated) for a seamless loop */
-  @keyframes marquee {
-    from { transform: translateX(0); }
-    to   { transform: translateX(-50%); }
-  }
-  /* pause on hover so people can read / click */
-  .marquee-viewport:hover .marquee-track { animation-play-state: paused; }
-  @media (prefers-reduced-motion: reduce) {
-    .marquee-track { animation: none; }
-  }
+  .marquee-track::-webkit-scrollbar { display: none; }
+  .marquee-track.dragging { cursor: grabbing; }
 
   .collection-card {
     position: relative;
     flex: 0 0 86vw;             /* mobile: ~one card fills the view */
     max-width: 360px;
-    scroll-snap-align: start;
     border-radius: 16px;
     overflow: hidden;
     height: 180px;
@@ -104,8 +143,9 @@
     text-decoration: none;
     transition: transform 0.4s ease, box-shadow 0.4s ease, border-color 0.4s ease;
     border: 1px solid rgba(255,255,255,0.05);
+    user-select: none;
   }
-  @media (min-width: 640px)  { .collection-card { flex-basis: 360px; } }
+  @media (min-width: 640px) { .collection-card { flex-basis: 360px; } }
 
   .collection-card:hover {
     transform: translateY(-4px);
