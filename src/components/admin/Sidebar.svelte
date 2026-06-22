@@ -11,6 +11,7 @@
     Activity,
     MessageSquare,
     Disc3,
+    Clapperboard,
     X
   } from 'lucide-svelte';
 
@@ -21,6 +22,7 @@
     { id: 'movies', label: 'Movies', href: '/admin/movies', icon: Film },
     { id: 'series', label: 'Series', href: '/admin/series', icon: Tv },
     { id: 'guides', label: 'Movie Guides', href: '/admin/guides', icon: Disc3 },
+    { id: 'studio', label: 'TikTok Studio', href: '/admin/studio', icon: Clapperboard },
     { id: 'downloads', label: 'Downloads', href: '/admin/downloads', icon: Download },
     { id: 'requests', label: 'Requests', href: '/admin/requests', icon: MessageSquare },
     { id: 'crons', label: 'Cron Jobs', href: '/admin/crons', icon: Clock },

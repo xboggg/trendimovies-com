@@ -1,0 +1,52 @@
+---
+import AdminLayout from '../../layouts/AdminLayout.astro';
+---
+
+<AdminLayout title="TikTok Studio" activeTab="studio">
+  <div id="studio-wrap">
+    <div id="studio-loading">
+      <div class="spinner"></div>
+      <p>Opening TikTok Studio…</p>
+    </div>
+    <iframe id="studio-frame" title="TrendiMovies Studio" allow="clipboard-write; fullscreen" style="display:none"></iframe>
+    <div id="studio-error" style="display:none">
+      <p>Couldn’t open the Studio inline.</p>
+      <a id="studio-fallback" href="#" target="_blank" rel="noopener" class="btn">Open in a new tab →</a>
+    </div>
+  </div>
+</AdminLayout>
+
+<style>
+  #studio-wrap { position: relative; width: 100%; height: calc(100vh - 120px); min-height: 600px; border-radius: 14px; overflow: hidden; background: #0b0f17; border: 1px solid #1f2937; }
+  #studio-frame { width: 100%; height: 100%; border: 0; }
+  #studio-loading, #studio-error { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; color: #9ca3af; }
+  .spinner { width: 38px; height: 38px; border: 3px solid #374151; border-top-color: #a855f7; border-radius: 50%; animation: spin 0.8s linear infinite; }
+  .btn { background: linear-gradient(135deg,#a855f7,#ec4899); color: #fff; padding: 10px 18px; border-radius: 10px; font-weight: 600; text-decoration: none; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  @media (max-width: 640px) { #studio-wrap { height: calc(100vh - 90px); } }
+</style>
+
+<script>
+  async function openStudio() {
+    const frame = document.getElementById('studio-frame') as HTMLIFrameElement;
+    const loading = document.getElementById('studio-loading') as HTMLElement;
+    const errBox = document.getElementById('studio-error') as HTMLElement;
+    const fallback = document.getElementById('studio-fallback') as HTMLAnchorElement;
+    try {
+      const r = await fetch('/api/admin/studio-sso');
+      const d = await r.json();
+      if (!d.ok || !d.url) throw new Error(d.error || 'no url');
+      fallback.href = d.url;
+      frame.src = d.url;
+      frame.onload = () => { loading.style.display = 'none'; frame.style.display = 'block'; };
+      // if the frame is blocked/slow, reveal the fallback after a grace period
+      setTimeout(() => {
+        if (frame.style.display === 'none') { loading.style.display = 'none'; errBox.style.display = 'flex'; }
+      }, 9000);
+    } catch (e) {
+      loading.style.display = 'none';
+      errBox.style.display = 'flex';
+    }
+  }
+  openStudio();
+</script>
