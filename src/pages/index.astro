@@ -710,9 +710,9 @@ const boxOfficeWithPosters = await Promise.all(boxOfficeData.map(async (entry) =
   }
   @media (min-width: 1024px) { .vinyl-grid { grid-template-columns: repeat(6, 1fr); } }
   .vinyl-track { display: contents; }
-  .vinyl-dupe { display: none; }   /* desktop/tablet: only the real set */
 
   .vinyl-card { display: flex; flex-direction: column; align-items: center; width: 100%; max-width: 170px; text-decoration: none; }
+  .vinyl-card.vinyl-dupe { display: none; }   /* desktop/tablet: only the real set (beats .vinyl-card) */
 
   /* Mobile (< 640px): manual finger-swipe carousel (no auto-slide). Discs still spin. */
   @media (max-width: 639px) {
@@ -733,7 +733,7 @@ const boxOfficeWithPosters = await Promise.all(boxOfficeData.map(async (entry) =
       gap: 22px;
       padding: 0 4px 4px;
     }
-    .vinyl-dupe { display: none; }      /* manual scroll → no duplicate set needed */
+    .vinyl-card.vinyl-dupe { display: none; }   /* manual scroll → no duplicate set needed */
     .vinyl-card { width: 132px; max-width: 132px; flex: 0 0 auto; scroll-snap-align: center; }
   }
 
