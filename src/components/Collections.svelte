@@ -1,6 +1,5 @@
 <script lang="ts">
-  import { onMount, onDestroy } from 'svelte';
-  import { ChevronRight, ChevronLeft } from 'lucide-svelte';
+  import { ChevronRight } from 'lucide-svelte';
 
   interface Collection {
     id: string;
@@ -13,40 +12,10 @@
 
   export let collections: Collection[] = [];
 
-  let track: HTMLDivElement;
-  let paused = false;
-  let autoTimer: ReturnType<typeof setInterval>;
-  const AUTO_MS = 4000;
-
-  function cardStep(): number {
-    if (!track) return 0;
-    const card = track.querySelector('.collection-card') as HTMLElement | null;
-    if (!card) return track.clientWidth;
-    const gap = parseFloat(getComputedStyle(track).columnGap || '16') || 16;
-    return card.offsetWidth + gap;
-  }
-
-  function next() {
-    if (!track) return;
-    const step = cardStep();
-    // loop back to start when we reach the end
-    if (track.scrollLeft + track.clientWidth >= track.scrollWidth - 8) {
-      track.scrollTo({ left: 0, behavior: 'smooth' });
-    } else {
-      track.scrollBy({ left: step, behavior: 'smooth' });
-    }
-  }
-  function prev() {
-    if (!track) return;
-    track.scrollBy({ left: -cardStep(), behavior: 'smooth' });
-  }
-
-  onMount(() => {
-    autoTimer = setInterval(() => {
-      if (!paused && collections.length > 1) next();
-    }, AUTO_MS);
-  });
-  onDestroy(() => { if (autoTimer) clearInterval(autoTimer); });
+  // Duplicate the list so the marquee can loop seamlessly (translate -50% then reset).
+  $: loop = collections.length ? [...collections, ...collections] : [];
+  // Slower for fewer cards, capped — ~6s per card feels gentle.
+  $: durationS = Math.max(24, collections.length * 6);
 </script>
 
 {#if collections.length > 0}
@@ -58,23 +27,14 @@
         <h2 class="text-2xl md:text-3xl font-extrabold" style="color: var(--text-primary);">Collections</h2>
         <span class="text-xs px-2 py-1 rounded-full font-semibold" style="background: var(--bg-hover); color: var(--text-secondary);">Curated for you</span>
       </div>
-      <div class="flex gap-2">
-        <button on:click={prev} class="nav-btn" aria-label="Previous"><ChevronLeft size={18} /></button>
-        <button on:click={next} class="nav-btn" aria-label="Next"><ChevronRight size={18} /></button>
-      </div>
     </div>
+  </div>
 
-    <!-- Carousel track -->
-    <div
-      bind:this={track}
-      class="carousel"
-      on:mouseenter={() => paused = true}
-      on:mouseleave={() => paused = false}
-      on:touchstart={() => paused = true}
-      on:touchend={() => setTimeout(() => paused = false, 3000)}
-    >
-      {#each collections as collection}
-        <a href={collection.link} class="collection-card group">
+  <!-- Continuous marquee track (full-bleed so cards flow off both edges) -->
+  <div class="marquee-viewport">
+    <div class="marquee-track" style={`animation-duration: ${durationS}s;`}>
+      {#each loop as collection, i}
+        <a href={collection.link} class="collection-card group" aria-hidden={i >= collections.length ? 'true' : undefined}>
           <div class="card-bg" style="background: {collection.gradient}">
             <div class="poster-stack">
               {#each collection.posters.slice(0, 4) as poster, j}
@@ -102,28 +62,38 @@
 {/if}
 
 <style>
-  .nav-btn {
-    width: 34px; height: 34px; border-radius: 50%;
-    background: var(--bg-card); border: 1px solid var(--border); color: var(--text-primary);
-    display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.2s;
+  .marquee-viewport {
+    overflow: hidden;
+    width: 100%;
+    /* fade the edges so cards flow in/out smoothly */
+    -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 4%, #000 96%, transparent 100%);
+    mask-image: linear-gradient(90deg, transparent 0, #000 4%, #000 96%, transparent 100%);
   }
-  .nav-btn:hover { background: var(--bg-hover); border-color: var(--accent, #e50914); }
-
-  /* one horizontal scroll/swipe row, snap to each card */
-  .carousel {
+  .marquee-track {
     display: flex;
     gap: 16px;
-    overflow-x: auto;
-    scroll-snap-type: x mandatory;
-    -ms-overflow-style: none;
-    scrollbar-width: none;
-    padding-bottom: 4px;
+    width: max-content;
+    padding: 4px 16px;
+    animation-name: marquee;
+    animation-timing-function: linear;
+    animation-iteration-count: infinite;
+    will-change: transform;
   }
-  .carousel::-webkit-scrollbar { display: none; }
+  /* translate exactly half (since the list is duplicated) for a seamless loop */
+  @keyframes marquee {
+    from { transform: translateX(0); }
+    to   { transform: translateX(-50%); }
+  }
+  /* pause on hover so people can read / click */
+  .marquee-viewport:hover .marquee-track { animation-play-state: paused; }
+  @media (prefers-reduced-motion: reduce) {
+    .marquee-track { animation: none; }
+  }
 
   .collection-card {
     position: relative;
-    flex: 0 0 100%;              /* mobile: ONE card per view */
+    flex: 0 0 86vw;             /* mobile: ~one card fills the view */
+    max-width: 360px;
     scroll-snap-align: start;
     border-radius: 16px;
     overflow: hidden;
@@ -135,9 +105,7 @@
     transition: transform 0.4s ease, box-shadow 0.4s ease, border-color 0.4s ease;
     border: 1px solid rgba(255,255,255,0.05);
   }
-  /* tablet: ~2 per view, desktop: ~3 per view */
-  @media (min-width: 640px) { .collection-card { flex-basis: calc((100% - 16px) / 2); } }
-  @media (min-width: 1024px) { .collection-card { flex-basis: calc((100% - 32px) / 3); } }
+  @media (min-width: 640px)  { .collection-card { flex-basis: 360px; } }
 
   .collection-card:hover {
     transform: translateY(-4px);
