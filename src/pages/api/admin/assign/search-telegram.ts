@@ -90,11 +90,14 @@ async function searchSQLiteDirect(query: string, year?: string, quality?: string
   }
 
   // Build SQL query (values are sanitized above)
+  // NOTE: exclude files marked deleted (is_deleted=1) so files removed from
+  // Telegram never appear in Manual Assign and cannot be assigned as dead links.
   const sql = `SELECT id, message_id, file_id, file_name, file_size, quality, year
              FROM movies
              WHERE file_name LIKE '%${searchTerm}%'
              AND file_name NOT LIKE '%.srt'
-             AND file_name NOT LIKE '%.sub'${yearFilter}${qualityFilter}
+             AND file_name NOT LIKE '%.sub'
+             AND (is_deleted = 0 OR is_deleted IS NULL)${yearFilter}${qualityFilter}
              GROUP BY file_name
              ORDER BY
              CASE quality
