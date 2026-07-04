@@ -10,6 +10,31 @@ import { Star, Clock, Calendar, Globe, Tv, Play } from 'lucide-svelte';
 const { id } = Astro.params;
 const tmdbId = parseInt(id || '0');
 
+// Fetch PostgREST rows for a large id list WITHOUT overflowing request/response
+// header limits: chunk `content_id=in.(...)` into small batches and merge.
+// (A single in.() with thousands of ids produced 30KB+ URLs / headers -> Node
+// undici HeadersOverflowError -> big series silently showed no downloads.)
+async function fetchLinksChunked(baseUrl: string, table: string, ids: number[], extra = ''): Promise<any[]> {
+  const CHUNK = 200;
+  const out: any[] = [];
+  for (let i = 0; i < ids.length; i += CHUNK) {
+    const slice = ids.slice(i, i + CHUNK);
+    try {
+      const r = await fetch(
+        `${baseUrl}/${table}?content_type=eq.episode&is_active=eq.true&content_id=in.(${slice.join(',')})${extra}`,
+        { headers: { 'Accept-Profile': 'public' }, signal: AbortSignal.timeout(10000) }
+      );
+      if (r.ok) {
+        const rows = await r.json();
+        if (Array.isArray(rows)) out.push(...rows);
+      }
+    } catch (err) {
+      console.error(`fetchLinksChunked ${table} batch ${i} failed:`, err);
+    }
+  }
+  return out;
+}
+
 if (!tmdbId) {
   return Astro.redirect('/404');
 }
@@ -119,12 +144,8 @@ try {
         // Fetch download links
         const dbEpIds = dbEpisodes.map((ep: any) => ep.id);
         if (dbEpIds.length > 0) {
-          const dlResp = await fetch(
-            `${POSTGREST_URL}/download_links?content_type=eq.episode&is_active=eq.true&content_id=in.(${dbEpIds.join(',')})`,
-            { headers: { 'Accept-Profile': 'public' }, signal: AbortSignal.timeout(10000) }
-          );
-          if (dlResp.ok) {
-            const dlData = await dlResp.json();
+          {
+            const dlData = await fetchLinksChunked(POSTGREST_URL, 'download_links', dbEpIds);
             // Build downloadsByEpisode keyed by DB episode ID
             const dlByDbId: Record<number, any[]> = {};
             for (const link of dlData) {
@@ -151,12 +172,8 @@ try {
 
         // Fetch subtitle links for episodes
         if (dbEpIds.length > 0) {
-          const subResp = await fetch(
-            `${POSTGREST_URL}/subtitle_links?content_type=eq.episode&is_active=eq.true&content_id=in.(${dbEpIds.join(',')})&select=id,file_name,file_size,telegram_file_id`,
-            { headers: { 'Accept-Profile': 'public' }, signal: AbortSignal.timeout(10000) }
-          );
-          if (subResp.ok) {
-            const subData = await subResp.json();
+          {
+            const subData = await fetchLinksChunked(POSTGREST_URL, 'subtitle_links', dbEpIds, '&select=id,file_name,file_size,telegram_file_id');
             for (const sub of subData) {
               if (!subtitlesByEpisode[sub.content_id]) subtitlesByEpisode[sub.content_id] = [];
               subtitlesByEpisode[sub.content_id].push(sub);
@@ -250,12 +267,8 @@ try {
               // Rebuild downloadsByEpisode from DB episode IDs
               downloadsByEpisode = {};
               if (allDbEpIds.length > 0) {
-                const dlResp2 = await fetch(
-                  POSTGREST_SEASONS_URL + '/download_links?content_type=eq.episode&is_active=eq.true&content_id=in.(' + allDbEpIds.join(',') + ')',
-                  { headers: { 'Accept-Profile': 'public' }, signal: AbortSignal.timeout(10000) }
-                );
-                if (dlResp2.ok) {
-                  const dlData2 = await dlResp2.json();
+                {
+                  const dlData2 = await fetchLinksChunked(POSTGREST_SEASONS_URL, 'download_links', allDbEpIds);
                   for (const link of dlData2) {
                     if (!downloadsByEpisode[link.content_id]) downloadsByEpisode[link.content_id] = [];
                     downloadsByEpisode[link.content_id].push(link);
@@ -271,12 +284,8 @@ try {
                 }
                 // Also rebuild subtitlesByEpisode
                 subtitlesByEpisode = {};
-                const subResp2 = await fetch(
-                  POSTGREST_SEASONS_URL + '/subtitle_links?content_type=eq.episode&is_active=eq.true&content_id=in.(' + allDbEpIds.join(',') + ')&select=id,file_name,file_size,telegram_file_id',
-                  { headers: { 'Accept-Profile': 'public' }, signal: AbortSignal.timeout(10000) }
-                );
-                if (subResp2.ok) {
-                  const subData2 = await subResp2.json();
+                {
+                  const subData2 = await fetchLinksChunked(POSTGREST_SEASONS_URL, 'subtitle_links', allDbEpIds, '&select=id,file_name,file_size,telegram_file_id');
                   for (const sub of subData2) {
                     if (!subtitlesByEpisode[sub.content_id]) subtitlesByEpisode[sub.content_id] = [];
                     subtitlesByEpisode[sub.content_id].push(sub);
@@ -491,6 +500,7 @@ const ogTitle = `${series.title} ${ogYear}`.trim();
       {episodesBySeason}
       {downloadsByEpisode}
       {subtitlesByEpisode}
+      backdropPath={series.backdrop_path}
     />
   </section>
 
