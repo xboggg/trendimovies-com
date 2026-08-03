@@ -303,12 +303,15 @@ def mode_refresh_live():
     """Weekly cron: re-curate every published topic whose source is 'live'."""
     conn = psycopg2.connect(DB_DSN); conn.autocommit = False
     cur = conn.cursor()
-    cur.execute("SELECT slug, title, category, emoji, color, source, sort_order FROM movie_topics WHERE source='live' AND is_published=true")
+    # intro must be selected too -- curate_live() only ever passes through
+    # whatever intro is already on the topic (it never regenerates one), so
+    # omitting it here made every weekly refresh blank the stored intro text.
+    cur.execute("SELECT slug, title, category, emoji, color, source, sort_order, intro FROM movie_topics WHERE source='live' AND is_published=true")
     rows = cur.fetchall()
     done = 0
-    for (slug, title, category, emoji, color, source, sort_order) in rows:
+    for (slug, title, category, emoji, color, source, sort_order, intro) in rows:
         topic = {"slug": slug, "title": title, "category": category, "emoji": emoji,
-                 "color": color, "source": "live", "sort_order": sort_order}
+                 "color": color, "source": "live", "sort_order": sort_order, "intro": intro}
         try:
             engine, intro, items = curate(topic)
             upsert_topic(cur, topic, "live", intro, items)

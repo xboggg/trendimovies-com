@@ -132,10 +132,23 @@ export const POST: APIRoute = async ({ request }) => {
   if (action === 'recurate') {
     if (!body.slug) return json({ ok: false, error: 'Slug required' }, 400);
     try {
-      const r = await pg(`movie_topics?slug=eq.${encodeURIComponent(body.slug)}&select=slug,title,category,emoji,color,source,sort_order&limit=1`);
+      // intro must be selected too: curate_filter()/curate_live() preserve whatever
+      // intro is already on the topic rather than regenerating one -- omitting it here
+      // silently wiped any manually-written intro every time a filter/live guide was
+      // recurated. (filter/prompt are NOT selected because movie_topics has no such
+      // columns -- that data was never persisted when the guide was first published,
+      // so a filter-sourced guide's original criteria genuinely can't be reconstructed
+      // here. See the filter-source check below.)
+      const r = await pg(`movie_topics?slug=eq.${encodeURIComponent(body.slug)}&select=slug,title,category,emoji,color,source,sort_order,intro&limit=1`);
       const rows = await r.json();
       if (!rows.length) return json({ ok: false, error: 'Guide not found' }, 404);
       const t = rows[0];
+      // Filter-sourced guides can't be recurated: their filter criteria (genre/decade/
+      // rating rules) were never saved to movie_topics, only used once at creation time.
+      // Fail clearly here instead of letting the script crash on a missing "filter" key.
+      if (t.source === 'filter') {
+        return json({ ok: false, error: 'This guide was built from a fixed filter (genre/decade/rating) that isn\'t saved anywhere, so it can\'t be recurated — delete and recreate it instead if the results need to change.' }, 400);
+      }
       const topic = { ...t }; // no films → script curates fresh using source
       const result = await runScript('save', JSON.stringify(topic));
       return json(result, result.ok ? 200 : 500);
