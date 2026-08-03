@@ -62,7 +62,7 @@ export const filmEvents: FilmEvent[] = [
     name: 'MTV Movie & TV Awards 2026',
     shortName: 'MTV Awards 2026',
     year: 2026,
-    status: 'upcoming',
+    status: 'past',
     startDate: '2026-06-07',
     endDate: '2026-06-07',
     location: 'Los Angeles, CA',
