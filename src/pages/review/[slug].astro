@@ -1,0 +1,159 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import Comments from '../../components/Comments.svelte';
+
+const POSTGREST_URL = import.meta.env.PUBLIC_SUPABASE_URL || 'http://localhost:3001';
+const { slug } = Astro.params;
+const isPreview = Astro.url.searchParams.get('preview') === '1';
+
+// Fetch the review by slug. Public: published only. ?preview=1: any status (admin).
+let review: any = null;
+try {
+  const statusFilter = isPreview ? '' : '&status=eq.published';
+  const res = await fetch(`${POSTGREST_URL}/movie_reviews?slug=eq.${encodeURIComponent(slug || '')}${statusFilter}&limit=1`);
+  if (res.ok) {
+    const rows = await res.json();
+    review = Array.isArray(rows) && rows.length ? rows[0] : null;
+  }
+} catch (e) { review = null; }
+
+if (!review) {
+  return Astro.redirect('/404');
+}
+
+const accent = review.accent || '#dc2626';
+const posterUrl = review.poster_path ? `https://image.tmdb.org/t/p/w500${review.poster_path}` : '/images/no-poster.svg';
+const backdropUrl = review.backdrop_path ? `https://image.tmdb.org/t/p/w1280${review.backdrop_path}` : (review.poster_path ? `https://image.tmdb.org/t/p/w1280${review.poster_path}` : '');
+const watchUrl = `/movie/${review.tmdb_id}`;
+
+// Body: split on blank lines into paragraphs. The FIRST paragraph is the lead (drop-cap).
+const paras: string[] = (review.body || '').split(/\n\s*\n/).map((p: string) => p.trim()).filter(Boolean);
+
+// Meta pills
+const pills: { k?: string; v: string }[] = [];
+if (review.director) pills.push({ k: 'Dir.', v: review.director });
+if (review.budget) pills.push({ k: 'Budget', v: review.budget });
+if (review.rating) pills.push({ v: `${review.rating}${review.genre ? ' · ' + review.genre : ''}` });
+if (review.digital_date) pills.push({ k: 'Digital', v: review.digital_date });
+
+const ogImage = `/api/og.png?type=review&slug=${encodeURIComponent(review.slug)}`;
+const pageTitle = `${review.headline} — ${review.title} Review`;
+const pageDesc = review.deck || `Our spoiler-free review of ${review.title}. Watch it on TrendiMovies.`;
+---
+
+<BaseLayout title={pageTitle} description={pageDesc} image={ogImage}>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,900&display=swap" rel="stylesheet" />
+
+  <article class="rv-page" style={`--rv-accent:${accent};`}>
+    <div class="rv-ambient" aria-hidden="true">
+      {backdropUrl && <div class="rv-b" style={`background-image:url('${backdropUrl}')`}></div>}
+    </div>
+
+    <div class="rv-wrap">
+      <a href="/reviews" class="rv-kicker"><span class="rv-dot"></span> TrendiMovies Review{review.genre ? ` · ${review.genre}` : ''}</a>
+
+      <h1 class="rv-h1">{review.headline}</h1>
+      {review.deck && <p class="rv-deck">{review.deck}</p>}
+
+      <div class="rv-byline">
+        <span>Reviewed by <b>The TrendiMovies Desk</b></span>
+        <span class="rv-sep">•</span>
+        <span>{review.read_minutes || 4} min read</span>
+        <span class="rv-sep">•</span>
+        <span>Spoiler-free</span>
+      </div>
+
+      <div class="rv-grid">
+        <div class="rv-article">
+          {paras.map((p, i) => (
+            i === 0
+              ? <p class="rv-lead" set:html={p} />
+              : (
+                review.pull_quote && i === Math.min(2, paras.length - 1)
+                  ? <>
+                      <div class="rv-pullquote" set:html={review.pull_quote} />
+                      <p set:html={p} />
+                    </>
+                  : <p set:html={p} />
+              )
+          ))}
+
+          <div class="rv-cta">
+            {review.verdict && <div class="rv-vd">Our verdict: <b>{review.verdict}</b></div>}
+            <a class="rv-watch" href={watchUrl}>▶ Watch on TrendiMovies</a>
+          </div>
+        </div>
+
+        <aside class="rv-rail">
+          <div class="rv-card">
+            <div class="rv-poster"><img src={posterUrl} alt={`${review.title} poster`} loading="eager" /><span class="rv-glow"></span></div>
+            <div class="rv-scores">
+              {review.rt_score && <div class="rv-score rt"><div class="v">{review.rt_score}</div><div class="l">Rotten Tomatoes</div></div>}
+              {review.box_office && <div class="rv-score mo"><div class="v">{review.box_office}</div><div class="l">Box Office</div></div>}
+            </div>
+            <div class="rv-facts">
+              {review.director && <div class="rv-row"><span class="k">Director</span><span class="val">{review.director}</span></div>}
+              {review.starring && <div class="rv-row"><span class="k">Starring</span><span class="val">{review.starring}</span></div>}
+              {review.budget && <div class="rv-row"><span class="k">Budget</span><span class="val">{review.budget}</span></div>}
+              {review.rating && <div class="rv-row"><span class="k">Rating</span><span class="val">{review.rating}{review.genre ? ` · ${review.genre}` : ''}</span></div>}
+              {review.digital_date && <div class="rv-row"><span class="k">On Digital</span><span class="val">{review.digital_date}</span></div>}
+            </div>
+            <a class="rv-watch rv-card-watch" href={watchUrl}>▶ Watch on TrendiMovies</a>
+          </div>
+        </aside>
+      </div>
+    </div>
+  </article>
+  <Comments client:visible reviewId={review.id} accent={accent} />
+</BaseLayout>
+
+<style>
+  .rv-page{position:relative;overflow:hidden;--rv-a2:#f43f5e;--gold:#f59e0b}
+  .rv-ambient{position:absolute;inset:0;z-index:0;pointer-events:none}
+  .rv-ambient .rv-b{position:absolute;inset:-10% -10% auto -10%;height:620px;background-position:center;background-size:cover;filter:blur(64px) saturate(1.4) brightness(.5);opacity:.5}
+  .rv-ambient:after{content:'';position:absolute;inset:0;background:radial-gradient(1200px 560px at 70% -8%,color-mix(in srgb,var(--rv-accent) 22%,transparent),transparent 60%),linear-gradient(180deg,rgba(10,10,12,.35),var(--bg,#0a0a0c) 72%)}
+  .rv-wrap{position:relative;z-index:1;max-width:1080px;margin:0 auto;padding:56px 34px 90px}
+  .rv-kicker{display:inline-flex;align-items:center;gap:9px;font-weight:800;letter-spacing:3px;font-size:12px;color:var(--rv-a2);text-transform:uppercase;margin-bottom:22px;text-decoration:none}
+  .rv-dot{width:7px;height:7px;border-radius:50%;background:var(--rv-a2);box-shadow:0 0 12px var(--rv-a2)}
+  .rv-h1{font-family:'Fraunces',Georgia,serif;font-weight:900;font-size:clamp(38px,6vw,72px);line-height:1.02;letter-spacing:-1.5px;margin:0 0 18px;max-width:17ch;color:#fff}
+  .rv-deck{font-family:'Fraunces',Georgia,serif;font-size:clamp(18px,2.4vw,26px);font-style:italic;color:#e9e7ee;opacity:.85;max-width:52ch;line-height:1.4;margin:0 0 26px}
+  .rv-byline{display:flex;align-items:center;gap:14px;color:#9a97a4;font-size:14px;border-top:1px solid rgba(255,255,255,.09);border-bottom:1px solid rgba(255,255,255,.09);padding:16px 0;margin-bottom:44px}
+  .rv-byline b{color:#e9e7ee;font-weight:700}.rv-sep{opacity:.4}
+  .rv-grid{display:grid;grid-template-columns:1fr 320px;gap:54px;align-items:start}
+  .rv-article{min-width:0}
+  .rv-article p{font-size:19px;line-height:1.85;color:#e9e7ee;margin:0 0 24px;opacity:.94}
+  .rv-article :global(em){font-style:italic;color:#fff;opacity:1}
+  .rv-lead{font-size:22px !important}
+  .rv-lead::first-letter{font-family:'Fraunces',Georgia,serif;float:left;font-size:88px;line-height:.72;font-weight:900;padding:10px 16px 0 0;color:var(--rv-a2)}
+  .rv-pullquote{font-family:'Fraunces',Georgia,serif;font-size:clamp(24px,3vw,32px);font-weight:600;font-style:italic;line-height:1.32;color:#fff;margin:38px 0;padding:28px 30px;position:relative;background:linear-gradient(135deg,rgba(255,255,255,.06),rgba(255,255,255,.02));backdrop-filter:blur(16px);border:1px solid rgba(255,255,255,.1);border-left:3px solid var(--rv-a2);border-radius:18px;box-shadow:0 20px 50px rgba(0,0,0,.35)}
+  .rv-pullquote:before{content:'\\201C';position:absolute;top:-6px;left:16px;font-size:80px;color:var(--rv-a2);opacity:.25;font-family:'Fraunces',serif}
+  .rv-rail{position:sticky;top:88px}
+  .rv-card{background:linear-gradient(160deg,rgba(24,22,28,.72),rgba(16,15,20,.72));backdrop-filter:blur(30px);border:1px solid rgba(255,255,255,.1);border-radius:24px;padding:20px;box-shadow:0 30px 70px rgba(0,0,0,.5)}
+  .rv-poster{position:relative;border-radius:16px;overflow:hidden;box-shadow:0 20px 40px rgba(0,0,0,.5)}
+  .rv-poster img{width:100%;display:block}
+  .rv-glow{position:absolute;inset:0;box-shadow:inset 0 0 0 1px rgba(255,255,255,.12);border-radius:16px}
+  .rv-scores{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:16px}
+  .rv-score{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:14px;padding:14px;text-align:center}
+  .rv-score .v{font-family:'Fraunces',serif;font-weight:900;font-size:28px;line-height:1}
+  .rv-score .l{font-size:10px;letter-spacing:1.3px;text-transform:uppercase;color:#9a97a4;margin-top:6px}
+  .rv-score.rt .v{color:#22c55e}.rv-score.mo .v{color:var(--gold)}
+  .rv-facts{border-top:1px solid rgba(255,255,255,.08);padding-top:14px;margin-top:14px}
+  .rv-row{display:flex;justify-content:space-between;gap:12px;padding:9px 2px;font-size:14px}
+  .rv-row .k{color:#9a97a4}.rv-row .val{color:#e9e7ee;font-weight:600;text-align:right}
+  .rv-watch{display:inline-flex;align-items:center;justify-content:center;gap:9px;background:linear-gradient(135deg,var(--rv-accent),color-mix(in srgb,var(--rv-accent) 55%,#000));color:#fff;font-weight:800;font-size:16px;padding:15px 30px;border-radius:100px;box-shadow:0 14px 34px color-mix(in srgb,var(--rv-accent) 42%,transparent);text-decoration:none;white-space:nowrap}
+  .rv-card-watch{display:flex;margin-top:18px}
+  .rv-cta{margin-top:44px;display:flex;flex-wrap:wrap;align-items:center;gap:18px;padding:24px 26px;border-radius:20px;background:linear-gradient(135deg,color-mix(in srgb,var(--rv-accent) 14%,transparent),color-mix(in srgb,var(--rv-a2) 6%,transparent));border:1px solid color-mix(in srgb,var(--rv-a2) 22%,transparent)}
+  .rv-vd{font-family:'Fraunces',serif;font-style:italic;font-size:20px;color:#fff;flex:1;min-width:200px}
+  .rv-vd b{color:var(--gold);font-style:normal}
+  @media(max-width:820px){
+    .rv-wrap{padding:34px 20px 70px}
+    .rv-grid{grid-template-columns:1fr;gap:30px}
+    .rv-rail{position:static;order:-1}
+    .rv-card{max-width:360px;margin:0 auto;width:100%}
+    .rv-article{order:1}
+    .rv-article p{font-size:17px}.rv-lead{font-size:19px !important}
+    .rv-byline{flex-wrap:wrap;gap:8px}
+    .rv-cta{flex-direction:column;text-align:center}.rv-vd{min-width:0}
+  }
+</style>

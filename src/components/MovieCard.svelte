@@ -5,6 +5,7 @@
     id: number;
     tmdb_id?: number;
     title: string;
+    original_title?: string;
     slug?: string;
     poster_path: string | null;
     year: number | null;
@@ -25,6 +26,10 @@
   }
 
   $: displayDate = item.release_date ? formatReleaseDate(item.release_date) : (item.year || 'N/A');
+
+  // "aka" hint when the original title differs (helps users recognise non-English titles)
+  $: showAka = !!item.original_title
+    && item.original_title.trim().toLowerCase() !== (item.title || '').trim().toLowerCase();
 
   $: posterUrl = item.poster_path
     ? (item.poster_path.startsWith("/images/") ? item.poster_path : `https://image.tmdb.org/t/p/w500${item.poster_path}`)
@@ -141,6 +146,11 @@
     <h3 class="font-semibold text-sm line-clamp-1 mb-1.5 group-hover:text-amber-400 transition-colors" style="color: var(--text-primary);">
       {item.title}
     </h3>
+    {#if showAka}
+      <p class="text-xs line-clamp-1 mb-1" style="color: var(--text-muted);" title={item.original_title}>
+        aka {item.original_title}
+      </p>
+    {/if}
     <div class="flex items-center justify-between text-xs">
       <div class="flex items-center gap-2">
         <span style="color: var(--text-secondary);">{displayDate}</span>

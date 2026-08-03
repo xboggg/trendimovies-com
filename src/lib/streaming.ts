@@ -19,17 +19,21 @@ export const STREAMING_SERVERS = {
   server3: {
     id: 'server3',
     name: 'Server 3',
-    getMovieUrl: (tmdbId: number) => `https://www.vidbinge.to/movie/${tmdbId}`,
+    // Replaced dead vidbinge.to (404 as of 2026-07-08) with vidsrc.me — uses
+    // query-param URLs (?tmdb=&season=&episode=), verified live for movie + TV.
+    getMovieUrl: (tmdbId: number) => `https://vidsrc.me/embed/movie?tmdb=${tmdbId}`,
     getTVUrl: (tmdbId: number, season: number, episode: number) =>
-      `https://www.vidbinge.to/tv/${tmdbId}/${season}/${episode}`,
+      `https://vidsrc.me/embed/tv?tmdb=${tmdbId}&season=${season}&episode=${episode}`,
     idType: 'tmdb' as const
   },
   server4: {
     id: 'server4',
     name: 'Server 4',
-    getMovieUrl: (tmdbId: number) => `https://vidfast.pro/movie/${tmdbId}`,
+    // vidfast.pro now 301-redirects to vidfast.vc — point straight at the current
+    // domain so we don't rely on their redirect staying up (fixed 2026-07-08).
+    getMovieUrl: (tmdbId: number) => `https://vidfast.vc/movie/${tmdbId}`,
     getTVUrl: (tmdbId: number, season: number, episode: number) =>
-      `https://vidfast.pro/tv/${tmdbId}/${season}/${episode}`,
+      `https://vidfast.vc/tv/${tmdbId}/${season}/${episode}`,
     idType: 'tmdb' as const
   }
 };

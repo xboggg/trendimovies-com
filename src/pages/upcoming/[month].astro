@@ -47,35 +47,26 @@ if (year === today.getFullYear() && monthNum === today.getMonth()) {
 
 const endStr = endDate.toISOString().split('T')[0];
 
-// Fetch movies for this month (3 pages = 60 movies max)
-const [page1, page2, page3] = await Promise.all([
-  discoverMovies({
-    'primary_release_date.gte': startStr,
-    'primary_release_date.lte': endStr,
-    sort_by: 'popularity.desc',
-    page: 1
-  }),
-  discoverMovies({
-    'primary_release_date.gte': startStr,
-    'primary_release_date.lte': endStr,
-    sort_by: 'popularity.desc',
-    page: 2
-  }),
-  discoverMovies({
-    'primary_release_date.gte': startStr,
-    'primary_release_date.lte': endStr,
-    sort_by: 'popularity.desc',
-    page: 3
-  })
-]);
+// Fetch movies for this month — 5 pages (~100 films) for a fuller schedule.
+const PAGES = [1, 2, 3, 4, 5];
+const pageResults = await Promise.all(
+  PAGES.map((page) =>
+    discoverMovies({
+      'primary_release_date.gte': startStr,
+      'primary_release_date.lte': endStr,
+      sort_by: 'popularity.desc',
+      page,
+    }).catch(() => ({ results: [] }))
+  )
+);
 
-const movies = [
-  ...(page1?.results || []),
-  ...(page2?.results || []),
-  ...(page3?.results || [])
-].filter((m: any) => m.poster_path && m.release_date);
+const movies = pageResults
+  .flatMap((r: any) => r?.results || [])
+  .filter((m: any) => m.poster_path && m.release_date);
 
-// Generate all month tabs (from current month to Dec 2026)
+// Movie Release Schedule covers ALL 12 months of 2026 and 2027 (full schedule,
+// not just current-month onward). A year switch (2026 | 2027) keeps the month
+// tabs to 12 at a time. The tabs shown are for the year of the ACTIVE month.
 interface MonthTab {
   label: string;
   shortLabel: string;
@@ -84,28 +75,27 @@ interface MonthTab {
   isActive: boolean;
 }
 
+// Year toggle auto-rolls: always show the current year + next year (based on the
+// server date), so it becomes 2028/2029 etc. on its own with no maintenance.
+// Also include the year being viewed (if a user lands on an older/other year) so
+// the active toggle still appears, and keep it sorted + de-duplicated.
+const nowYear = new Date().getFullYear();
+const SCHEDULE_YEARS = [...new Set([nowYear, nowYear + 1, year])]
+  .filter((y) => !isNaN(y))
+  .sort((a, b) => a - b);
 const allMonths: MonthTab[] = [];
-const currentYear = today.getFullYear();
-const currentMonth = today.getMonth();
 
-for (let y = currentYear; y <= 2026; y++) {
-  const startM = y === currentYear ? currentMonth : 0;
-  const endM = y === 2026 ? 11 : 11;
-
-  for (let m = startM; m <= endM; m++) {
-    const d = new Date(y, m, 1);
-    const label = d.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
-    const shortLabel = d.toLocaleDateString('en-US', { month: 'short' });
-    const slug = `${d.toLocaleDateString('en-US', { month: 'long' }).toLowerCase()}-${y}`;
-
-    allMonths.push({
-      label,
-      shortLabel,
-      year: y,
-      slug,
-      isActive: slug === month
-    });
-  }
+// month tabs for the active year only
+for (let m = 0; m <= 11; m++) {
+  const d = new Date(year, m, 1);
+  const slug = `${d.toLocaleDateString('en-US', { month: 'long' }).toLowerCase()}-${year}`;
+  allMonths.push({
+    label: d.toLocaleDateString('en-US', { month: 'long', year: 'numeric' }),
+    shortLabel: d.toLocaleDateString('en-US', { month: 'short' }),
+    year,
+    slug,
+    isActive: slug === month,
+  });
 }
 
 const displayMonth = `${monthName} ${year}`;
@@ -140,12 +130,48 @@ function getCountdownData(dateStr: string): { days: number; hours: number; minut
     seconds: Math.floor((diff % (1000 * 60)) / 1000)
   };
 }
+
+// ── OG share image data ────────────────────────────────────────────────────
+// Showcase RECOGNISABLE upcoming films for the share card. The CURRENT month's
+// leftover days are often just obscure/event entries (votes=0, popularity≈0), so
+// for the share image we pull the best films across the NEXT 90 days. Upcoming
+// films have ~0 votes, so rank by POPULARITY with a small floor that drops the
+// junk (wrestling events sit at pop≈0; real films at pop 8–70+).
+const _ogToday = new Date();
+const _ogIso = (d: Date) => d.toISOString().split('T')[0];
+let ogPool: any[] = [];
+try {
+  const _ogRes = await Promise.all([1, 2].map((page) =>
+    discoverMovies({
+      'primary_release_date.gte': _ogIso(new Date(_ogToday.getTime() + 86400000)),
+      'primary_release_date.lte': _ogIso(new Date(_ogToday.getTime() + 90 * 86400000)),
+      sort_by: 'popularity.desc',
+      page: String(page),
+    }).catch(() => ({ results: [] }))
+  ));
+  ogPool = _ogRes.flatMap((r: any) => r?.results || [])
+    .filter((m: any) => m.poster_path && (m.popularity || 0) > 4);
+} catch (e) { ogPool = []; }
+// Fallback to the displayed month's movies if the wide query came back empty.
+if (!ogPool.length) ogPool = movies;
+// Use the cinematic POSTER-COLLAGE template (type=digital) — same look as the
+// digital-releases share card — with up to 5 recognizable upcoming posters.
+const ogPosters = ogPool.filter((m: any) => m.poster_path).slice(0, 5).map((m: any) => m.poster_path).join('|');
+const ogDesc = `Ever wonder when your favourite movies hit screens? See the exact release dates for every upcoming film — pick any month and know precisely when each one drops on TrendiMovies.`;
+const ogImage = `/api/og.png?type=digital`
+  + `&posters=${encodeURIComponent(ogPosters)}`
+  + `&accent=${encodeURIComponent('#a855f7')}`
+  + `&eyebrow=${encodeURIComponent('MOVIE RELEASE SCHEDULE')}`
+  + `&eyebrowEmoji=${encodeURIComponent('🗓️')}`
+  + `&headline=${encodeURIComponent('Movie Release Schedule ' + year)}`
+  + `&subtitle=${encodeURIComponent('Every upcoming film — month by month, with countdowns')}`
+  + `&ogurl=${encodeURIComponent('trendimovies.com/upcoming')}`;
 ---
 
 <BaseLayout
-  title="Upcoming Movies"
-  
-  image={movies[0]?.poster_path ? `https://image.tmdb.org/t/p/w780${movies[0].poster_path}` : '/images/og-default.jpg'}
+  title={`Movie Release Schedule ${year} — ${displayMonth} | TrendiMovies`}
+  description={ogDesc}
+  image={ogImage}
 >
   <!-- Header -->
   <section class="relative py-8 overflow-hidden">
@@ -153,11 +179,27 @@ function getCountdownData(dateStr: string): { days: number; hours: number; minut
     <div class="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
       <div class="text-center">
         <h1 class="text-3xl md:text-4xl font-black mb-2" style="color: var(--text-primary);">
-          <span class="text-purple-500">Upcoming</span> Movies
+          <span class="text-purple-500">Movie Release</span> Schedule
         </h1>
         <p class="text-lg" style="color: var(--text-secondary);">
-          {movies.length} movies in {displayMonth}
+          {movies.length} movies releasing in {displayMonth}
         </p>
+        <a href="/movies/upcoming" class="inline-flex items-center gap-1 mt-3 text-sm font-medium text-purple-400 hover:text-purple-300 transition-colors">
+          Browse all upcoming movies →
+        </a>
+
+        <!-- Year switch -->
+        <div class="flex items-center justify-center gap-2 mt-5">
+          {SCHEDULE_YEARS.map((y) => (
+            <a
+              href={`/upcoming/january-${y}`}
+              class:list={["px-5 py-2 rounded-full text-sm font-bold transition-all", { 'active-year': y === year }]}
+              style={y !== year ? "background-color: var(--bg-card); border: 1px solid var(--border); color: var(--text-secondary);" : "background: linear-gradient(135deg, #a855f7, #ec4899); color: #fff;"}
+            >
+              {y} Schedule
+            </a>
+          ))}
+        </div>
       </div>
     </div>
   </section>

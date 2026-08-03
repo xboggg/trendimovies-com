@@ -77,15 +77,14 @@ let movies = (data.by_year[String(selectedYear)] || []).slice();
 
 const topMovie = movies[0];
 
-// OG image: #1 movie's poster (or fallback)
-const ogImage = topMovie?.poster_path
-  ? `https://image.tmdb.org/t/p/w780${topMovie.poster_path}`
-  : '/images/og-default.jpg';
+// Cinematic poster-collage OG banner (1200×630) via /api/og.png
+const _ogPosters = movies.filter((m: any) => m.poster_path).slice(0, 5).map((m: any) => m.poster_path).join('|');
+const ogImage = `/api/og.png?type=digital&posters=${encodeURIComponent(_ogPosters)}&accent=${encodeURIComponent('#fbbf24')}&eyebrow=${encodeURIComponent('TOP RATED ' + selectedYear)}&eyebrowEmoji=${encodeURIComponent('🏆')}&headline=${encodeURIComponent('Top Movies of ' + selectedYear)}&subtitle=${encodeURIComponent("The highest-rated films of the year — ranked")}&ogurl=${encodeURIComponent('trendimovies.com/top-movies')}`;
 
-const pageTitle = `Top Movies of ${selectedYear} - TrendiMovies`;
+const pageTitle = `Top Movies of ${selectedYear} — Highest Rated | TrendiMovies`;
 const pageDescription = topMovie
-  ? `#1: ${topMovie.title}. Browse the ${movies.length} top-rated movies of ${selectedYear}.`
-  : `Browse the top movies of ${selectedYear}.`;
+  ? `The ${movies.length} highest-rated movies of ${selectedYear}, ranked — led by #1 ${topMovie.title}. Discover the year's best films and watch in HD on TrendiMovies.`
+  : `The highest-rated movies of ${selectedYear}, ranked. Discover the year's best films and watch in HD on TrendiMovies.`;
 
 function posterUrl(path: string | null): string {
   if (!path) return '/images/no-poster.svg';

@@ -35,12 +35,17 @@ function transformSeries(show: any) {
 
 const movies = trendingMovies.map(transformMovie);
 const series = trendingTV.map(transformSeries);
+
+// Branded WhatsApp/OG banner (1200×630) via the /api/og.png generator.
+const _ogBackdrop = movies.find((m: any) => m.backdrop_path)?.backdrop_path || '';
+const _ogTitles = movies.slice(0, 4).map((m: any) => m.title).join('|');
+const ogImage = `/api/og.png?type=list&label=${encodeURIComponent('Trending This Week')}&emoji=${encodeURIComponent('🔥')}&color=%23e50914&backdrop=${encodeURIComponent(_ogBackdrop)}&titles=${encodeURIComponent(_ogTitles)}`;
 ---
 
 <BaseLayout
   title="Trending"
   description="Trending movies and TV series this week"
-  image={movies[0]?.poster_path ? `https://image.tmdb.org/t/p/w780${movies[0].poster_path}` : '/images/og-default.jpg'}
+  image={ogImage}
 >
   <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
     <h1 class="text-3xl font-bold mb-8" style="color: var(--text-primary);">Trending This Week</h1>

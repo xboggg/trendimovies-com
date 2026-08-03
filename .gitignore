@@ -16,5 +16,6 @@ public/_astro/
 *.bak
 *.bak.*
 *.bak_*
+*.bak-*
 nul
 tailwindcss-*.log

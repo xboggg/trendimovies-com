@@ -2,6 +2,7 @@
 import BaseLayout from '../../layouts/BaseLayout.astro';
 import TVJsonLd from '../../components/TVJsonLd.astro';
 import SeasonTabs from '../../components/SeasonTabs.svelte';
+import Comments from '../../components/Comments.svelte';
 import ContentRow from '../../components/ContentRow.svelte';
 import UserActions from '../../components/UserActions.svelte';
 import { getTVDetails, getSeasonDetails, transformSeriesData } from '../../lib/tmdb';
@@ -316,6 +317,22 @@ if (!dbSeasonsUsed) {
     }));
 }
 
+// Real season count = the seasons this page ACTUALLY renders in the dropdown.
+// `seasons` above is DB-first (falls back to TMDB only when the DB has no rows),
+// so it reflects the truth for series where TMDB is incomplete (e.g. Wura, a
+// Nigerian show TMDB lists as 1 season / 3 eps but which really has 4 seasons /
+// 200+ eps — all present in our DB). Counting from `seasons` also drops the
+// EMPTY placeholder seasons TMDB invents for announced-but-unaired seasons
+// (e.g. Nemesis S2, WWE's 40 phantom seasons), because those carry 0 episodes.
+// This guarantees the count always matches the dropdown list.
+const realSeasonCount = (() => {
+  const withEps = seasons.filter((s: any) => (s.episode_count || 0) > 0).length;
+  return withEps || seasons.length || series.number_of_seasons || 0;
+})();
+// Correct the series object at the source so the badge, OG description AND the
+// JSON-LD (containsSeason) all use this accurate count.
+series.number_of_seasons = realSeasonCount;
+
 // Helper functions
 function getPosterUrl(path: string | null): string {
   if (!path) return '/images/no-poster.svg';
@@ -366,15 +383,23 @@ const similar = (tmdbData.similar?.results || []).slice(0, 12).map((s: any) => (
 const ogYear = series.year ? `(${series.year})` : '';
 const ogSynopsis = series.overview || `Watch ${series.title} online for free in HD quality.`;
 
-// Only synopsis - no rating or genres
-const ogDescription = ogSynopsis;
+// Lead with a clear SERIES marker so shared links aren't mistaken for a movie.
+const _seasons = realSeasonCount || 0;
+const _episodes = series.number_of_episodes || 0;
+// "TV Series" already appears in the OG TITLE, so the description leads with the
+// season/episode counts only (no duplicate label).
+const _counts = [
+  _seasons ? `${_seasons} Season${_seasons > 1 ? 's' : ''}` : '',
+  _episodes ? `${_episodes} Episode${_episodes > 1 ? 's' : ''}` : '',
+].filter(Boolean).join(' · ');
+const ogDescription = `${_counts ? _counts + ' · ' : ''}Watch free on TrendiMovies. ${ogSynopsis}`;
 
 // Use poster for OG image (better for WhatsApp preview)
 const ogImage = series.poster_path
   ? (series.poster_path.startsWith('/images/') ? series.poster_path : `https://image.tmdb.org/t/p/w780${series.poster_path}`)
   : '/images/og-default.jpg';
 
-const ogTitle = `${series.title} ${ogYear}`.trim();
+const ogTitle = `TV Series: ${series.title} ${ogYear}`.trim();
 ---
 
 <BaseLayout
@@ -425,7 +450,7 @@ const ogTitle = `${series.title} ${ogYear}`.trim();
             </div>
             <div class="flex items-center gap-1">
               <Tv size={18} />
-              <span>{series.number_of_seasons} Season{series.number_of_seasons > 1 ? 's' : ''}</span>
+              <span>{realSeasonCount} Season{realSeasonCount > 1 ? 's' : ''}</span>
             </div>
             {series.first_air_date && (
               <div class="flex items-center gap-1">
@@ -485,12 +510,8 @@ const ogTitle = `${series.title} ${ogYear}`.trim();
     </div>
   </section>
 
-  <!-- Episodes -->
+  <!-- Episodes (heading + totals now come from the SeasonTabs component itself) -->
   <section class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 mt-4">
-    <h2 class="text-2xl font-bold mb-6 flex items-center gap-2" style="color: var(--text-primary);">
-      <Play size={24} />
-      Episodes
-    </h2>
     <SeasonTabs
       client:load
       seriesId={series.tmdb_id}
@@ -576,4 +597,7 @@ const ogTitle = `${series.title} ${ogYear}`.trim();
       items={similar}
     />
   )}
+  <section class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <Comments client:visible contentType="series" contentId={tmdbId} />
+  </section>
 </BaseLayout>

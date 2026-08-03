@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { Play, Download, Star, Clock, Calendar, ChevronDown, FileText } from 'lucide-svelte';
+  import { Play, Download, Star, Clock, Calendar, FileText } from 'lucide-svelte';
   import VideoPlayer from './VideoPlayer.svelte';
 
   interface Season {
@@ -52,17 +52,75 @@
   export let episodesBySeason: Record<number, Episode[]> = {};
   export let downloadsByEpisode: Record<number, DownloadLink[]> = {};
   export let subtitlesByEpisode: Record<number, SubtitleLink[]> = {};
+  export let backdropPath: string | null = null;
 
-  let activeSeason = seasons.length > 0 ? seasons[0].season_number : 1;
+  // Default to the first REAL season (>0), not Season 0/Specials, so the page
+  // doesn't land on "Season 0 — No episodes available". Specials stay selectable
+  // in the dropdown. Falls back to seasons[0] only if every season is 0.
+  let activeSeason = (() => {
+    const real = seasons.filter(s => s.season_number > 0);
+    if (real.length > 0) return real[0].season_number;
+    return seasons.length > 0 ? seasons[0].season_number : 1;
+  })();
   let playingEpisode: { season: number; episode: number } | null = null;
   let playerContainer: HTMLDivElement;
-  let isDropdownOpen = false;
+  let episodesContainer: HTMLDivElement;
+  let viewMode: 'list' | 'grid' = 'list';
 
   $: currentEpisodes = episodesBySeason[activeSeason] || [];
   $: activeSeasonsData = seasons.find(s => s.season_number === activeSeason);
 
+  // Real seasons (exclude Specials/season 0) for the arc-tab strip + totals.
+  $: realSeasons = seasons.filter(s => s.season_number > 0);
+  $: hasSpecials = seasons.some(s => s.season_number === 0);
+
+  // Series totals shown in the header.
+  $: totalSeasons = realSeasons.length;
+  $: totalEpisodes = Object.entries(episodesBySeason)
+      .filter(([sn]) => Number(sn) > 0)
+      .reduce((sum, [, eps]) => sum + (eps?.length || 0),
+        // fall back to declared episode_count when episode rows aren't loaded
+        0) || realSeasons.reduce((s, se) => s + (se.episode_count || 0), 0);
+  $: totalFiles = Object.values(downloadsByEpisode).reduce((s, arr) => s + (arr?.length || 0), 0);
+
+  // Per-season download coverage → drives the status dot on each tab.
+  function seasonStatus(seasonNum: number): 'full' | 'some' | 'stream' {
+    const eps = episodesBySeason[seasonNum] || [];
+    if (eps.length === 0) return 'stream';
+    const withFiles = eps.filter(e => (downloadsByEpisode[e.id]?.length || 0) > 0).length;
+    if (withFiles === 0) return 'stream';
+    if (withFiles === eps.length) return 'full';
+    return 'some';
+  }
+  function seasonWithFiles(seasonNum: number): number {
+    const eps = episodesBySeason[seasonNum] || [];
+    return eps.filter(e => (downloadsByEpisode[e.id]?.length || 0) > 0).length;
+  }
+
+  // A short arc/season label: use the DB name if it isn't just "Season N".
+  function seasonLabel(s: Season): string {
+    const nm = (s.name || '').trim();
+    if (!nm || /^season\s*\d+$/i.test(nm)) return `Season ${s.season_number}`;
+    // strip a leading "SN • " prefix the sync sometimes stores
+    return nm.replace(/^s\d+\s*[•·-]\s*/i, '');
+  }
+
+  function jumpToEpisode(epNum: number) {
+    const el = document.getElementById(`ep-${activeSeason}-${epNum}`);
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      el.classList.add('ep-flash');
+      setTimeout(() => el.classList.remove('ep-flash'), 1200);
+    }
+  }
+
   function getStillUrl(path: string | null): string {
-    return path ? `https://image.tmdb.org/t/p/w300${path}` : '/images/no-still.jpg';
+    // Real episode still if TMDB has one; otherwise fall back to the series
+    // backdrop (a proper image) rather than the bland empty placeholder. Newly
+    // aired seasons often have no per-episode stills on TMDB yet.
+    if (path) return `https://image.tmdb.org/t/p/w300${path}`;
+    if (backdropPath) return `https://image.tmdb.org/t/p/w300${backdropPath}`;
+    return '/images/no-still.jpg';
   }
 
   function formatDate(dateStr: string | null): string {
@@ -90,11 +148,7 @@
   function selectSeason(seasonNum: number) {
     activeSeason = seasonNum;
     playingEpisode = null;
-    isDropdownOpen = false;
-  }
-
-  function toggleDropdown() {
-    isDropdownOpen = !isDropdownOpen;
+    viewMode = 'list';
   }
 
   function getVariantLabel(variant: string | null): string {
@@ -109,7 +163,9 @@
   }
 
   function getLinkColor(link: DownloadLink): string {
-    if (link.language_tag) return "bg-violet-600 hover:bg-violet-700";
+    // Colour STRICTLY by quality so it's consistent site-wide (720p is always
+    // green, 1080p always blue, etc). Do NOT tint by language_tag — that made a
+    // 720p file with an "ENG" tag show purple while an untagged 720p showed green.
     return getQualityColor(link.quality);
   }
 
@@ -118,6 +174,8 @@
       case '720p': return 'bg-green-600 hover:bg-green-700';
       case '1080p': return 'bg-blue-600 hover:bg-blue-700';
       case '2160p': return 'bg-purple-600 hover:bg-purple-700';
+      case '480p': return 'bg-green-600 hover:bg-green-700';
+      case 'hdrip': return 'bg-teal-600 hover:bg-teal-700';
       default: return 'bg-gray-600 hover:bg-gray-700';
     }
   }
@@ -129,75 +187,78 @@
   function getEpisodeSubtitles(episodeId: number): SubtitleLink[] {
     return subtitlesByEpisode[episodeId] || [];
   }
-
-  // Close dropdown when clicking outside
-  function handleClickOutside(event: MouseEvent) {
-    const target = event.target as HTMLElement;
-    if (!target.closest('.season-dropdown')) {
-      isDropdownOpen = false;
-    }
-  }
 </script>
 
-<svelte:window on:click={handleClickOutside} />
-
 <div>
-  <!-- Episodes Header with Dropdown -->
-  <div class="flex items-center gap-4 mb-6">
+  <!-- Header: ONE title + series totals (no duplicate "Episodes") -->
+  <div class="flex items-baseline justify-between gap-4 flex-wrap mb-4">
     <div class="flex items-center gap-2">
       <Play size={20} style="color: var(--accent);" />
       <h2 class="text-xl font-bold" style="color: var(--text-primary);">Episodes</h2>
     </div>
-
-    <!-- Season Dropdown -->
-    <div class="season-dropdown relative">
-      <button
-        on:click|stopPropagation={toggleDropdown}
-        class="flex items-center gap-2 px-4 py-2 rounded-lg transition-colors"
-        style="background-color: var(--bg-card); border: 1px solid var(--border); color: var(--text-primary);"
-      >
-        <span class="font-medium" style="color: var(--accent);">
-          Season {activeSeason}
-        </span>
-        {#if activeSeasonsData?.episode_count}
-          <span class="text-sm" style="color: var(--text-secondary);">
-            ({activeSeasonsData.episode_count} episodes)
-          </span>
-        {/if}
-        <ChevronDown size={18} class="transition-transform {isDropdownOpen ? 'rotate-180' : ''}" style="color: var(--text-secondary);" />
-      </button>
-
-      {#if isDropdownOpen}
-        <div
-          class="absolute top-full left-0 mt-2 w-64 max-h-80 overflow-y-auto rounded-lg shadow-xl z-50"
-          style="background-color: var(--bg-card); border: 1px solid var(--border);"
-        >
-          {#each seasons as season}
-            <button
-              on:click|stopPropagation={() => selectSeason(season.season_number)}
-              class="w-full flex items-center justify-between px-4 py-3 text-left transition-colors hover:bg-[var(--bg-hover)]"
-              class:bg-[var(--bg-hover)]={activeSeason === season.season_number}
-            >
-              <span
-                class="font-medium"
-                style="color: {activeSeason === season.season_number ? 'var(--accent)' : 'var(--text-primary)'};"
-              >
-                Season {season.season_number}
-              </span>
-              {#if season.episode_count}
-                <span
-                  class="text-sm px-2 py-0.5 rounded-full"
-                  style="background-color: var(--bg-hover); color: var(--text-secondary);"
-                >
-                  {season.episode_count} eps
-                </span>
-              {/if}
-            </button>
-          {/each}
-        </div>
+    <div class="flex items-center gap-2 text-xs" style="color: var(--text-secondary);">
+      {#if totalSeasons}
+        <span class="st-pill"><b>{totalSeasons}</b> Season{totalSeasons > 1 ? 's' : ''}</span>
+      {/if}
+      {#if totalEpisodes}
+        <span class="st-pill"><b>{totalEpisodes}</b> Episodes</span>
+      {/if}
+      {#if totalFiles}
+        <span class="st-pill"><b>{totalFiles}</b> files</span>
       {/if}
     </div>
   </div>
+
+  <!-- Season selector: arc name + episode count + download-status dot -->
+  <div class="season-strip flex gap-2 overflow-x-auto pb-1.5 mb-5">
+    {#each seasons as season}
+      {@const status = seasonStatus(season.season_number)}
+      {@const eps = (episodesBySeason[season.season_number] || []).length || season.episode_count || 0}
+      {@const withF = seasonWithFiles(season.season_number)}
+      <button
+        on:click={() => selectSeason(season.season_number)}
+        class="stab flex-shrink-0 text-left rounded-xl px-3.5 py-2.5 transition-colors"
+        class:stab-active={activeSeason === season.season_number}
+        style="background-color: var(--bg-card); border: 1px solid var(--border);"
+      >
+        <div class="stab-sn text-[11px] uppercase tracking-wide" style="color: var(--text-muted);">
+          {season.season_number === 0 ? 'Specials' : `Season ${season.season_number}`}
+        </div>
+        <div class="stab-arc text-sm font-bold whitespace-nowrap" style="color: var(--text-primary);">
+          {seasonLabel(season)}
+        </div>
+        <div class="flex items-center gap-2 text-[11.5px] mt-1" style="color: var(--text-secondary);">
+          <span class="dot dot-{status}"></span>
+          <span>
+            {eps} eps
+            {#if status === 'full'}· all files
+            {:else if status === 'some'}· {withF} with files
+            {:else}· stream only{/if}
+          </span>
+        </div>
+      </button>
+    {/each}
+  </div>
+
+  <!-- Jump-to-episode + list/grid toggle (helps long seasons) -->
+  {#if currentEpisodes.length > 6}
+    <div class="flex items-center gap-2.5 flex-wrap mb-4">
+      <span class="text-xs" style="color: var(--text-muted);">Jump to</span>
+      <div class="flex gap-1.5 flex-wrap">
+        {#each currentEpisodes as ep}
+          <button
+            on:click={() => jumpToEpisode(ep.episode_number)}
+            class="epnum w-[30px] h-[30px] rounded-lg text-xs transition-colors"
+            style="background-color: var(--bg-card); border: 1px solid var(--border); color: var(--text-secondary);"
+          >{ep.episode_number}</button>
+        {/each}
+      </div>
+      <div class="ml-auto flex rounded-lg overflow-hidden" style="border: 1px solid var(--border);">
+        <button on:click={() => (viewMode = 'list')} class="vt px-3 py-1.5 text-xs" class:vt-on={viewMode === 'list'} style="background-color: var(--bg-card); color: var(--text-secondary);">☰ List</button>
+        <button on:click={() => (viewMode = 'grid')} class="vt px-3 py-1.5 text-xs" class:vt-on={viewMode === 'grid'} style="background-color: var(--bg-card); color: var(--text-secondary);">▦ Grid</button>
+      </div>
+    </div>
+  {/if}
 
   <!-- Video Player (when playing) -->
   {#if playingEpisode}
@@ -226,12 +287,41 @@
     </div>
   {/if}
 
-  <!-- Episodes List -->
-  <div class="space-y-4">
+  <!-- Compact GRID view (toggle) -->
+  {#if viewMode === 'grid' && currentEpisodes.length > 0}
+    <div class="ep-grid">
+      {#each currentEpisodes as episode}
+        {@const epDl = getEpisodeDownloads(episode.id)}
+        <button
+          class="gcard text-left rounded-xl overflow-hidden transition-colors"
+          style="background-color: var(--bg-card); border: 1px solid var(--border);"
+          on:click={() => playEpisode(activeSeason, episode.episode_number)}
+        >
+          <div class="relative aspect-video">
+            <img src={getStillUrl(episode.still_path)} alt={episode.name || `Episode ${episode.episode_number}`} class="w-full h-full object-cover" />
+            <span class="absolute top-1.5 left-1.5 px-1.5 py-0.5 rounded text-[10px] font-bold text-white" style="background-color: var(--accent);">E{episode.episode_number}</span>
+            {#if epDl.length === 0}
+              <span class="absolute bottom-1.5 right-1.5 px-1.5 py-0.5 rounded text-[9px] font-medium text-white" style="background-color: rgba(59,130,246,.85);">STREAM</span>
+            {/if}
+          </div>
+          <div class="p-2">
+            <div class="text-xs font-semibold line-clamp-2 leading-tight" style="color: var(--text-primary);">{episode.name || `Episode ${episode.episode_number}`}</div>
+            {#if episode.vote_average}
+              <div class="text-[10px] mt-0.5" style="color: var(--text-muted);">★ {episode.vote_average.toFixed(1)}{#if episode.runtime} · {episode.runtime}m{/if}</div>
+            {/if}
+          </div>
+        </button>
+      {/each}
+    </div>
+  {/if}
+
+  <!-- Detailed LIST view -->
+  <div class="space-y-4" class:hidden={viewMode === 'grid'} bind:this={episodesContainer}>
     {#each currentEpisodes as episode}
       {@const epDownloads = getEpisodeDownloads(episode.id)}
       {@const hasDownloads = epDownloads.length > 0}
       <div
+        id="ep-{activeSeason}-{episode.episode_number}"
         class="flex flex-col sm:flex-row gap-4 p-4 rounded-lg transition-colors"
         style="background-color: var(--bg-card); border: 1px solid var(--border);"
         class:ring-2={playingEpisode?.season === activeSeason && playingEpisode?.episode === episode.episode_number}
@@ -350,7 +440,52 @@
 </div>
 
 <style>
-  .season-dropdown {
-    position: relative;
+  .season-dropdown { position: relative; }
+
+  /* header totals pills */
+  .st-pill {
+    background-color: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    padding: 4px 11px;
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
   }
+  .st-pill b { color: var(--text-primary); font-weight: 700; }
+
+  /* season arc-tabs */
+  .season-strip { scrollbar-width: thin; }
+  .season-strip::-webkit-scrollbar { height: 6px; }
+  .season-strip::-webkit-scrollbar-thumb { background: var(--border); border-radius: 99px; }
+  .stab { min-width: 150px; cursor: pointer; }
+  .stab:hover { background-color: var(--bg-hover) !important; }
+  .stab-active {
+    border-color: var(--accent) !important;
+    background: linear-gradient(180deg, rgba(229, 9, 20, 0.14), transparent) !important;
+  }
+  .stab-active .stab-sn { color: var(--accent) !important; }
+
+  /* status dots */
+  .dot { width: 7px; height: 7px; border-radius: 50%; display: inline-block; flex-shrink: 0; }
+  .dot-full { background: #2ecc71; }
+  .dot-some { background: #f5a623; }
+  .dot-stream { background: #3b82f6; }
+
+  /* jump numbers + view toggle */
+  .epnum { cursor: pointer; font-variant-numeric: tabular-nums; }
+  .epnum:hover { border-color: var(--accent) !important; color: var(--text-primary) !important; }
+  .vt { cursor: pointer; }
+  .vt-on { background-color: var(--accent) !important; color: #fff !important; }
+
+  /* grid view */
+  .ep-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+    gap: 10px;
+  }
+  .gcard { cursor: pointer; }
+  .gcard:hover { border-color: var(--accent) !important; }
+
+  /* jump flash highlight */
+  :global(.ep-flash) { border-color: var(--accent) !important; }
 </style>

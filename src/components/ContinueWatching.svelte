@@ -10,6 +10,9 @@
     type: 'movie' | 'series';
     href: string;
     visited_at: number;
+    season?: number;
+    episode?: number;
+    episode_info?: string;
   }
 
   const STORAGE_KEY = 'tm_continue_watching';
@@ -68,7 +71,7 @@
     <div class="flex items-center justify-between mb-4">
       <div class="flex items-center gap-2 sm:gap-3">
         <h2 class="text-lg sm:text-2xl md:text-3xl font-extrabold" style="color: var(--text-primary);">
-          Continue Watching
+          Jump Back In
         </h2>
         <span class="item-count">{visibleItems.length}</span>
       </div>
@@ -110,6 +113,10 @@
 
             <div class="type-badge">{item.type === 'movie' ? 'Movie' : 'Series'}</div>
 
+            {#if item.episode_info}
+              <div class="ep-badge">{item.episode_info}</div>
+            {/if}
+
             <div class="bottom-info">
               <h3 class="font-bold text-xs sm:text-sm text-white line-clamp-1">{item.title}</h3>
             </div>
@@ -120,6 +127,7 @@
               <Clock size={10} class="text-gray-400" />
               <span class="meta-text">{timeAgo(item.visited_at)}</span>
             </div>
+            <span class="resume-text">Resume →</span>
           </div>
         </a>
       {/each}
@@ -313,9 +321,34 @@
     }
   }
 
+  .ep-badge {
+    position: absolute;
+    top: 6px;
+    left: 50px;
+    font-size: 9px;
+    font-weight: 700;
+    padding: 2px 6px;
+    border-radius: 3px;
+    background: rgba(220, 38, 38, 0.92);
+    color: #fff;
+    z-index: 3;
+    letter-spacing: 0.3px;
+  }
+  @media (min-width: 640px) {
+    .ep-badge { font-size: 10px; left: 58px; padding: 2px 8px; border-radius: 4px; }
+  }
+
+  .resume-text {
+    font-size: 10px;
+    font-weight: 700;
+    color: #fbbf24;
+  }
+  @media (min-width: 640px) { .resume-text { font-size: 11px; } }
+
   .card-meta {
     display: flex;
     align-items: center;
+    justify-content: space-between;
     padding: 6px 8px;
   }
   @media (min-width: 640px) {

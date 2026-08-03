@@ -1,0 +1,74 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import { fetchFromTMDB } from '../../lib/tmdb';
+
+// ============================================================================
+// UNIVERSE HUB — grid of every "watch the saga in order" universe.
+// Keep this list in sync with the UNIVERSES map in [slug].astro (slug + meta only).
+// ============================================================================
+const HUB: { slug: string; name: string; emoji: string; accent: string; backdropId: number; backdropType: 'movie' | 'tv'; blurb: string }[] = [
+  { slug: 'star-wars',       name: 'Star Wars',        emoji: '⭐', accent: '#FFE81F', backdropId: 140607, backdropType: 'movie', blurb: 'Every film & series — Skywalker saga to the Disney+ era.' },
+  { slug: 'mcu',             name: 'Marvel (MCU)',     emoji: '🦸', accent: '#ed1d24', backdropId: 299536, backdropType: 'movie', blurb: 'The Infinity Saga and beyond — films + Disney+ series.' },
+  { slug: 'dc',              name: 'DC Universe',      emoji: '🦇', accent: '#0476F2', backdropId: 414906, backdropType: 'movie', blurb: 'DCEU, the Dark Knight trilogy, Joker & the new DCU.' },
+  { slug: 'wizarding-world', name: 'Wizarding World',  emoji: '⚡', accent: '#d3a625', backdropId: 671,    backdropType: 'movie', blurb: 'Harry Potter & Fantastic Beasts — the complete saga.' },
+  { slug: 'middle-earth',    name: 'Middle-earth',     emoji: '💍', accent: '#c8a24a', backdropId: 120,    backdropType: 'movie', blurb: 'The Lord of the Rings & The Hobbit, in order.' },
+  { slug: 'fast-furious',    name: 'Fast & Furious',   emoji: '🏎️', accent: '#00a3e0', backdropId: 168259, backdropType: 'movie', blurb: 'The entire Fast Saga, every film in order.' },
+  { slug: 'jurassic',        name: 'Jurassic',         emoji: '🦖', accent: '#d2362d', backdropId: 135397, backdropType: 'movie', blurb: 'Jurassic Park & World — 30+ years of dinosaurs.' },
+];
+
+// Fetch a backdrop per universe (cached by tmdb.ts).
+const cards = await Promise.all(HUB.map(async (u) => {
+  let backdrop = '';
+  try {
+    const d: any = await fetchFromTMDB(`/${u.backdropType}/${u.backdropId}`, {});
+    if (d.backdrop_path) backdrop = `https://image.tmdb.org/t/p/w780${d.backdrop_path}`;
+  } catch {}
+  return { ...u, backdrop };
+}));
+
+const pageTitle = 'Movie Universes — Watch Every Saga in Order | TrendiMovies';
+const pageDesc = 'Binge complete movie universes in order — Star Wars, Marvel, DC, Wizarding World, Middle-earth, Fast & Furious and more. Every film and series, ready to stream in HD on TrendiMovies.';
+const ogImage = '/api/og.png?type=digital&accent=' + encodeURIComponent('#e50914') + '&eyebrow=' + encodeURIComponent('WATCH IN ORDER') + '&eyebrowEmoji=' + encodeURIComponent('🌌') + '&headline=' + encodeURIComponent('Movie Universes') + '&subtitle=' + encodeURIComponent('Every saga — films & series, in order') + '&ogurl=' + encodeURIComponent('trendimovies.com/universe');
+---
+
+<BaseLayout title={pageTitle} description={pageDesc} image={ogImage}>
+  <!-- Hero -->
+  <section class="relative overflow-hidden border-b" style="border-color: var(--border);">
+    <div class="absolute inset-0" style="background: radial-gradient(ellipse at 30% 0%, rgba(229,9,20,0.12), transparent 55%), radial-gradient(ellipse at 80% 100%, rgba(168,85,247,0.12), transparent 55%);"></div>
+    <div class="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-28 pb-10">
+      <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full mb-4 text-xs font-bold uppercase tracking-widest"
+           style="background: rgba(229,9,20,0.14); color:#ff5a5f; border:1px solid rgba(229,9,20,0.35);">🌌 Watch in Order</div>
+      <h1 class="text-4xl sm:text-5xl lg:text-6xl font-black text-white leading-tight">Movie Universes</h1>
+      <p class="mt-3 max-w-2xl text-sm sm:text-base" style="color: var(--text-secondary);">
+        Binge complete sagas the right way — every film and series, grouped by era, in release order.
+      </p>
+    </div>
+  </section>
+
+  <!-- Universe cards -->
+  <section class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+      {cards.map((u) => (
+        <a href={`/universe/${u.slug}`} class="group block relative rounded-2xl overflow-hidden ring-1 ring-white/10 hover:ring-white/25 transition-all" style="aspect-ratio: 16/9;">
+          {u.backdrop
+            ? <img src={u.backdrop} alt={u.name} loading="lazy" class="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+            : <div class="absolute inset-0" style="background:#16161f;"></div>}
+          <div class="absolute inset-0" style={`background: linear-gradient(0deg, rgba(10,10,15,0.95) 12%, rgba(10,10,15,0.45) 60%, ${u.accent}22 100%);`}></div>
+          <div class="absolute top-3 left-3 w-1.5 h-7 rounded-full" style={`background:${u.accent};`}></div>
+          <div class="absolute bottom-0 left-0 right-0 p-5">
+            <div class="flex items-center gap-2 mb-1">
+              <span class="text-2xl">{u.emoji}</span>
+              <h2 class="text-xl sm:text-2xl font-black text-white">{u.name}</h2>
+            </div>
+            <p class="text-xs sm:text-sm" style="color: var(--text-secondary);">{u.blurb}</p>
+            <span class="inline-flex items-center gap-1 mt-3 text-xs font-bold" style={`color:${u.accent};`}>Watch in order →</span>
+          </div>
+        </a>
+      ))}
+    </div>
+
+    <p class="mt-10 text-center text-sm" style="color: var(--text-muted);">
+      Looking for a single film? Browse the <a href="/franchises" style="color:#e50914;">full franchise collections →</a>
+    </p>
+  </section>
+</BaseLayout>

@@ -65,12 +65,30 @@ function transformToItem(movie: any) {
     type: 'movie' as const
   };
 }
+
+// ── OG share card: cinematic poster collage of popular movies ──────────────
+const ogPosters = movies
+  .filter((m: any) => m.poster_path)
+  .slice(0, 5)
+  .map((m: any) => m.poster_path)
+  .join('|');
+const ogDesc = 'Stream and download thousands of movies in HD — from the latest blockbusters to all-time classics. Browse by genre, year or popularity and watch free on TrendiMovies.';
+const ogImage = ogPosters
+  ? `/api/og.png?type=digital`
+    + `&posters=${encodeURIComponent(ogPosters)}`
+    + `&accent=${encodeURIComponent('#e50914')}`
+    + `&eyebrow=${encodeURIComponent('STREAM & DOWNLOAD')}`
+    + `&eyebrowEmoji=${encodeURIComponent('🎬')}`
+    + `&headline=${encodeURIComponent('Movies in HD')}`
+    + `&subtitle=${encodeURIComponent('Thousands of films — stream or download free, in 720p & 1080p')}`
+    + `&ogurl=${encodeURIComponent('trendimovies.com/movies')}`
+  : '/images/og-default.jpg';
 ---
 
 <BaseLayout
-  title="Movies"
-  description="Browse all movies available for streaming"
-  image="/images/og-default.jpg"
+  title="Movies — Stream & Download in HD | TrendiMovies"
+  description={ogDesc}
+  image={ogImage}
 >
   <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
     <div class="flex flex-col md:flex-row md:items-center md:justify-between mb-8">

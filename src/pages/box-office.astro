@@ -91,9 +91,9 @@ function getPosterUrl(path: string | null): string {
 ---
 
 <BaseLayout
-  title="Weekend Box Office - Movie Earnings & Charts"
-  description="Latest weekend box office results, movie earnings, and charts. Track the highest-grossing films of the week."
-  image={boxOfficeData[0]?.poster_path ? `https://image.tmdb.org/t/p/w780${boxOfficeData[0].poster_path}` : '/images/og-default.jpg'}
+  title="Weekend Box Office — Top-Grossing Movies & Charts | TrendiMovies"
+  description="See what's #1 at the box office. Live weekend earnings, rankings and charts for the highest-grossing films — updated every week on TrendiMovies."
+  image={`/api/og.png?type=digital&posters=${encodeURIComponent(boxOfficeData.filter((e: any) => e.poster_path).slice(0, 5).map((e: any) => e.poster_path).join('|'))}&accent=${encodeURIComponent('#22c55e')}&eyebrow=${encodeURIComponent('WEEKEND BOX OFFICE')}&eyebrowEmoji=${encodeURIComponent('📊')}&headline=${encodeURIComponent('Weekend Box Office')}&subtitle=${encodeURIComponent("This week's top-grossing movies — ranked, with earnings")}&ogurl=${encodeURIComponent('trendimovies.com/box-office')}`}
 >
   <!-- Header -->
   <section class="relative py-12 overflow-hidden">

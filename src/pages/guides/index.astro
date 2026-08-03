@@ -30,9 +30,31 @@ const CATS: Record<string, string> = { mood: 'By Mood', decade: 'By Decade', hid
 const grouped: Record<string, any[]> = {};
 for (const t of topics) (grouped[t.category] ||= []).push(t);
 const catOrder = ['mood', 'decade', 'hidden', 'best-of', ...Object.keys(grouped)].filter((c, i, a) => a.indexOf(c) === i && grouped[c]);
+
+// ── OG share card: cinematic poster collage from the guide topics ──────────
+const _ogSeen = new Set<string>();
+const ogPosters: string[] = [];
+for (const t of topics) {
+  for (const pp of (t.posters || [])) {
+    if (pp && !_ogSeen.has(pp)) { _ogSeen.add(pp); ogPosters.push(pp); }
+    if (ogPosters.length >= 5) break;
+  }
+  if (ogPosters.length >= 5) break;
+}
+const ogDesc = 'Not sure what to watch? Hand-picked movie guides for every mood and era — tearjerkers, feel-good films, mind-benders, the best of each decade and hidden gems. Find your next watch on TrendiMovies.';
+const ogImage = ogPosters.length
+  ? `/api/og.png?type=digital`
+    + `&posters=${encodeURIComponent(ogPosters.join('|'))}`
+    + `&accent=${encodeURIComponent('#e50914')}`
+    + `&eyebrow=${encodeURIComponent('CURATED MOVIE GUIDES')}`
+    + `&eyebrowEmoji=${encodeURIComponent('🎬')}`
+    + `&headline=${encodeURIComponent('Movie Guides for Every Mood')}`
+    + `&subtitle=${encodeURIComponent('Tearjerkers, feel-good, mind-benders, hidden gems & best-of lists')}`
+    + `&ogurl=${encodeURIComponent('trendimovies.com/guides')}`
+  : '/images/og-default.jpg';
 ---
 
-<BaseLayout title="Movie Guides — Curated Lists for Every Mood & Era | TrendiMovies" description="Hand-picked movie guides: tearjerkers, feel-good films, mind-benders, best of each decade and hidden gems. Find your next watch on TrendiMovies.">
+<BaseLayout title="Movie Guides — Curated Lists for Every Mood & Era | TrendiMovies" description={ogDesc} image={ogImage}>
   <!-- Cinematic hero -->
   <section class="relative overflow-hidden">
     <div class="absolute inset-0" style="background: linear-gradient(135deg, #0a0a0f 0%, #1a0f2e 45%, #2d0a2e 100%);"></div>

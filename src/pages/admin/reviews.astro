@@ -1,0 +1,12 @@
+---
+import AdminLayout from '../../layouts/AdminLayout.astro';
+import ReviewsManager from '../../components/admin/ReviewsManager.svelte';
+---
+
+<AdminLayout title="Movie Reviews" activeTab="reviews">
+  <div class="mb-6">
+    <h1 class="text-2xl font-bold text-white">Movie Reviews</h1>
+    <p class="text-[#888] mt-1 text-sm">Approve auto-drafted reviews before they go live. Generate new ones on the server with <code class="text-[#f59e0b]">review_generator.py --tmdb &lt;id&gt;</code>.</p>
+  </div>
+  <ReviewsManager client:load />
+</AdminLayout>

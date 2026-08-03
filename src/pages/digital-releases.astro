@@ -1,0 +1,1243 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import { getCache, setCache } from '../lib/cache';
+import { fetchFromTMDB } from '../lib/tmdb';
+
+// ============================================================================
+// Digital & HD Release Dates — date-grouped list scraped from
+// dvdsreleasedates.com (all 12 months of 2026). POSTERS come from TMDB (the
+// site's CSP only allows image.tmdb.org, and TMDB posters are higher quality).
+// Cross-referenced with our catalogue so released titles get a Watch button.
+// Everything cached so the page stays fast.
+// ============================================================================
+
+const POSTGREST_URL = import.meta.env.PUBLIC_SUPABASE_URL || 'http://localhost:3001';
+const SRC = 'https://www.dvdsreleasedates.com';
+const YEAR = 2026;
+const MONTHS = [
+  ['1','january'],['2','february'],['3','march'],['4','april'],['5','may'],['6','june'],
+  ['7','july'],['8','august'],['9','september'],['10','october'],['11','november'],['12','december'],
+];
+const MONTH_LABELS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+const DATE_RE = /class=["']reldate[^>]*>(?:<a[^>]*><\/a>)?([A-Za-z]+day\s+[A-Za-z]+\s+\d{1,2},\s*\d{4})/g;
+// slug group is [^'"]+ (not [a-z0-9-]+) so slugs containing commas/punctuation
+// like "13-days,-13-nights" still match — otherwise those movies are silently
+// dropped and their date header renders empty.
+const MOVIE_RE = /href=['"]\/movies\/(\d+)\/([^'"]+)['"]><img[^>]*alt=['"]([^'"]+?)\s+DVD Release Date['"][^>]*src=['"]([^'"]+)['"]/g;
+
+// Read the raw on-disk cache file even if its TTL has EXPIRED — used as a
+// stale-while-revalidate fallback so a slow/failed dvdsreleasedates scrape never
+// blocks the page with a 504. (getCache() returns null once TTL passes.)
+function readStaleCache(cacheKey: string): any[] | null {
+  try {
+    const { join } = require('node:path');
+    const { readFileSync, existsSync } = require('node:fs');
+    // Match lib/cache.ts exactly: CACHE_DIR = .../.cache/tmdb, key = endpoint
+    // with non-alphanumerics -> '_' (no params here), file = <key>.json.
+    const dir = '/var/www/trendimovies/.cache/tmdb';
+    const key = cacheKey.replace(/[^a-zA-Z0-9]/g, '_').substring(0, 200);
+    const fp = join(dir, `${key}.json`);
+    if (!existsSync(fp)) return null;
+    const c = JSON.parse(readFileSync(fp, 'utf-8'));
+    return Array.isArray(c?.data) ? c.data : null;
+  } catch { return null; }
+}
+
+async function scrapeMonth(monthNum: string, monthName: string) {
+  const cacheKey = `dvdsrd-${YEAR}-${monthNum}`;
+  const cached = getCache<any[]>(cacheKey, {});
+  if (cached) return cached;
+  const url = `${SRC}/digital-releases/${YEAR}/${monthNum}/digital-hd-releases-${monthName}-${YEAR}`;
+  let html = '';
+  try {
+    // 8s hard timeout — one slow month can't hang the whole page into a 504.
+    const r = await fetch(url, {
+      headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120' },
+      signal: AbortSignal.timeout(8000),
+    });
+    if (r.ok) html = await r.text();
+  } catch (e) { html = ''; }
+
+  const marks: { date: string; idx: number }[] = [];
+  let m: RegExpExecArray | null;
+  DATE_RE.lastIndex = 0;
+  while ((m = DATE_RE.exec(html))) marks.push({ date: m[1], idx: m.index });
+
+  const groups: any[] = [];
+  for (let i = 0; i < marks.length; i++) {
+    const start = marks[i].idx;
+    const end = i + 1 < marks.length ? marks[i + 1].idx : html.length;
+    const chunk = html.slice(start, end);
+    const movies: any[] = [];
+    let mm: RegExpExecArray | null;
+    MOVIE_RE.lastIndex = 0;
+    while ((mm = MOVIE_RE.exec(chunk))) {
+      movies.push({
+        id: mm[1], slug: mm[2], title: mm[3].replace(/&amp;/g, '&').replace(/&#039;/g, "'").trim(),
+        poster: mm[4].startsWith('http') ? mm[4] : SRC + mm[4],
+      });
+    }
+    // Skip date headers that parsed no movies — never render an empty date group.
+    if (!movies.length) continue;
+    const d = new Date(marks[i].date);
+    groups.push({ date: marks[i].date, iso: isNaN(+d) ? null : d.toISOString().slice(0, 10), movies });
+  }
+  // If the fresh scrape yielded nothing (external site slow/timed-out/blocked),
+  // DON'T overwrite the cache with empty and DON'T return empty — serve the last
+  // good cache (even if TTL-expired). This is what stops the 504/blank-month.
+  if (groups.length === 0) {
+    const stale = readStaleCache(cacheKey);
+    if (stale && stale.length) return stale;
+  }
+  setCache(cacheKey, {}, groups);
+  return groups;
+}
+
+// Scrape all 12 months (cached). Wrapped so one failing month can never reject
+// the whole Promise.all and 500/504 the page — a failed month returns [].
+const monthData = await Promise.all(
+  MONTHS.map(([n, name]) => scrapeMonth(n, name).catch(() => readStaleCache(`dvdsrd-${YEAR}-${n}`) || []))
+);
+
+// ============================================================================
+// MANUAL OVERRIDES — upcoming/extra digital releases harmonised from
+// bingebase.com (full year Jan–Dec 2026). dvdsreleasedates.com stays the
+// PRIMARY source; these are MERGED IN per date and DEDUPED by normalised title
+// across the whole month, so a movie dvdsreleasedates already lists is never
+// duplicated — only genuine gaps get added. Each entry is just {date, title};
+// the SAME downstream TMDB enrichment resolves poster + real tmdb id +
+// catalogue Watch button automatically. Edit freely to add/remove titles.
+// ============================================================================
+const MANUAL_RELEASES: { date: string; title: string }[] = [
+  // ── JANUARY 2026 ──
+  { date: 'Thursday, January 1, 2026', title: 'Haq' },
+  { date: 'Thursday, January 1, 2026', title: "Don't Follow Me" },
+  { date: 'Thursday, January 1, 2026', title: 'Ainsley McGregor Mysteries: A Case For the Watchmaker' },
+  { date: 'Thursday, January 1, 2026', title: 'Content' },
+  { date: 'Thursday, January 1, 2026', title: 'White Gardenia: The King James Bible' },
+  { date: 'Friday, January 2, 2026', title: 'The Tank' },
+  { date: 'Friday, January 2, 2026', title: 'Follow My Voice' },
+  { date: 'Friday, January 2, 2026', title: 'Dracula' },
+  { date: 'Monday, January 5, 2026', title: 'D(e)ad' },
+  { date: 'Monday, January 5, 2026', title: 'The R.I.P Man' },
+  { date: 'Tuesday, January 6, 2026', title: 'Predator: Badlands' },
+  { date: 'Tuesday, January 6, 2026', title: 'Hallow Road' },
+  { date: 'Tuesday, January 6, 2026', title: 'Not Without Hope' },
+  { date: 'Tuesday, January 6, 2026', title: "Peter Hujar's Day" },
+  { date: 'Tuesday, January 6, 2026', title: 'Zodiac Killer Project' },
+  { date: 'Tuesday, January 6, 2026', title: '12 Hours in October' },
+  { date: 'Tuesday, January 6, 2026', title: 'Self-Help' },
+  { date: 'Wednesday, January 7, 2026', title: 'Marcello Hernández: American Boy' },
+  { date: 'Thursday, January 8, 2026', title: 'De De Pyaar De 2' },
+  { date: 'Thursday, January 8, 2026', title: 'Hands' },
+  { date: 'Thursday, January 8, 2026', title: 'Parable' },
+  { date: 'Friday, January 9, 2026', title: 'People We Meet on Vacation' },
+  { date: 'Friday, January 9, 2026', title: 'Oscar Shaw' },
+  { date: 'Friday, January 9, 2026', title: 'Bulls' },
+  { date: 'Friday, January 9, 2026', title: 'The House on Haunted Grounds' },
+  { date: 'Friday, January 9, 2026', title: 'Death Name' },
+  { date: 'Friday, January 9, 2026', title: 'Relentless' },
+  { date: 'Friday, January 9, 2026', title: 'The Conspiracists' },
+  { date: 'Friday, January 9, 2026', title: 'Salt of the Earth' },
+  { date: 'Monday, January 12, 2026', title: 'One Last Adventure: The Making of Stranger Things 5' },
+  { date: 'Monday, January 12, 2026', title: 'Kill Tony: Once Upon a Time in Texas' },
+  { date: 'Tuesday, January 13, 2026', title: 'Rental Family' },
+  { date: 'Tuesday, January 13, 2026', title: 'Dust Bunny' },
+  { date: 'Tuesday, January 13, 2026', title: 'Song Sung Blue' },
+  { date: 'Tuesday, January 13, 2026', title: 'The Internship' },
+  { date: 'Tuesday, January 13, 2026', title: 'Rebuilding' },
+  { date: 'Tuesday, January 13, 2026', title: 'Space/Time' },
+  { date: 'Tuesday, January 13, 2026', title: 'Doctor Plague' },
+  { date: 'Tuesday, January 13, 2026', title: 'A Murder Between Friends' },
+  { date: 'Tuesday, January 13, 2026', title: 'Amityvillenado' },
+  { date: 'Tuesday, January 13, 2026', title: 'Intrusive Thoughts' },
+  { date: 'Wednesday, January 14, 2026', title: 'Dhandoraa' },
+  { date: 'Wednesday, January 14, 2026', title: 'Blessed: Live, Laugh,Run!' },
+  { date: 'Thursday, January 15, 2026', title: 'Fureru' },
+  { date: 'Friday, January 16, 2026', title: 'The Rip' },
+  { date: 'Friday, January 16, 2026', title: 'Killer Whale' },
+  { date: 'Friday, January 16, 2026', title: 'The Confession' },
+  { date: 'Friday, January 16, 2026', title: 'How to Lose a Popularity Contest' },
+  { date: 'Friday, January 16, 2026', title: 'The Strange Dark' },
+  { date: 'Friday, January 16, 2026', title: 'Smosh Hospital' },
+  { date: 'Sunday, January 18, 2026', title: 'The Stepmother' },
+  { date: 'Monday, January 19, 2026', title: 'Preparation for the Next Life' },
+  { date: 'Monday, January 19, 2026', title: 'Month to Month' },
+  { date: 'Tuesday, January 20, 2026', title: 'The SpongeBob Movie: Search for SquarePants' },
+  { date: 'Tuesday, January 20, 2026', title: 'Vincent Must Die' },
+  { date: 'Tuesday, January 20, 2026', title: 'Truth & Treason' },
+  { date: 'Tuesday, January 20, 2026', title: 'Merrily We Roll Along' },
+  { date: 'Tuesday, January 20, 2026', title: 'Little Trouble Girls' },
+  { date: 'Tuesday, January 20, 2026', title: 'Dummy' },
+  { date: 'Tuesday, January 20, 2026', title: "You're All Doomed" },
+  { date: 'Tuesday, January 20, 2026', title: 'Snoopy Unleashed' },
+  { date: 'Wednesday, January 21, 2026', title: 'Kidnapped: Elizabeth Smart' },
+  { date: 'Wednesday, January 21, 2026', title: 'Seeking Haven for Mr. Rambo' },
+  { date: 'Thursday, January 22, 2026', title: 'Mr. Nobody Against Putin' },
+  { date: 'Thursday, January 22, 2026', title: 'Cosmic Princess Kaguya!' },
+  { date: 'Thursday, January 22, 2026', title: 'Disneyland Handcrafted' },
+  { date: 'Thursday, January 22, 2026', title: 'From the Ashes: The Pit' },
+  { date: 'Thursday, January 22, 2026', title: 'Aspire' },
+  { date: 'Friday, January 23, 2026', title: 'The Big Fake' },
+  { date: 'Friday, January 23, 2026', title: 'All the Names of God' },
+  { date: 'Friday, January 23, 2026', title: 'Skyscraper Live' },
+  { date: 'Friday, January 23, 2026', title: 'La Grazia' },
+  { date: 'Friday, January 23, 2026', title: 'Mother of Flies' },
+  { date: 'Friday, January 23, 2026', title: 'Speed Faster' },
+  { date: 'Friday, January 23, 2026', title: 'Jack and Ava' },
+  { date: 'Friday, January 23, 2026', title: "BAKA's Identity" },
+  { date: 'Friday, January 23, 2026', title: 'TWIN' },
+  { date: 'Friday, January 23, 2026', title: 'Mash Ville' },
+  { date: 'Friday, January 23, 2026', title: 'Dooba Dooba' },
+  { date: 'Friday, January 23, 2026', title: 'Enigmatic Workings of a Just and Loving Force' },
+  { date: 'Monday, January 26, 2026', title: 'Zootopia 2' },
+  { date: 'Tuesday, January 27, 2026', title: 'Anaconda' },
+  { date: 'Tuesday, January 27, 2026', title: 'Greenland 2: Migration' },
+  { date: 'Tuesday, January 27, 2026', title: 'Ella McCay' },
+  { date: 'Tuesday, January 27, 2026', title: 'David' },
+  { date: 'Tuesday, January 27, 2026', title: 'Silent Night, Deadly Night' },
+  { date: 'Tuesday, January 27, 2026', title: 'Shark Skin Man and Peach Hip Girl' },
+  { date: 'Tuesday, January 27, 2026', title: 'When the Light Breaks' },
+  { date: 'Tuesday, January 27, 2026', title: 'Revolver Lily' },
+  { date: 'Tuesday, January 27, 2026', title: "Tomorrow's Joe: The Live Action Movie" },
+  { date: 'Tuesday, January 27, 2026', title: 'Blackout' },
+  { date: 'Tuesday, January 27, 2026', title: 'Trifole' },
+  { date: 'Tuesday, January 27, 2026', title: 'The Silence After' },
+  { date: 'Tuesday, January 27, 2026', title: 'House of Ka' },
+  { date: 'Wednesday, January 28, 2026', title: 'The Wrecking Crew' },
+  { date: 'Wednesday, January 28, 2026', title: 'Drifting Laurent' },
+  { date: 'Thursday, January 29, 2026', title: 'Dhurandhar' },
+  { date: 'Thursday, January 29, 2026', title: 'A Letter to My Youth' },
+  { date: 'Thursday, January 29, 2026', title: 'Wicked of Oz' },
+  { date: 'Thursday, January 29, 2026', title: 'Backyard Sports: The Animated Special' },
+  { date: 'Friday, January 30, 2026', title: 'Grizzly Night' },
+  { date: 'Friday, January 30, 2026', title: "Miracle: The Boys of '80" },
+  { date: 'Friday, January 30, 2026', title: 'Lazarus: The Awakening' },
+  { date: 'Friday, January 30, 2026', title: 'Terri Joe: Missionary in Miami' },
+  { date: 'Friday, January 30, 2026', title: "My Sister's Bones" },
+  { date: 'Friday, January 30, 2026', title: 'Pike River' },
+  { date: 'Friday, January 30, 2026', title: 'Swing & A Miss!' },
+  // ── FEBRUARY 2026 ──
+  { date: 'Sunday, February 1, 2026', title: "His Brother's Wife" },
+  { date: 'Monday, February 2, 2026', title: 'New Jersey Devil' },
+  { date: 'Monday, February 2, 2026', title: 'Foreplay' },
+  { date: 'Tuesday, February 3, 2026', title: 'The Housemaid' },
+  { date: 'Tuesday, February 3, 2026', title: 'Hamnet' },
+  { date: 'Tuesday, February 3, 2026', title: 'The Secret Agent' },
+  { date: 'Tuesday, February 3, 2026', title: 'We Bury the Dead' },
+  { date: 'Tuesday, February 3, 2026', title: 'The Plague' },
+  { date: 'Tuesday, February 3, 2026', title: 'Even If This Love Disappears Tonight' },
+  { date: 'Tuesday, February 3, 2026', title: 'The Dutchman' },
+  { date: 'Tuesday, February 3, 2026', title: 'The Morrigan' },
+  { date: 'Wednesday, February 4, 2026', title: 'The Investigation of Lucy Letby' },
+  { date: 'Wednesday, February 4, 2026', title: 'Relationship Goals' },
+  { date: 'Wednesday, February 4, 2026', title: 'Tranquility: Aeterna' },
+  { date: 'Thursday, February 5, 2026', title: 'A Woman Called Mother' },
+  { date: 'Friday, February 6, 2026', title: 'Queen of Chess' },
+  { date: 'Friday, February 6, 2026', title: 'Twisted' },
+  { date: 'Friday, February 6, 2026', title: "F Valentine's Day" },
+  { date: 'Friday, February 6, 2026', title: 'Yoh! Bestie' },
+  { date: 'Friday, February 6, 2026', title: 'OBEX' },
+  { date: 'Friday, February 6, 2026', title: 'The Arborist' },
+  { date: 'Friday, February 6, 2026', title: 'Teacher’s Pet' },
+  { date: 'Friday, February 6, 2026', title: 'The Roaring Game' },
+  { date: 'Monday, February 9, 2026', title: 'Matter of Time' },
+  { date: 'Tuesday, February 10, 2026', title: 'Marty Supreme' },
+  { date: 'Tuesday, February 10, 2026', title: 'Primate' },
+  { date: 'Tuesday, February 10, 2026', title: 'Is This Thing On?' },
+  { date: 'Tuesday, February 10, 2026', title: 'Night Patrol' },
+  { date: 'Tuesday, February 10, 2026', title: 'Misdirection' },
+  { date: 'Tuesday, February 10, 2026', title: 'The Huntsman' },
+  { date: 'Tuesday, February 10, 2026', title: 'Rosemead' },
+  { date: 'Tuesday, February 10, 2026', title: 'This Is I' },
+  { date: 'Tuesday, February 10, 2026', title: 'Chef’s Kiss' },
+  { date: 'Tuesday, February 10, 2026', title: 'Midnight Sun' },
+  { date: 'Tuesday, February 10, 2026', title: 'Acts of Love' },
+  { date: 'Tuesday, February 10, 2026', title: 'Last Words' },
+  { date: 'Tuesday, February 10, 2026', title: 'Strangers' },
+  { date: 'Wednesday, February 11, 2026', title: 'State of Fear' },
+  { date: 'Thursday, February 12, 2026', title: 'Love Me Love Me' },
+  { date: 'Thursday, February 12, 2026', title: 'I Was a Stranger' },
+  { date: 'Thursday, February 12, 2026', title: 'Royally Screwed' },
+  { date: 'Thursday, February 12, 2026', title: 'Twisted Fate' },
+  { date: 'Friday, February 13, 2026', title: "Joe's College Road Trip" },
+  { date: 'Friday, February 13, 2026', title: 'Honey Bunch' },
+  { date: 'Friday, February 13, 2026', title: "A Father's Miracle" },
+  { date: 'Friday, February 13, 2026', title: 'Kissing Is the Easy Part' },
+  { date: 'Friday, February 13, 2026', title: 'Sweetness' },
+  { date: 'Friday, February 13, 2026', title: 'The House Was Not Hungry Then' },
+  { date: 'Friday, February 13, 2026', title: 'Demon Squad: Tooth and Claw' },
+  { date: 'Friday, February 13, 2026', title: 'Ted Bunny' },
+  { date: 'Friday, February 13, 2026', title: 'Nuptials' },
+  { date: 'Saturday, February 14, 2026', title: 'The Same Frame' },
+  { date: 'Monday, February 16, 2026', title: 'Quantum Supremacy' },
+  { date: 'Monday, February 16, 2026', title: 'The Last Sacrifice' },
+  { date: 'Tuesday, February 17, 2026', title: 'Mercy' },
+  { date: 'Tuesday, February 17, 2026', title: '28 Years Later: The Bone Temple' },
+  { date: 'Tuesday, February 17, 2026', title: 'No Other Choice' },
+  { date: 'Tuesday, February 17, 2026', title: 'Kill Bill: The Whole Bloody Affair' },
+  { date: 'Tuesday, February 17, 2026', title: 'Hellfire' },
+  { date: 'Tuesday, February 17, 2026', title: 'The Choral' },
+  { date: 'Tuesday, February 17, 2026', title: 'Ghost Train' },
+  { date: 'Tuesday, February 17, 2026', title: 'Sommore: Chandelier Fly' },
+  { date: 'Tuesday, February 17, 2026', title: "You Can't Win" },
+  { date: 'Tuesday, February 17, 2026', title: 'Blood Barn' },
+  { date: 'Tuesday, February 17, 2026', title: 'Minnie’s Midnight Massacre' },
+  { date: 'Tuesday, February 17, 2026', title: "Aladdin's Revenge" },
+  { date: 'Tuesday, February 17, 2026', title: 'Scumtown High' },
+  { date: 'Wednesday, February 18, 2026', title: 'Dead Souls' },
+  { date: 'Thursday, February 19, 2026', title: 'The Swedish Connection' },
+  { date: 'Thursday, February 19, 2026', title: 'Meet, Greet & Bye' },
+  { date: 'Friday, February 20, 2026', title: 'Worldbreaker' },
+  { date: 'Friday, February 20, 2026', title: 'One Mile: Chapter One' },
+  { date: 'Friday, February 20, 2026', title: 'Firebreak' },
+  { date: 'Friday, February 20, 2026', title: 'One Mile: Chapter Two' },
+  { date: 'Friday, February 20, 2026', title: 'The Dreadful' },
+  { date: 'Friday, February 20, 2026', title: 'Diabolic' },
+  { date: 'Friday, February 20, 2026', title: 'Pavane' },
+  { date: 'Friday, February 20, 2026', title: 'Last Ride' },
+  { date: 'Friday, February 20, 2026', title: "I Don't Love You Anymore" },
+  { date: 'Friday, February 20, 2026', title: 'Black Goat' },
+  { date: 'Friday, February 20, 2026', title: 'Descendants/ZOMBIES Worlds Collide - Concert Special' },
+  { date: 'Friday, February 20, 2026', title: 'Six String Sky' },
+  { date: 'Friday, February 20, 2026', title: 'Human Hibachi 3: The Last Supper' },
+  { date: 'Monday, February 23, 2026', title: 'The Voice of Hind Rajab' },
+  { date: 'Monday, February 23, 2026', title: 'The Dresden Sun' },
+  { date: 'Monday, February 23, 2026', title: 'Peaky Blinders: The Real Story' },
+  { date: 'Tuesday, February 24, 2026', title: 'Shelter' },
+  { date: 'Tuesday, February 24, 2026', title: 'Return to Silent Hill' },
+  { date: 'Tuesday, February 24, 2026', title: "Dead Man's Wire" },
+  { date: 'Tuesday, February 24, 2026', title: 'Arco' },
+  { date: 'Tuesday, February 24, 2026', title: 'Melania' },
+  { date: 'Tuesday, February 24, 2026', title: 'Taylor Tomlinson: Prodigal Daughter' },
+  { date: 'Tuesday, February 24, 2026', title: 'Ice Skater' },
+  { date: 'Tuesday, February 24, 2026', title: 'H Is for Hawk' },
+  { date: 'Tuesday, February 24, 2026', title: 'Clika' },
+  { date: 'Tuesday, February 24, 2026', title: 'In Cold Light' },
+  { date: 'Tuesday, February 24, 2026', title: 'Young Mothers' },
+  { date: 'Tuesday, February 24, 2026', title: 'National Theatre Live: Inter Alia' },
+  { date: 'Wednesday, February 25, 2026', title: 'The Bluff' },
+  { date: 'Wednesday, February 25, 2026', title: 'Man on the Run' },
+  { date: 'Wednesday, February 25, 2026', title: 'Ikkis' },
+  { date: 'Friday, February 27, 2026', title: 'In the Blink of an Eye' },
+  { date: 'Friday, February 27, 2026', title: 'Father Mother Sister Brother' },
+  { date: 'Friday, February 27, 2026', title: 'Accused' },
+  { date: 'Friday, February 27, 2026', title: 'Crazy Old Lady' },
+  { date: 'Friday, February 27, 2026', title: "All That's Left of You" },
+  { date: 'Friday, February 27, 2026', title: 'Gangstas' },
+  { date: 'Friday, February 27, 2026', title: 'Atropia' },
+  { date: 'Friday, February 27, 2026', title: 'Leo & Lou' },
+  { date: 'Friday, February 27, 2026', title: 'Bring the Law' },
+  { date: 'Friday, February 27, 2026', title: 'Chris Fleming: Live at The Palace' },
+  { date: 'Friday, February 27, 2026', title: 'Noseeums' },
+  { date: 'Friday, February 27, 2026', title: 'Sunshine' },
+  { date: 'Friday, February 27, 2026', title: 'Gandhi Talks' },
+  { date: 'Friday, February 27, 2026', title: 'One Hour Girlfriend' },
+  { date: 'Friday, February 27, 2026', title: 'Bikini Office Girl' },
+  { date: 'Saturday, February 28, 2026', title: 'Elimination Chamber' },
+  { date: 'Saturday, February 28, 2026', title: 'Strangers to Strangers' },
+  // ── MARCH 2026 ──
+  { date: 'Sunday, March 1, 2026', title: "Angel's Egg" },
+  { date: 'Sunday, March 1, 2026', title: 'Videoheaven' },
+  { date: 'Sunday, March 1, 2026', title: 'Seduction: The Cruel Woman' },
+  { date: 'Tuesday, March 3, 2026', title: 'Whistle' },
+  { date: 'Tuesday, March 3, 2026', title: 'A Private Life' },
+  { date: 'Tuesday, March 3, 2026', title: 'The Moment' },
+  { date: 'Tuesday, March 3, 2026', title: 'The Hermit' },
+  { date: 'Tuesday, March 3, 2026', title: 'Tanvi the Great' },
+  { date: 'Tuesday, March 3, 2026', title: 'Dark Distortion' },
+  { date: 'Wednesday, March 4, 2026', title: 'Street Flow 3' },
+  { date: 'Thursday, March 5, 2026', title: 'Re/Member: The Last Night' },
+  { date: 'Thursday, March 5, 2026', title: 'Jab Khuli Kitaab' },
+  { date: 'Friday, March 6, 2026', title: 'War Machine' },
+  { date: 'Friday, March 6, 2026', title: 'Cold Storage' },
+  { date: 'Friday, March 6, 2026', title: 'Good Boy' },
+  { date: 'Friday, March 6, 2026', title: 'The Strangers: Chapter 3' },
+  { date: 'Friday, March 6, 2026', title: 'Strangers in the Park' },
+  { date: 'Friday, March 6, 2026', title: 'NFT: Cursed Images' },
+  { date: 'Friday, March 6, 2026', title: 'BLKNWS: Terms & Conditions' },
+  { date: 'Friday, March 6, 2026', title: 'Dark Places' },
+  { date: 'Saturday, March 7, 2026', title: 'Ghost Elephants' },
+  { date: 'Sunday, March 8, 2026', title: 'Harry Styles. One Night in Manchester.' },
+  { date: 'Sunday, March 8, 2026', title: 'Kat Crime: Tales of the Occult' },
+  { date: 'Tuesday, March 10, 2026', title: "Good Luck, Have Fun, Don't Die" },
+  { date: 'Tuesday, March 10, 2026', title: 'Dracula' },
+  { date: 'Tuesday, March 10, 2026', title: 'Solo Mio' },
+  { date: 'Tuesday, March 10, 2026', title: 'The Testament of Ann Lee' },
+  { date: 'Tuesday, March 10, 2026', title: 'Fukushima: A Nuclear Nightmare' },
+  { date: 'Tuesday, March 10, 2026', title: 'Midwinter Break' },
+  { date: 'Tuesday, March 10, 2026', title: 'Say Less' },
+  { date: 'Tuesday, March 10, 2026', title: 'Death Cycle' },
+  { date: 'Tuesday, March 10, 2026', title: 'Skinny Love' },
+  { date: 'Tuesday, March 10, 2026', title: 'Micro Budget' },
+  { date: 'Tuesday, March 10, 2026', title: 'Squatch' },
+  { date: 'Wednesday, March 11, 2026', title: 'Louis Theroux: Inside the Manosphere' },
+  { date: 'Wednesday, March 11, 2026', title: 'Subedaar' },
+  { date: 'Thursday, March 12, 2026', title: 'Made in Korea' },
+  { date: 'Friday, March 13, 2026', title: 'Bodycam' },
+  { date: 'Friday, March 13, 2026', title: 'This Is Not a Test' },
+  { date: 'Friday, March 13, 2026', title: 'Bank of Dave 2: The Loan Ranger' },
+  { date: 'Friday, March 13, 2026', title: 'Islands' },
+  { date: 'Friday, March 13, 2026', title: 'Agent Zero' },
+  { date: 'Friday, March 13, 2026', title: 'Mexicali' },
+  { date: 'Friday, March 13, 2026', title: 'Red Riding' },
+  { date: 'Friday, March 13, 2026', title: 'Moses the Black' },
+  { date: 'Friday, March 13, 2026', title: 'Dead by Dawn' },
+  { date: 'Friday, March 13, 2026', title: 'Beyond Sasquatch' },
+  { date: 'Saturday, March 14, 2026', title: 'UFC Fight Night 269: Emmett vs. Vallejos' },
+  { date: 'Sunday, March 15, 2026', title: 'AEW Revolution 2026' },
+  { date: 'Sunday, March 15, 2026', title: 'Congo2' },
+  { date: 'Monday, March 16, 2026', title: 'The Plastic Detox' },
+  { date: 'Tuesday, March 17, 2026', title: 'Nirvanna the Band the Show the Movie' },
+  { date: 'Tuesday, March 17, 2026', title: 'The Forbidden City' },
+  { date: 'Tuesday, March 17, 2026', title: 'Scarlet' },
+  { date: 'Tuesday, March 17, 2026', title: 'Magellan' },
+  { date: 'Tuesday, March 17, 2026', title: 'Preschool' },
+  { date: 'Tuesday, March 17, 2026', title: 'Capture' },
+  { date: 'Tuesday, March 17, 2026', title: 'By Design' },
+  { date: 'Tuesday, March 17, 2026', title: 'No Choice' },
+  { date: 'Tuesday, March 17, 2026', title: 'Jitters' },
+  { date: 'Tuesday, March 17, 2026', title: 'Step Back, Doors Closing' },
+  { date: 'Wednesday, March 18, 2026', title: 'Lady Parts' },
+  { date: 'Wednesday, March 18, 2026', title: 'Transformers: Gizli Tehdit' },
+  { date: 'Friday, March 20, 2026', title: 'Peaky Blinders: The Immortal Man' },
+  { date: 'Friday, March 20, 2026', title: 'Agent Zeta' },
+  { date: 'Friday, March 20, 2026', title: 'Do Not Enter' },
+  { date: 'Friday, March 20, 2026', title: 'The Rise of the Red Hot Chili Peppers: Our Brother, Hillel' },
+  { date: 'Friday, March 20, 2026', title: 'Mr. Burton' },
+  { date: 'Friday, March 20, 2026', title: 'The Well' },
+  { date: 'Friday, March 20, 2026', title: 'My Daughter Was Taken' },
+  { date: 'Friday, March 20, 2026', title: 'Midnight in the War Room' },
+  { date: 'Saturday, March 21, 2026', title: 'BTS THE COMEBACK LIVE | ARIRANG' },
+  { date: 'Monday, March 23, 2026', title: 'Send Help' },
+  { date: 'Tuesday, March 24, 2026', title: 'GOAT' },
+  { date: 'Tuesday, March 24, 2026', title: 'How to Make a Killing' },
+  { date: 'Tuesday, March 24, 2026', title: 'Sirāt' },
+  { date: 'Tuesday, March 24, 2026', title: 'Redux Redux' },
+  { date: 'Tuesday, March 24, 2026', title: 'The Deep Dark' },
+  { date: 'Tuesday, March 24, 2026', title: 'I Can Only Imagine 2' },
+  { date: 'Tuesday, March 24, 2026', title: 'A Poet' },
+  { date: 'Tuesday, March 24, 2026', title: 'LUPIN THE IIIRD: The Movie - The Immortal Bloodline' },
+  { date: 'Tuesday, March 24, 2026', title: 'Jeff Ross: Take a Banana for the Ride' },
+  { date: 'Tuesday, March 24, 2026', title: 'Youngblood' },
+  { date: 'Tuesday, March 24, 2026', title: 'Past Life' },
+  { date: 'Tuesday, March 24, 2026', title: 'Crybaby Bridge' },
+  { date: 'Tuesday, March 24, 2026', title: 'Blue' },
+  { date: 'Wednesday, March 25, 2026', title: 'Pretty Lethal' },
+  { date: 'Wednesday, March 25, 2026', title: 'Really Happy Someday' },
+  { date: 'Thursday, March 26, 2026', title: 'The Red Line' },
+  { date: 'Friday, March 27, 2026', title: 'Mike & Nick & Nick & Alice' },
+  { date: 'Friday, March 27, 2026', title: '53 Sundays' },
+  { date: 'Friday, March 27, 2026', title: 'The Mortuary Assistant' },
+  { date: 'Friday, March 27, 2026', title: 'Wardriver' },
+  { date: 'Friday, March 27, 2026', title: 'The Chronology of Water' },
+  { date: 'Friday, March 27, 2026', title: 'BTS: THE RETURN' },
+  { date: 'Friday, March 27, 2026', title: 'It Would Be Night in Caracas' },
+  { date: 'Friday, March 27, 2026', title: 'Refuge' },
+  { date: 'Friday, March 27, 2026', title: 'Color Theories by Julio Torres. A Guide to Seeing the World' },
+  { date: 'Friday, March 27, 2026', title: 'Pompei: Below the Clouds' },
+  { date: 'Friday, March 27, 2026', title: 'Love At Last' },
+  { date: 'Friday, March 27, 2026', title: 'Jimmy O. Yang Finally Home' },
+  { date: 'Friday, March 27, 2026', title: 'TNA Sacrifice 2026' },
+  { date: 'Friday, March 27, 2026', title: 'Primal Darkness' },
+  { date: 'Friday, March 27, 2026', title: 'Rockabye' },
+  { date: 'Friday, March 27, 2026', title: 'Homecoming: The Tokyo Series' },
+  { date: 'Saturday, March 28, 2026', title: 'UFC Fight Night 271: Adesanya vs. Pyfer' },
+  { date: 'Monday, March 30, 2026', title: "Ninja Wars - BlackFox vs Shogun's Ninja" },
+  { date: 'Monday, March 30, 2026', title: 'Zaire: A Film Noir-Inspired Story' },
+  { date: 'Tuesday, March 31, 2026', title: 'Avatar: Fire and Ash' },
+  { date: 'Tuesday, March 31, 2026', title: 'Scream 7' },
+  { date: 'Tuesday, March 31, 2026', title: '"Wuthering Heights"' },
+  { date: 'Tuesday, March 31, 2026', title: 'Pillion' },
+  { date: 'Tuesday, March 31, 2026', title: 'Humint' },
+  { date: 'Tuesday, March 31, 2026', title: 'Dolly' },
+  { date: 'Tuesday, March 31, 2026', title: 'Silver Star' },
+  { date: 'Tuesday, March 31, 2026', title: 'Natchez' },
+  { date: 'Tuesday, March 31, 2026', title: 'Idiotka' },
+  { date: 'Tuesday, March 31, 2026', title: 'Charliebird' },
+  // ── APRIL 2026 ──
+  { date: 'Wednesday, April 1, 2026', title: 'Crime 101' },
+  { date: 'Wednesday, April 1, 2026', title: 'Eat Pray Bark' },
+  { date: 'Wednesday, April 1, 2026', title: 'The Giant Falls' },
+  { date: 'Wednesday, April 1, 2026', title: 'The Staff' },
+  { date: 'Thursday, April 2, 2026', title: 'Touch Me' },
+  { date: 'Thursday, April 2, 2026', title: 'Vadh 2' },
+  { date: 'Thursday, April 2, 2026', title: 'The Sheriff' },
+  { date: 'Thursday, April 2, 2026', title: 'Skate to Hell' },
+  { date: 'Thursday, April 2, 2026', title: 'Dopamine' },
+  { date: 'Thursday, April 2, 2026', title: 'Long Time Listener' },
+  { date: 'Friday, April 3, 2026', title: 'Pizza Movie' },
+  { date: 'Friday, April 3, 2026', title: 'S4: The Bob Lazar Story' },
+  { date: 'Friday, April 3, 2026', title: 'The Truth and Tragedy of Moriah Wilson' },
+  { date: 'Friday, April 3, 2026', title: 'Feel My Voice' },
+  { date: 'Friday, April 3, 2026', title: 'Addition' },
+  { date: 'Friday, April 3, 2026', title: 'My Undesirable Friends: Part I - Last Air in Moscow' },
+  { date: 'Friday, April 3, 2026', title: 'Papa Bear' },
+  { date: 'Friday, April 3, 2026', title: "Nikola Tesla's 19hz" },
+  { date: 'Saturday, April 4, 2026', title: 'UFC Fight Night 272: Moicano vs. Duncan' },
+  { date: 'Tuesday, April 7, 2026', title: 'The Bride!' },
+  { date: 'Tuesday, April 7, 2026', title: 'Sniper: No Nation' },
+  { date: 'Tuesday, April 7, 2026', title: 'Psycho Killer' },
+  { date: 'Tuesday, April 7, 2026', title: 'EPiC: Elvis Presley in Concert' },
+  { date: 'Tuesday, April 7, 2026', title: "The President's Cake" },
+  { date: 'Tuesday, April 7, 2026', title: 'The Land of Sometimes' },
+  { date: 'Tuesday, April 7, 2026', title: 'I Know Exactly How You Die' },
+  { date: 'Tuesday, April 7, 2026', title: 'The Space Rodent' },
+  { date: 'Tuesday, April 7, 2026', title: "Other People's Bodies" },
+  { date: 'Tuesday, April 7, 2026', title: 'Orgy of the Dead 2' },
+  { date: 'Tuesday, April 7, 2026', title: 'Effortless: The Eddie Fiola Story' },
+  { date: 'Thursday, April 9, 2026', title: 'Outcome' },
+  { date: 'Thursday, April 9, 2026', title: "O'Romeo" },
+  { date: 'Thursday, April 9, 2026', title: '18th Rose' },
+  { date: 'Friday, April 10, 2026', title: 'Thrash' },
+  { date: 'Friday, April 10, 2026', title: 'The Yeti' },
+  { date: 'Friday, April 10, 2026', title: 'Tu Yaa Main' },
+  { date: 'Friday, April 10, 2026', title: 'Infiltrate' },
+  { date: 'Friday, April 10, 2026', title: 'Dreams' },
+  { date: 'Friday, April 10, 2026', title: "My Father's Shadow" },
+  { date: 'Friday, April 10, 2026', title: 'The Great Warsaw Race' },
+  { date: 'Friday, April 10, 2026', title: 'Heads or Tails?' },
+  { date: 'Friday, April 10, 2026', title: 'The Caretaker' },
+  { date: 'Saturday, April 11, 2026', title: 'TNA Rebellion 2026' },
+  { date: 'Sunday, April 12, 2026', title: 'AEW Dynasty 2026' },
+  { date: 'Tuesday, April 14, 2026', title: 'undertone' },
+  { date: 'Tuesday, April 14, 2026', title: 'Reminders of Him' },
+  { date: 'Tuesday, April 14, 2026', title: 'The Gentleman' },
+  { date: 'Tuesday, April 14, 2026', title: 'Slanted' },
+  { date: 'Tuesday, April 14, 2026', title: 'Alpha' },
+  { date: 'Tuesday, April 14, 2026', title: 'ALL YOU NEED IS KILL' },
+  { date: 'Tuesday, April 14, 2026', title: 'The Gates' },
+  { date: 'Tuesday, April 14, 2026', title: 'The AI Doc: Or How I Became an Apocaloptimist' },
+  { date: 'Tuesday, April 14, 2026', title: 'Rise of the Conqueror' },
+  { date: 'Tuesday, April 14, 2026', title: '#SKYKING' },
+  { date: 'Tuesday, April 14, 2026', title: 'Trevor Noah: Joy in the Trenches' },
+  { date: 'Tuesday, April 14, 2026', title: 'The Highest Stakes' },
+  { date: 'Tuesday, April 14, 2026', title: 'The Love That Remains' },
+  { date: 'Wednesday, April 15, 2026', title: 'Balls Up' },
+  { date: 'Wednesday, April 15, 2026', title: 'Toaster' },
+  { date: 'Thursday, April 16, 2026', title: 'Do Deewane Seher Mein' },
+  { date: 'Thursday, April 16, 2026', title: 'Assi' },
+  { date: 'Friday, April 17, 2026', title: 'Roommates' },
+  { date: 'Friday, April 17, 2026', title: 'Brothers Under Fire' },
+  { date: 'Friday, April 17, 2026', title: 'Vengeance' },
+  { date: 'Friday, April 17, 2026', title: 'Ballistic' },
+  { date: 'Friday, April 17, 2026', title: 'A Gorilla Story: Told by David Attenborough' },
+  { date: 'Friday, April 17, 2026', title: 'The Whistler' },
+  { date: 'Friday, April 17, 2026', title: 'Hive' },
+  { date: 'Friday, April 17, 2026', title: 'The Napa Boys' },
+  { date: 'Friday, April 17, 2026', title: 'Ramy Youssef: In Love' },
+  { date: 'Friday, April 17, 2026', title: 'The Cholesterol Code' },
+  { date: 'Friday, April 17, 2026', title: 'Almost Us' },
+  { date: 'Friday, April 17, 2026', title: 'By His Hand' },
+  { date: 'Friday, April 17, 2026', title: 'Dementia 13' },
+  { date: 'Saturday, April 18, 2026', title: 'WWE Hall Of Fame 2026' },
+  { date: 'Saturday, April 18, 2026', title: 'Krypto Saves the Day!: Coastal Catastrophe' },
+  { date: 'Saturday, April 18, 2026', title: 'WWE WrestleMania 42 Countdown - Saturday' },
+  { date: 'Saturday, April 18, 2026', title: 'WWE WrestleMania 42 – Saturday' },
+  { date: 'Sunday, April 19, 2026', title: 'WWE WrestleMania 42 – Sunday' },
+  { date: 'Monday, April 20, 2026', title: 'KillTonyMania' },
+  { date: 'Tuesday, April 21, 2026', title: 'Protector' },
+  { date: 'Tuesday, April 21, 2026', title: 'Late Shift' },
+  { date: 'Tuesday, April 21, 2026', title: 'Tow' },
+  { date: 'Tuesday, April 21, 2026', title: "The Serpent's Skin" },
+  { date: 'Tuesday, April 21, 2026', title: 'Mabel' },
+  { date: 'Tuesday, April 21, 2026', title: 'I Live Here Now' },
+  { date: 'Tuesday, April 21, 2026', title: 'Kenneled' },
+  { date: 'Wednesday, April 22, 2026', title: 'Finding Satoshi' },
+  { date: 'Wednesday, April 22, 2026', title: 'We Are Guardians' },
+  { date: 'Wednesday, April 22, 2026', title: 'Min Vän Döden' },
+  { date: 'Thursday, April 23, 2026', title: 'Captain Tsunami' },
+  { date: 'Friday, April 24, 2026', title: 'Apex' },
+  { date: 'Friday, April 24, 2026', title: 'Sound of Falling' },
+  { date: 'Friday, April 24, 2026', title: 'Immortal Combat' },
+  { date: 'Friday, April 24, 2026', title: 'Agon' },
+  { date: 'Friday, April 24, 2026', title: 'Prank Night' },
+  { date: 'Friday, April 24, 2026', title: 'Pretty Ugly: The Story of the Lunachicks' },
+  { date: 'Saturday, April 25, 2026', title: 'UFC Fight Night 274: Sterling vs. Zalal' },
+  { date: 'Sunday, April 26, 2026', title: 'The Good Sister' },
+  { date: 'Tuesday, April 28, 2026', title: 'They Will Kill You' },
+  { date: 'Tuesday, April 28, 2026', title: 'Exit 8' },
+  { date: 'Tuesday, April 28, 2026', title: 'Forbidden Fruits' },
+  { date: 'Tuesday, April 28, 2026', title: 'No Ordinary Heist' },
+  { date: 'Tuesday, April 28, 2026', title: 'Hoppers' },
+  { date: 'Tuesday, April 28, 2026', title: "Didn't Die" },
+  { date: 'Tuesday, April 28, 2026', title: 'Ketchup on Waffles' },
+  { date: 'Tuesday, April 28, 2026', title: 'ROLLING' },
+  { date: 'Wednesday, April 29, 2026', title: "Je m'appelle Agneta" },
+  { date: 'Wednesday, April 29, 2026', title: 'Lemonade Blessing' },
+  { date: 'Wednesday, April 29, 2026', title: 'Eugene the Marine' },
+  { date: 'Wednesday, April 29, 2026', title: 'Amoeba' },
+  { date: 'Wednesday, April 29, 2026', title: 'The True Beauty of Being Bitten by a Tick' },
+  { date: 'Thursday, April 30, 2026', title: 'The Kerala Story 2' },
+  // ── MAY 2026 ──
+  { date: 'Friday, May 1, 2026', title: 'Swapped' },
+  { date: 'Friday, May 1, 2026', title: 'My Dearest Señorita' },
+  { date: 'Friday, May 1, 2026', title: "You're Dating a Narcissist!" },
+  { date: 'Friday, May 1, 2026', title: 'Mitski: The Land' },
+  { date: 'Friday, May 1, 2026', title: 'Maya, Give Me a Title' },
+  { date: 'Friday, May 1, 2026', title: 'Mars' },
+  { date: 'Friday, May 1, 2026', title: 'Torch Song' },
+  { date: 'Friday, May 1, 2026', title: 'Sister & Sister' },
+  { date: 'Friday, May 1, 2026', title: 'Bi-Coastal' },
+  { date: 'Friday, May 1, 2026', title: 'She Cries Murder' },
+  { date: 'Friday, May 1, 2026', title: 'The Border Baby' },
+  { date: 'Tuesday, May 5, 2026', title: 'Ready or Not: Here I Come' },
+  { date: 'Tuesday, May 5, 2026', title: 'The Drama' },
+  { date: 'Tuesday, May 5, 2026', title: 'Lorne' },
+  { date: 'Tuesday, May 5, 2026', title: 'Grow' },
+  { date: 'Tuesday, May 5, 2026', title: 'A Great Awakening' },
+  { date: 'Tuesday, May 5, 2026', title: 'André Is an Idiot' },
+  { date: 'Tuesday, May 5, 2026', title: 'Taco Tuesday' },
+  { date: 'Thursday, May 7, 2026', title: 'My Dearest Assassin' },
+  { date: 'Friday, May 8, 2026', title: 'Remarkably Bright Creatures' },
+  { date: 'Friday, May 8, 2026', title: 'No Place to Be Single' },
+  { date: 'Friday, May 8, 2026', title: 'Couples Weekend' },
+  { date: 'Friday, May 8, 2026', title: 'Buffet Infinity' },
+  { date: 'Friday, May 8, 2026', title: 'Accidental Partners' },
+  { date: 'Friday, May 8, 2026', title: 'Sleeping Dog' },
+  { date: 'Friday, May 8, 2026', title: 'Fantasy Life' },
+  { date: 'Friday, May 8, 2026', title: 'Broad Trip' },
+  { date: 'Friday, May 8, 2026', title: 'Give Me Back My Baby' },
+  { date: 'Friday, May 8, 2026', title: 'Blood & Rust' },
+  { date: 'Saturday, May 9, 2026', title: 'Backlash Tampa' },
+  { date: 'Saturday, May 9, 2026', title: 'UFC 328: Chimaev vs Strickland' },
+  { date: 'Sunday, May 10, 2026', title: 'The Roast of Kevin Hart' },
+  { date: 'Tuesday, May 12, 2026', title: 'A Little Something Extra' },
+  { date: 'Tuesday, May 12, 2026', title: 'Faces of Death' },
+  { date: 'Tuesday, May 12, 2026', title: 'Beast' },
+  { date: 'Tuesday, May 12, 2026', title: 'You, Me & Tuscany' },
+  { date: 'Tuesday, May 12, 2026', title: 'Marty, Life Is Short' },
+  { date: 'Tuesday, May 12, 2026', title: 'The Legend of Hei 2' },
+  { date: 'Tuesday, May 12, 2026', title: 'Hamlet' },
+  { date: 'Tuesday, May 12, 2026', title: 'Project Hail Mary' },
+  { date: 'Tuesday, May 12, 2026', title: 'Oru Durooha Saahacharyathil' },
+  { date: 'Tuesday, May 12, 2026', title: '$POSITIONS' },
+  { date: 'Tuesday, May 12, 2026', title: 'Moss & Freud' },
+  { date: 'Tuesday, May 12, 2026', title: 'Marc by Sofia' },
+  { date: 'Tuesday, May 12, 2026', title: 'Cotton Candy Bubble Gum' },
+  { date: 'Tuesday, May 12, 2026', title: 'They Wait in Shadows' },
+  { date: 'Wednesday, May 13, 2026', title: 'The Bus: A French Football Mutiny' },
+  { date: 'Wednesday, May 13, 2026', title: 'Maid Robot 2' },
+  { date: 'Wednesday, May 13, 2026', title: 'Good Omens 3' },
+  { date: 'Thursday, May 14, 2026', title: 'Apple Music Live: Lady Gaga MAYHEM Requiem' },
+  { date: 'Friday, May 15, 2026', title: 'The Crash' },
+  { date: 'Friday, May 15, 2026', title: 'Dhurandhar: The Revenge' },
+  { date: 'Friday, May 15, 2026', title: "Driver's Ed" },
+  { date: 'Friday, May 15, 2026', title: 'Kartavya' },
+  { date: 'Friday, May 15, 2026', title: 'An Enemy Within' },
+  { date: 'Friday, May 15, 2026', title: 'Bride of the Year' },
+  { date: 'Friday, May 15, 2026', title: 'Love Letters' },
+  { date: 'Monday, May 18, 2026', title: 'Mile End Kicks' },
+  { date: 'Tuesday, May 19, 2026', title: 'The Super Mario Galaxy Movie' },
+  { date: 'Tuesday, May 19, 2026', title: "Lee Cronin's The Mummy" },
+  { date: 'Tuesday, May 19, 2026', title: 'Normal' },
+  { date: 'Tuesday, May 19, 2026', title: 'Wasteman' },
+  { date: 'Tuesday, May 19, 2026', title: 'Mother Mary' },
+  { date: 'Tuesday, May 19, 2026', title: 'The Stranger' },
+  { date: 'Tuesday, May 19, 2026', title: 'Palestine 36' },
+  { date: 'Tuesday, May 19, 2026', title: 'Wanda Sykes: Legacy' },
+  { date: 'Tuesday, May 19, 2026', title: 'Monkey’s Magic Merry Go Round' },
+  { date: 'Tuesday, May 19, 2026', title: 'Sight Unseen' },
+  { date: 'Tuesday, May 19, 2026', title: 'The Midway Point' },
+  { date: 'Wednesday, May 20, 2026', title: "Tom Clancy's Jack Ryan: Ghost War" },
+  { date: 'Thursday, May 21, 2026', title: 'Dua Lipa: Live From Mexico' },
+  { date: 'Friday, May 22, 2026', title: 'Ladies First' },
+  { date: 'Friday, May 22, 2026', title: 'Giant' },
+  { date: 'Friday, May 22, 2026', title: 'Master of the Universe' },
+  { date: 'Friday, May 22, 2026', title: 'Bushido' },
+  { date: 'Friday, May 22, 2026', title: 'System' },
+  { date: 'Friday, May 22, 2026', title: 'To Love a Narcissist' },
+  { date: 'Friday, May 22, 2026', title: 'Shakti' },
+  { date: 'Sunday, May 24, 2026', title: 'AEW Double or Nothing 2026' },
+  { date: 'Tuesday, May 26, 2026', title: 'Over Your Dead Body' },
+  { date: 'Tuesday, May 26, 2026', title: 'Fuze' },
+  { date: 'Tuesday, May 26, 2026', title: 'Desert Warrior' },
+  { date: 'Tuesday, May 26, 2026', title: 'Animal Farm' },
+  { date: 'Tuesday, May 26, 2026', title: 'Two Prosecutors' },
+  { date: 'Tuesday, May 26, 2026', title: 'Two Women' },
+  { date: 'Tuesday, May 26, 2026', title: 'Wingman' },
+  { date: 'Tuesday, May 26, 2026', title: "My Best Friend's Dead" },
+  { date: 'Tuesday, May 26, 2026', title: 'Blowie' },
+  { date: 'Thursday, May 28, 2026', title: 'Kara' },
+  { date: 'Friday, May 29, 2026', title: 'Iron Lung' },
+  { date: 'Friday, May 29, 2026', title: 'The Last Viking' },
+  { date: 'Friday, May 29, 2026', title: 'The Furious' },
+  { date: 'Friday, May 29, 2026', title: 'Miss You, Love You' },
+  { date: 'Friday, May 29, 2026', title: 'sMOTHERed' },
+  { date: 'Friday, May 29, 2026', title: 'Blind Cop 2' },
+  { date: 'Friday, May 29, 2026', title: 'Alien Disclosure Day' },
+  { date: 'Saturday, May 30, 2026', title: 'K-Pops!' },
+  { date: 'Sunday, May 31, 2026', title: 'Your Heart Will Be Broken' },
+  { date: 'Sunday, May 31, 2026', title: 'WWE Clash in Italy' },
+  // ── JUNE 2026 ──
+  { date: 'Tuesday, June 2, 2026', title: 'In the Grey' },
+  { date: 'Tuesday, June 2, 2026', title: 'Hokum' },
+  { date: 'Tuesday, June 2, 2026', title: 'I Swear' },
+  { date: 'Tuesday, June 2, 2026', title: 'Is God Is' },
+  { date: 'Tuesday, June 2, 2026', title: 'Amrum' },
+  { date: 'Tuesday, June 2, 2026', title: 'Erupcja' },
+  { date: 'Tuesday, June 2, 2026', title: 'An Autumn Summer' },
+  { date: 'Tuesday, June 2, 2026', title: 'Wet Paper Bag' },
+  { date: 'Thursday, June 4, 2026', title: 'The Murder of Rachel Nickell' },
+  { date: 'Thursday, June 4, 2026', title: 'Maa Behen' },
+  { date: 'Thursday, June 4, 2026', title: 'Jimpa' },
+  { date: 'Thursday, June 4, 2026', title: 'A Man with Sole: The Impact of Kenneth Cole' },
+  { date: 'Thursday, June 4, 2026', title: 'Real Couples' },
+  { date: 'Friday, June 5, 2026', title: 'Office Romance' },
+  { date: 'Friday, June 5, 2026', title: 'Signal One' },
+  { date: 'Friday, June 5, 2026', title: 'Seven Snipers' },
+  { date: 'Friday, June 5, 2026', title: 'The Marked Woman' },
+  { date: 'Friday, June 5, 2026', title: 'Chum' },
+  { date: 'Friday, June 5, 2026', title: 'The Passenger' },
+  { date: 'Friday, June 5, 2026', title: 'Mexico 86' },
+  { date: 'Friday, June 5, 2026', title: 'One Spoon of Chocolate' },
+  { date: 'Friday, June 5, 2026', title: 'Omaha' },
+  { date: 'Friday, June 5, 2026', title: 'The Birthday Party' },
+  { date: 'Friday, June 5, 2026', title: 'The Summoning of Baby Blue' },
+  { date: 'Saturday, June 6, 2026', title: 'Castration Movie Anthology iii. Year of the Hyaena' },
+  { date: 'Sunday, June 7, 2026', title: "Earth, Wind & Fire (To Be Celestial vs. That's the Weight of the World)" },
+  { date: 'Sunday, June 7, 2026', title: 'XBOX Games Showcase 2026' },
+  { date: 'Tuesday, June 9, 2026', title: 'Michael' },
+  { date: 'Tuesday, June 9, 2026', title: 'Mortal Kombat II' },
+  { date: 'Wednesday, June 10, 2026', title: 'Colors of Evil: Black' },
+  { date: 'Wednesday, June 10, 2026', title: 'The Class: Online' },
+  { date: 'Thursday, June 11, 2026', title: 'Bhooth Bangla' },
+  { date: 'Friday, June 12, 2026', title: 'Maternal Instinct' },
+  { date: 'Friday, June 12, 2026', title: 'Saccharine' },
+  { date: 'Friday, June 12, 2026', title: 'Kraken' },
+  { date: 'Friday, June 12, 2026', title: 'Karuppu' },
+  { date: 'Friday, June 12, 2026', title: 'I Am Frankelda' },
+  { date: 'Friday, June 12, 2026', title: 'Badland Rising' },
+  { date: 'Friday, June 12, 2026', title: 'Find Your Friends' },
+  { date: 'Friday, June 12, 2026', title: 'Broken Land' },
+  { date: 'Friday, June 12, 2026', title: 'Time of Death' },
+  { date: 'Friday, June 12, 2026', title: 'Blue Film' },
+  { date: 'Friday, June 12, 2026', title: 'This Tempting Madness' },
+  { date: 'Friday, June 12, 2026', title: 'Crosspoint' },
+  { date: 'Friday, June 12, 2026', title: 'The Thing in the Fog' },
+  { date: 'Friday, June 12, 2026', title: 'New Toy Story' },
+  { date: 'Tuesday, June 16, 2026', title: 'Pressure' },
+  { date: 'Tuesday, June 16, 2026', title: 'Deep Water' },
+  { date: 'Tuesday, June 16, 2026', title: 'The Wizard of the Kremlin' },
+  { date: 'Tuesday, June 16, 2026', title: 'Busboys' },
+  { date: 'Tuesday, June 16, 2026', title: 'The Last One for the Road' },
+  { date: 'Tuesday, June 16, 2026', title: 'Operation Hadal' },
+  { date: 'Tuesday, June 16, 2026', title: 'Two Pianos' },
+  { date: 'Tuesday, June 16, 2026', title: 'Cheer Dad' },
+  { date: 'Wednesday, June 17, 2026', title: 'Your Fault: London' },
+  { date: 'Wednesday, June 17, 2026', title: 'The Exhibitor' },
+  { date: 'Thursday, June 18, 2026', title: 'Meet Me in the Margins' },
+  { date: 'Thursday, June 18, 2026', title: 'A Very Southern Church' },
+  { date: 'Friday, June 19, 2026', title: 'Voicemails for Isabelle' },
+  { date: 'Friday, June 19, 2026', title: 'Citizen Vigilante' },
+  { date: 'Friday, June 19, 2026', title: 'The Amazing Digital Circus: The Last Act' },
+  { date: 'Friday, June 19, 2026', title: 'Husbands in Action' },
+  { date: 'Friday, June 19, 2026', title: 'Never Change!' },
+  { date: 'Friday, June 19, 2026', title: "Miss Kobayashi's Dragon Maid: A lonely dragon wants to be loved" },
+  { date: 'Friday, June 19, 2026', title: 'The Voices of Our Mother' },
+  { date: 'Friday, June 19, 2026', title: 'Zombie Land Saga: Yumeginga Paradise' },
+  { date: 'Friday, June 19, 2026', title: 'Color Book' },
+  { date: 'Friday, June 19, 2026', title: "Finnegan's Foursome" },
+  { date: 'Friday, June 19, 2026', title: 'Pickleball' },
+  { date: 'Friday, June 19, 2026', title: 'Above the Line' },
+  { date: 'Sunday, June 21, 2026', title: 'Married Alive' },
+  { date: 'Tuesday, June 23, 2026', title: 'Tuner' },
+  { date: 'Tuesday, June 23, 2026', title: 'Power Ballad' },
+  { date: 'Tuesday, June 23, 2026', title: 'I Love Boosters' },
+  { date: 'Tuesday, June 23, 2026', title: 'Carolina Caroline' },
+  { date: 'Tuesday, June 23, 2026', title: 'HUNGRY' },
+  { date: 'Tuesday, June 23, 2026', title: 'Billie Eilish - Hit Me Hard and Soft: The Tour (Live in 3D)' },
+  { date: 'Tuesday, June 23, 2026', title: 'Eagles of the Republic' },
+  { date: 'Tuesday, June 23, 2026', title: 'Blue Heron' },
+  { date: 'Tuesday, June 23, 2026', title: 'Hold the Fort' },
+  { date: 'Tuesday, June 23, 2026', title: 'ChaO' },
+  { date: 'Tuesday, June 23, 2026', title: 'Chapter 51' },
+  { date: 'Tuesday, June 23, 2026', title: 'Rent Free' },
+  { date: 'Wednesday, June 24, 2026', title: 'The Sheep Detectives' },
+  { date: 'Friday, June 26, 2026', title: 'Little Brother' },
+  { date: 'Friday, June 26, 2026', title: 'Strung' },
+  { date: 'Friday, June 26, 2026', title: 'Savage House' },
+  { date: 'Friday, June 26, 2026', title: 'Magic Hour' },
+  { date: 'Friday, June 26, 2026', title: 'The Reality Experiment' },
+  { date: 'Saturday, June 27, 2026', title: 'Night of Champions 2026' },
+  { date: 'Sunday, June 28, 2026', title: 'AEW Forbidden Door 2026' },
+  { date: 'Sunday, June 28, 2026', title: 'NXT The Great American Bash 2026' },
+  { date: 'Sunday, June 28, 2026', title: 'TNA Slammiversary 2026' },
+  { date: 'Monday, June 29, 2026', title: 'A Super Progressive Movie' },
+  { date: 'Tuesday, June 30, 2026', title: 'Obsession' },
+  { date: 'Tuesday, June 30, 2026', title: 'The Devil Wears Prada 2' },
+  { date: 'Tuesday, June 30, 2026', title: 'Blades of the Guardians' },
+  { date: 'Tuesday, June 30, 2026', title: 'The Sinking of the Lisbon Maru' },
+  { date: 'Tuesday, June 30, 2026', title: 'Pitfall' },
+  { date: 'Tuesday, June 30, 2026', title: "She's the He!" },
+  { date: 'Tuesday, June 30, 2026', title: 'The Get Out' },
+  { date: 'Tuesday, June 30, 2026', title: '40 Dates and 40 Nights' },
+  { date: 'Tuesday, June 30, 2026', title: 'Louis C.K.: Ridiculous' },
+  // ── JULY 2026 ──
+  { date: 'Wednesday, July 1, 2026', title: 'Enola Holmes 3' },
+  { date: 'Wednesday, July 1, 2026', title: 'Forelock' },
+  { date: 'Wednesday, July 1, 2026', title: 'Tinsman Road' },
+  { date: 'Friday, July 3, 2026', title: 'Man of War' },
+  { date: 'Monday, July 6, 2026', title: "Summer's Last Resort" },
+  { date: 'Tuesday, July 7, 2026', title: 'Backrooms' },
+  { date: 'Tuesday, July 7, 2026', title: 'Passenger' },
+  { date: 'Tuesday, July 7, 2026', title: 'Black Box (Flight 298)' },
+  { date: 'Tuesday, July 7, 2026', title: 'Jeff Arcuri: Nice to Meet You' },
+  { date: 'Wednesday, July 8, 2026', title: 'Nothing to Lose' },
+  { date: 'Friday, July 10, 2026', title: 'Ikka' },
+  { date: 'Friday, July 10, 2026', title: 'Mockbuster' },
+  { date: 'Tuesday, July 14, 2026', title: 'The Dangers in My Heart: The Movie' },
+  { date: 'Tuesday, July 14, 2026', title: 'The Souffleur' },
+  { date: 'Tuesday, July 14, 2026', title: 'Frankie, Maniac Woman' },
+  { date: 'Tuesday, July 14, 2026', title: 'Ip Man: Kung Fu Legend' },
+  { date: 'Friday, July 17, 2026', title: 'Heartstopper Forever' },
+  { date: 'Friday, July 17, 2026', title: 'Descendants: Wicked Wonderland' },
+  { date: 'Friday, July 17, 2026', title: 'Desire' },
+  { date: 'Friday, July 17, 2026', title: 'Heavy Leather Hitters' },
+  { date: 'Friday, July 17, 2026', title: '23 000 Lives' },
+  { date: 'Saturday, July 18, 2026', title: 'Last Chance To Save' },
+  { date: 'Tuesday, July 21, 2026', title: 'Scary Movie' },
+  { date: 'Thursday, July 23, 2026', title: 'The Debt Collector' },
+  { date: 'Thursday, July 23, 2026', title: 'The Dink' },
+  { date: 'Friday, July 24, 2026', title: '72 HOURS' },
+  { date: 'Friday, July 24, 2026', title: 'Cruel Hands' },
+  { date: 'Friday, July 24, 2026', title: 'The Truthers' },
+  { date: 'Tuesday, July 28, 2026', title: 'The Withering' },
+  { date: 'Tuesday, July 28, 2026', title: 'Demon Slayer: Kimetsu no Yaiba Infinity Castle' },
+  { date: 'Tuesday, July 28, 2026', title: 'Due West' },
+  { date: 'Tuesday, July 28, 2026', title: 'The Gentleman Thief' },
+  { date: 'Wednesday, July 29, 2026', title: "The Devil's Mouth" },
+  { date: 'Friday, July 31, 2026', title: 'Nightborn' },
+  // ── AUGUST 2026 ──
+  { date: 'Tuesday, August 4, 2026', title: 'The Isolate Thief' },
+  { date: 'Tuesday, August 4, 2026', title: 'LifeHACK' },
+  { date: 'Tuesday, August 4, 2026', title: 'Lucky Strike' },
+  { date: 'Friday, August 7, 2026', title: 'The Last House' },
+  { date: 'Saturday, August 8, 2026', title: 'THE RIBBON HERO' },
+  { date: 'Friday, August 14, 2026', title: 'Camp Rock 3' },
+  { date: 'Friday, August 21, 2026', title: 'Bouchra' },
+  { date: 'Sunday, August 23, 2026', title: 'Crude Awakenings' },
+  { date: 'Wednesday, August 26, 2026', title: 'The Last Sunrise' },
+  { date: 'Friday, August 28, 2026', title: 'The Whisper Man' },
+  { date: 'Sunday, August 30, 2026', title: 'AEW All In 2026: London' },
+  // ── SEPTEMBER 2026 ──
+  { date: 'Thursday, September 3, 2026', title: 'Mayday' },
+  { date: 'Friday, September 4, 2026', title: 'Ephemera' },
+  { date: 'Thursday, September 10, 2026', title: 'Call My Agent! The Movie' },
+  { date: 'Wednesday, September 23, 2026', title: 'The Love Hypothesis' },
+  // ── OCTOBER 2026 ──
+  { date: 'Thursday, October 8, 2026', title: 'Matchbox' },
+  { date: 'Friday, October 9, 2026', title: 'Avatar Aang: The Last Airbender' },
+  { date: 'Friday, October 9, 2026', title: 'Barrio Triste' },
+  // ── NOVEMBER 2026 ──
+  { date: 'Monday, November 16, 2026', title: 'The Summer I Turned Pretty: The Movie' },
+  { date: 'Thursday, November 19, 2026', title: 'Way of the Warrior Kid' },
+  { date: 'Friday, November 20, 2026', title: 'Steps' },
+  { date: 'Thursday, November 26, 2026', title: 'Madden' },
+  // ── DECEMBER 2026 ──
+  { date: 'Tuesday, December 1, 2026', title: 'Since We’ve No Place To Go' },
+  { date: 'Friday, December 4, 2026', title: 'La Bola Negra' },
+  { date: 'Friday, December 11, 2026', title: 'In Waves' },
+  { date: 'Friday, December 18, 2026', title: 'Ray Gunn' },
+  { date: 'Friday, December 25, 2026', title: "Narnia: The Magician's Nephew" },
+];
+
+// Merge MANUAL_RELEASES into the scraped monthData. dvdsreleasedates entries win;
+// a manual title already present ANYWHERE in that month (normalised) is skipped,
+// so the same movie can't appear twice even on a slightly different date.
+function _mnorm(s: string) { return (s || '').toLowerCase().replace(/[^a-z0-9]+/g, '').trim(); }
+const _MONTH_IDX: Record<string, number> = {
+  january:0, february:1, march:2, april:3, may:4, june:5,
+  july:6, august:7, september:8, october:9, november:10, december:11,
+};
+for (const rel of MANUAL_RELEASES) {
+  const mm = rel.date.match(/([A-Za-z]+)\s+\d{1,2},\s*\d{4}/);
+  if (!mm) continue;
+  const monIdx = _MONTH_IDX[mm[1].toLowerCase()];
+  if (monIdx === undefined) continue;
+  const monthArr = monthData[monIdx];
+  if (!monthArr) continue;
+  // Skip if this title already exists ANYWHERE in the month (from dvdsreleasedates).
+  const wantN = _mnorm(rel.title);
+  let dupInMonth = false;
+  for (const g of monthArr) { if (g.movies.some((mv: any) => _mnorm(mv.title) === wantN)) { dupInMonth = true; break; } }
+  if (dupInMonth) continue;
+  // Match the date GROUP by its calendar iso, NOT the raw date string — the
+  // dvdsreleasedates scrape stores \"Tuesday July 14, 2026\" (no comma) while
+  // MANUAL_RELEASES uses \"Tuesday, July 14, 2026\" (with comma); matching on the
+  // string created a DUPLICATE header for the same day. iso is comma-immune.
+  const dManual = new Date(rel.date);
+  const relIso = isNaN(+dManual) ? null : dManual.toISOString().slice(0, 10);
+  let grp = (relIso && monthArr.find((g: any) => g.iso === relIso)) || monthArr.find((g: any) => g.date === rel.date);
+  if (!grp) {
+    grp = { date: rel.date, iso: relIso, movies: [] };
+    monthArr.push(grp);
+  }
+  grp.movies.push({ id: null, slug: null, title: rel.title, poster: null, _manual: true });
+}
+// Re-sort each month's groups chronologically (merged dates may be out of order).
+for (const monthArr of monthData) {
+  if (monthArr) monthArr.sort((a: any, b: any) => {
+    const ai = a.iso || '9999-99-99', bi = b.iso || '9999-99-99';
+    return ai < bi ? -1 : ai > bi ? 1 : 0;
+  });
+}
+
+// Apply DATE OVERRIDES *after* merge so stale MANUAL_RELEASES dates (e.g.
+// The Furious listed on May 29 by bingebase) are also corrected, then place
+// the title on its corrected date.
+// ── DATE OVERRIDES — force a title onto a corrected date, removing it from
+// any stale dvdsreleasedates group. Use when our PRIMARY source has an
+// outdated date: e.g. The Furious + Passenger — dvdsreleasedates/TMDB still
+// show the old dates, but both were confirmed for Jul 7 2026 (bingebase +
+// whentostream/ResetEra/FILMYNEWS). Keyed by title -> corrected date string.
+const MANUAL_OVERRIDE_DATES: { title: string; date: string }[] = [
+  { title: 'The Furious', date: 'Tuesday, July 7, 2026' },
+  { title: 'Passenger', date: 'Tuesday, July 7, 2026' },
+  { title: 'Blue Heron', date: 'Tuesday, July 21, 2026' },
+  { title: 'Disclosure Day', date: 'Tuesday, July 21, 2026' },
+  { title: 'Leviticus', date: 'Tuesday, July 28, 2026' },
+];
+for (const ov of MANUAL_OVERRIDE_DATES) {
+  const ovN = _mnorm(ov.title);
+  for (const monthArr of monthData) {
+    if (!monthArr) continue;
+    for (const g of monthArr) {
+      // strip the title from any group whose date isn't the corrected one
+      if (g.date !== ov.date) g.movies = g.movies.filter((mv: any) => _mnorm(mv.title) !== ovN);
+    }
+  }
+}
+// After stripping stale copies, ensure each override title sits on its date.
+for (const ov of MANUAL_OVERRIDE_DATES) {
+  const ovN = _mnorm(ov.title);
+  const mm = ov.date.match(/([A-Za-z]+)\s+\d{1,2},\s*\d{4}/);
+  if (!mm) continue;
+  const monIdx = _MONTH_IDX[mm[1].toLowerCase()];
+  const monthArr = monthData[monIdx];
+  if (!monthArr) continue;
+  const already = monthArr.some((g: any) => g.movies.some((mv: any) => _mnorm(mv.title) === ovN));
+  if (already) continue;
+  const d = new Date(ov.date);
+  const iso = isNaN(+d) ? null : d.toISOString().slice(0, 10);
+  let grp = (iso && monthArr.find((g: any) => g.iso === iso)) || monthArr.find((g: any) => g.date === ov.date);
+  if (!grp) { grp = { date: ov.date, iso, movies: [] }; monthArr.push(grp); }
+  grp.movies.push({ id: null, slug: null, title: ov.title, poster: null, _manual: true });
+}
+
+// MANUAL EXCLUDE — remove a title from a specific date group regardless of source
+// (manual OR scraped). Use when a title is wrongly listed on a date.
+const MANUAL_EXCLUDE: { title: string; date: string }[] = [
+  { title: 'The Death of Robin Hood', date: 'Tuesday, July 21, 2026' },
+];
+for (const ex of MANUAL_EXCLUDE) {
+  const exN = _mnorm(ex.title);
+  const d = new Date(ex.date);
+  const iso = isNaN(+d) ? null : d.toISOString().slice(0, 10);
+  for (const monthArr of monthData) {
+    if (!monthArr) continue;
+    for (const g of monthArr) {
+      if (g.date === ex.date || (iso && g.iso === iso)) {
+        g.movies = g.movies.filter((mv: any) => _mnorm(mv.title) !== exN);
+      }
+    }
+  }
+}
+// Re-sort again after relocation.
+for (const monthArr of monthData) {
+  if (monthArr) monthArr.sort((a: any, b: any) => {
+    const ai = a.iso || '9999-99-99', bi = b.iso || '9999-99-99';
+    return ai < bi ? -1 : ai > bi ? 1 : 0;
+  });
+}
+
+// ── TMDB lookup (poster + real TMDB id) ─────────────────────────────────────
+// NOTE: the id in dvdsreleasedates' /movies/<id>/ URL is THEIR internal id, NOT
+// a TMDB id — so it can't be matched against our catalogue. Instead we resolve
+// each title to its real TMDB movie here (also gives us the CSP-allowed poster),
+// and match THAT tmdb id against our catalogue. Cached per title+year.
+function normTitle(s: string) { return (s || '').toLowerCase().replace(/[^a-z0-9]+/g, '').trim(); }
+
+// Score a TMDB candidate against the wanted title+year. Higher = better.
+// Heavily reward an EXACT title match + having a poster; penalise wrong year and
+// missing poster so generic one-word titles (e.g. "Heel") don't grab the wrong
+// posterless result like "Heel Turn".
+function scoreCandidate(c: any, wantTitle: string, wantYear: number): number {
+  if (!c) return -Infinity;
+  let s = 0;
+  const ct = normTitle(c.title);
+  const wt = normTitle(wantTitle);
+  if (ct === wt) s += 100;                 // exact title match
+  else if (ct.startsWith(wt) || wt.startsWith(ct)) s += 35; // prefix-ish
+  else if (ct.includes(wt) || wt.includes(ct)) s += 10;     // substring
+  else s -= 40;                            // title doesn't really match
+  if (c.poster_path) s += 50; else s -= 60; // a posterless hit is almost useless here
+  const cy = c.release_date ? Number(String(c.release_date).slice(0, 4)) : null;
+  if (cy && wantYear) {
+    const d = Math.abs(cy - wantYear);
+    if (d === 0) s += 25; else if (d === 1) s += 8; else s -= d * 3;
+  }
+  s += Math.min((c.popularity || 0) / 20, 10); // mild popularity tiebreak
+  return s;
+}
+
+async function tmdbLookup(title: string, year: number): Promise<{ poster: string | null; tmdbId: number | null }> {
+  const key = `dvdsrd-lk2-${title}-${year}`.toLowerCase();
+  const cached = getCache<{ poster: string | null; tmdbId: number | null }>(key, {});
+  if (cached) return cached;
+  let poster: string | null = null;
+  let tmdbId: number | null = null;
+  try {
+    // Gather candidates from year-scoped AND unscoped searches, then pick the best.
+    const candidates: any[] = [];
+    const r: any = await fetchFromTMDB('/search/movie', { query: title, year: String(year), include_adult: 'false' });
+    candidates.push(...(r.results || []).slice(0, 10));
+    const r2: any = await fetchFromTMDB('/search/movie', { query: title, include_adult: 'false' });
+    candidates.push(...(r2.results || []).slice(0, 10));
+
+    let best: any = null;
+    let bestScore = -Infinity;
+    for (const c of candidates) {
+      const sc = scoreCandidate(c, title, year);
+      if (sc > bestScore) { bestScore = sc; best = c; }
+    }
+    // Require a minimally plausible match (real title overlap). If the best is junk
+    // (e.g. only posterless wrong-title hits), leave nulls → placeholder shows.
+    if (best && bestScore > 0) {
+      tmdbId = best.id ?? null;
+      if (best.poster_path) poster = `https://image.tmdb.org/t/p/w342${best.poster_path}`;
+    }
+  } catch (e) { /* leave nulls */ }
+  const out = { poster, tmdbId };
+  setCache(key, {}, out);
+  return out;
+}
+
+// Enrich every scraped movie with TMDB poster + tmdb id (deduped by title).
+const titleYear = new Map<string, number>();
+for (const month of monthData) for (const g of month) {
+  const yr = g.iso ? Number(g.iso.slice(0, 4)) : YEAR;
+  for (const mv of g.movies) if (!titleYear.has(mv.title)) titleYear.set(mv.title, yr);
+}
+const posterByTitle = new Map<string, string | null>();
+const tmdbIdByTitle = new Map<string, number | null>();
+const tEntries = [...titleYear.entries()];
+const BATCH = 12;
+for (let i = 0; i < tEntries.length; i += BATCH) {
+  const slice = tEntries.slice(i, i + BATCH);
+  const res = await Promise.all(slice.map(([t, y]) => tmdbLookup(t, y)));
+  slice.forEach(([t], j) => { posterByTitle.set(t, res[j].poster); tmdbIdByTitle.set(t, res[j].tmdbId); });
+}
+
+// Which titles are on TrendiMovies (has downloads)?
+// PRIMARY match = TMDB id (exact, immune to casing/punctuation differences like
+// "Hungry" vs "HUNGRY"). FALLBACK = normalized title for the rare case where
+// dvdsreleasedates' TMDB id differs from ours.
+const todayISO = new Date().toISOString().slice(0, 10);
+function norm(s: string) { return (s || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim(); }
+
+let siteByTmdb = new Map<string, string>(); // tmdb_id (string) -> slug
+let siteByTitle = new Map<string, string>(); // norm(title) -> slug
+try {
+  // gather all REAL TMDB ids (resolved above) + titles shown across months
+  const allIds = new Set<string>();
+  const allTitles = new Set<string>();
+  for (const month of monthData) for (const g of month) for (const mv of g.movies) {
+    const tid = tmdbIdByTitle.get(mv.title);
+    if (tid) allIds.add(String(tid));
+    if (mv.title) allTitles.add(mv.title);
+  }
+  // 1) Match by TMDB id (chunked 'in')
+  const idsArr = [...allIds];
+  for (let i = 0; i < idsArr.length; i += 60) {
+    const chunk = idsArr.slice(i, i + 60);
+    const inList = chunk.join(',');
+    const res = await fetch(`${POSTGREST_URL}/movies?tmdb_id=in.(${encodeURIComponent(inList)})&has_downloads=eq.true&select=tmdb_id,title,slug`);
+    if (res.ok) {
+      const rows: any[] = await res.json();
+      for (const row of rows) if (row.slug) {
+        if (row.tmdb_id != null) siteByTmdb.set(String(row.tmdb_id), row.slug);
+        if (row.title) siteByTitle.set(norm(row.title), row.slug);
+      }
+    }
+  }
+  // 2) Fallback: match by normalized title (case-insensitive via ilike per title
+  //    would be many calls; instead pull exact 'in' set and normalize on our side).
+  const titlesArr = [...allTitles];
+  for (let i = 0; i < titlesArr.length; i += 40) {
+    const chunk = titlesArr.slice(i, i + 40);
+    const inList = chunk.map((t) => '"' + t.replace(/"/g, '') + '"').join(',');
+    const res = await fetch(`${POSTGREST_URL}/movies?title=in.(${encodeURIComponent(inList)})&has_downloads=eq.true&select=title,slug`);
+    if (res.ok) {
+      const rows: any[] = await res.json();
+      for (const row of rows) if (row.slug && row.title) siteByTitle.set(norm(row.title), row.slug);
+    }
+  }
+} catch (e) {}
+
+// Shape per-month: each month = { key, label, hasData, groups:[{date,iso,past,items:[...] }] }
+const months = MONTHS.map(([n], idx) => {
+  const groups = (monthData[idx] || []).map((g: any) => ({
+    date: g.date,
+    iso: g.iso,
+    past: g.iso ? g.iso < todayISO : false,
+    items: g.movies.map((mv: any) => {
+      // Use the REAL TMDB id (resolved via TMDB search), not dvdsreleasedates' id.
+      const tid = tmdbIdByTitle.get(mv.title) || null;
+      // Match against the catalogue. If we resolved a real TMDB id, ONLY trust
+      // the exact TMDB-id match — do NOT fall back to title, because two films
+      // can share a title (e.g. "Passenger" 2026 tmdb 1368314 is NOT ours, but
+      // an old "Passenger" 1963 IS — a title fallback wrongly showed WATCH).
+      // The title fallback is allowed ONLY when we have no tid at all.
+      const slug = tid ? siteByTmdb.get(String(tid)) : siteByTitle.get(norm(mv.title));
+      const on_site = !!slug;
+      // The /movie route is keyed by TMDB id (the slug form redirects to /404).
+      // Need the real TMDB id to build a working Watch link; without it, don't link.
+      const watch_url = on_site && tid ? `/movie/${tid}` : null;
+      // TMDB poster (CSP-allowed). Fall back to local placeholder if none.
+      const poster = posterByTitle.get(mv.title) || '/images/no-poster.svg';
+      return { ...mv, tmdb_id: tid, poster, on_site: !!watch_url, watch_url };
+    }),
+  }));
+  return { key: n, label: MONTH_LABELS[idx], num: idx, count: groups.reduce((a: number, g: any) => a + g.items.length, 0), groups };
+});
+
+// Default selected month = current month (if 2026) else the first month with data.
+const now = new Date();
+let defaultIdx = now.getFullYear() === YEAR ? now.getMonth() : 0;
+if (!months[defaultIdx] || months[defaultIdx].count === 0) {
+  const firstWith = months.find((mo) => mo.count > 0);
+  if (firstWith) defaultIdx = firstWith.num;
+}
+
+const totalCount = months.reduce((a, mo) => a + mo.count, 0);
+const pageTitle = 'Digital & HD Release Dates 2026 — TrendiMovies';
+const pageDesc = 'Ever wonder when your favourite movies finally drop in HD? Pick any month and see the exact digital/HD release dates for every upcoming movie — so you know precisely when the download will be available on TrendiMovies.';
+
+// Dynamic OG image: a poster collage of the SOONEST upcoming releases, generated
+// by /api/og.png (satori). Auto-stays-current since it's built from live data.
+// Gather 5 distinct TMDB poster PATHS (strip the image.tmdb.org/.../w342 prefix).
+const _ogPosters: string[] = [];
+const _ogSeen = new Set<string>();
+outer:
+for (const mo of months) {
+  for (const g of mo.groups) {
+    if (g.past) continue;                       // upcoming only
+    for (const it of g.items) {
+      const pp = (it as any).poster as string;
+      if (!pp || !pp.includes('image.tmdb.org')) continue; // need a real TMDB poster
+      const path = pp.replace(/^https?:\/\/image\.tmdb\.org\/t\/p\/[^/]+/, '');
+      if (_ogSeen.has(path)) continue;
+      _ogSeen.add(path); _ogPosters.push(path);
+      if (_ogPosters.length >= 5) break outer;
+    }
+  }
+}
+const ogImage = _ogPosters.length
+  ? `/api/og.png?type=digital&posters=${encodeURIComponent(_ogPosters.join('|'))}`
+  : '/api/og.png?type=digital';
+---
+
+<BaseLayout title={pageTitle} description={pageDesc} image={ogImage}>
+  <!-- Hero -->
+  <section class="relative overflow-hidden border-b" style="border-color: var(--border);">
+    <div class="absolute inset-0" style="background: radial-gradient(ellipse at 25% 0%, rgba(247,208,0,0.10), transparent 55%), radial-gradient(ellipse at 85% 100%, rgba(220,38,38,0.10), transparent 55%);"></div>
+    <div class="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-28 pb-8">
+      <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full mb-4 text-xs font-bold uppercase tracking-widest"
+           style="background: rgba(247,208,0,0.12); color:#f7d000; border:1px solid rgba(247,208,0,0.3);">📀 Home Release Calendar</div>
+      <h1 class="text-3xl sm:text-4xl lg:text-5xl font-black text-white leading-tight">Digital &amp; HD Release Dates <span style="color:#f7d000;">2026</span></h1>
+      <p class="mt-3 max-w-2xl text-sm sm:text-base" style="color: var(--text-secondary);">
+        Exactly when every movie hits Digital &amp; HD — month by month. Pick a month below. Titles already on TrendiMovies show a ▶ Watch button.
+      </p>
+    </div>
+  </section>
+
+  <!-- Month selector -->
+  <section class="sticky top-16 z-30 border-b backdrop-blur" style="border-color: var(--border); background: rgba(10,10,12,0.85);">
+    <div class="max-w-7xl mx-auto px-2 sm:px-6 lg:px-8 py-3">
+      <div class="flex gap-1.5 overflow-x-auto hide-scrollbar" id="monthTabs">
+        {months.map((mo) => (
+          <button class="month-tab flex-shrink-0 px-3.5 py-1.5 rounded-lg text-sm font-bold transition-all"
+                  data-month={mo.num} data-count={mo.count}
+                  style="background: rgba(255,255,255,0.05); color: var(--text-secondary);">
+            {mo.label} {mo.count > 0 && (<span class="opacity-60 text-xs">· {mo.count}</span>)}
+          </button>
+        ))}
+      </div>
+    </div>
+  </section>
+
+  <!-- Month panels (all rendered; JS shows the selected one) -->
+  <section class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    {totalCount === 0 && (
+      <p style="color:var(--text-secondary);">Couldn't load the release calendar right now — please try again shortly.</p>
+    )}
+    {months.map((mo) => (
+      <div class="month-panel" data-month={mo.num} style="display:none;">
+        {mo.groups.length === 0 ? (
+          <p class="py-8" style="color:var(--text-secondary);">No digital releases listed for {mo.label} {YEAR} yet.</p>
+        ) : (
+          <div class="space-y-10">
+            {mo.groups.map((g) => (
+              <div>
+                <div class="flex items-center gap-3 mb-4 flex-wrap">
+                  <span class="w-1.5 h-6 rounded-full" style={g.past ? 'background:#3fb950;' : 'background:#f7d000;'}></span>
+                  <h2 class="text-lg sm:text-xl font-black text-white">{g.date}</h2>
+                  {g.past
+                    ? <span class="text-[11px] font-bold px-2 py-0.5 rounded-full" style="background:rgba(63,185,80,0.15);color:#3fb950;">released</span>
+                    : <span class="countdown text-[11px] font-bold px-2 py-0.5 rounded-full" data-date={g.iso} style="background:rgba(247,208,0,0.12);color:#f7d000;border:1px solid rgba(247,208,0,0.3);">…</span>}
+                </div>
+                <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
+                  {g.items.map((mv) => (
+                    <a href={mv.on_site ? mv.watch_url : `/request?title=${encodeURIComponent(mv.title)}`} class="group block">
+                      <div class="relative rounded-xl overflow-hidden aspect-[2/3] ring-1 ring-white/10 group-hover:ring-amber-400/50 transition-all bg-black/40">
+                        <img src={mv.poster} alt={mv.title} loading="lazy" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" onerror="this.src='/images/no-poster.svg'" />
+                        <div class="absolute top-2 left-2 px-2 py-0.5 rounded-md text-[10px] font-bold"
+                             style={mv.on_site ? 'background:#16a34a;color:#fff;' : 'background:rgba(0,0,0,0.72);color:#f7d000;border:1px solid rgba(247,208,0,0.4);'}>
+                          {mv.on_site ? '▶ WATCH' : (g.past ? 'REQUEST' : '🔔 NOTIFY')}
+                        </div>
+                      </div>
+                      <p class="mt-2 text-sm font-medium text-white line-clamp-1 group-hover:text-amber-300 transition-colors">{mv.title}</p>
+                    </a>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    ))}
+  </section>
+
+  <script is:inline define:vars={{ defaultIdx }}>
+    (function () {
+      function showMonth(idx) {
+        document.querySelectorAll('.month-panel').forEach(function (p) {
+          p.style.display = (p.getAttribute('data-month') === String(idx)) ? 'block' : 'none';
+        });
+        document.querySelectorAll('.month-tab').forEach(function (t) {
+          var on = t.getAttribute('data-month') === String(idx);
+          t.style.background = on ? 'linear-gradient(135deg,#f7d000,#f59e0b)' : 'rgba(255,255,255,0.05)';
+          t.style.color = on ? '#000' : 'var(--text-secondary)';
+        });
+      }
+      document.querySelectorAll('.month-tab').forEach(function (t) {
+        t.addEventListener('click', function () { showMonth(t.getAttribute('data-month')); });
+      });
+      showMonth(defaultIdx);
+
+      function ticks() {
+        var now = new Date();
+        document.querySelectorAll('.countdown').forEach(function (el) {
+          var iso = el.getAttribute('data-date'); if (!iso) { el.textContent = 'soon'; return; }
+          var diff = new Date(iso + 'T00:00:00') - now;
+          if (diff <= 0) { el.textContent = 'today'; return; }
+          var d = Math.floor(diff / 86400000), h = Math.floor((diff % 86400000) / 3600000);
+          el.textContent = d > 0 ? ('⏳ ' + d + 'd') : ('⏳ ' + h + 'h');
+        });
+      }
+      ticks(); setInterval(ticks, 60000);
+    })();
+  </script>
+</BaseLayout>

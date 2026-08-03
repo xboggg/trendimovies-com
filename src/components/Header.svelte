@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { Search, Menu, X, Sun, Moon, Film, Tv, ChevronDown, Crown, Send, User } from 'lucide-svelte';
+  import { Search, Menu, X, Sun, Moon, Film, Tv, ChevronDown, Send, User } from 'lucide-svelte';
 
   let isMenuOpen = false;
   let isSearchOpen = false;
@@ -10,7 +10,10 @@
   let showGenreDropdown = false;
   let showDiscoveryDropdown = false;
   let showEventsDropdown = false;
-  let currentPath = '';
+  // Server passes the current pathname so the header spacer renders correctly on
+  // first paint (no flash). Updated client-side on mount for SPA-style nav.
+  export let pathname = '';
+  let currentPath = pathname;
 
   // Live search autocomplete
   let suggestions: any[] = [];
@@ -34,8 +37,13 @@
   onMount(() => {
     isDark = document.documentElement.classList.contains('dark');
     currentPath = window.location.pathname;
+    // On the homepage the header floats transparently over the full-screen hero
+    // and only turns solid once you scroll PAST the hero. On other pages there's
+    // no hero, so it goes solid almost immediately for readability.
+    const isHome = window.location.pathname === '/';
+    const getThreshold = () => (isHome ? Math.max(window.innerHeight * 0.85, 200) : 50);
     const handleScroll = () => {
-      isScrolled = window.scrollY > 50;
+      isScrolled = window.scrollY > getThreshold();
     };
     const handleClickOutside = (e: MouseEvent) => {
       const target = e.target as HTMLElement;
@@ -125,7 +133,11 @@
   }
 
   function isDiscoveryActive(): boolean {
-    return currentPath.startsWith('/category/');
+    return currentPath.startsWith('/category/')
+      || currentPath.startsWith('/digital-releases')
+      || currentPath.startsWith('/upcoming')
+      || currentPath.startsWith('/universe')
+      || currentPath.startsWith('/review');
   }
 </script>
 
@@ -138,7 +150,24 @@
       <!-- Premium Logo -->
       <a href="/" class="flex items-center space-x-1 group">
         <div class="relative">
-          <Crown size={24} class="text-amber-400 group-hover:text-amber-300 transition-colors lg:w-7 lg:h-7" />
+          <svg width="30" height="30" viewBox="0 0 60 60" class="lg:w-9 lg:h-9 transition-transform group-hover:scale-105" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+            <defs>
+              <linearGradient id="tmGold" x1="0" y1="0" x2="1" y2="1">
+                <stop offset="0%" stop-color="#fde68a"/><stop offset="45%" stop-color="#fbbf24"/><stop offset="100%" stop-color="#d97706"/>
+              </linearGradient>
+              <radialGradient id="tmReel" cx="42%" cy="38%" r="70%">
+                <stop offset="0%" stop-color="#9f1d1d"/><stop offset="100%" stop-color="#6d1414"/>
+              </radialGradient>
+            </defs>
+            <g transform="translate(30,30)">
+              <circle cx="0" cy="0" r="27" fill="url(#tmReel)"/>
+              <circle cx="0" cy="0" r="27" fill="none" stroke="url(#tmGold)" stroke-width="2.5"/>
+              <g fill="#0b0b0d" opacity="0.55">
+                <circle cx="0" cy="-18" r="3.4"/><circle cx="18" cy="0" r="3.4"/><circle cx="0" cy="18" r="3.4"/><circle cx="-18" cy="0" r="3.4"/>
+              </g>
+              <path d="M-7 -9 L12 0 L-7 9 Z" fill="url(#tmGold)"/>
+            </g>
+          </svg>
         </div>
         <span class="text-xl lg:text-2xl font-black tracking-tight logo-text">Trendi</span>
         <span class="text-xl lg:text-2xl font-black tracking-tight logo-text-dark">Movies</span>
@@ -185,6 +214,19 @@
           </button>
           {#if showDiscoveryDropdown}
             <div class="dropdown-menu w-52">
+              <a href="/digital-releases" class="dropdown-item flex items-center gap-2" style="color:#f7d000;font-weight:600;">
+                <span>📀</span> Digital Releases
+              </a>
+              <a href="/upcoming" class="dropdown-item flex items-center gap-2" style="color:#f7d000;font-weight:600;">
+                <span>🗓️</span> Release Schedule
+              </a>
+              <a href="/universe" class="dropdown-item flex items-center gap-2" style="color:#f7d000;font-weight:600;">
+                <span>🌌</span> Universes
+              </a>
+              <a href="/reviews" class="dropdown-item flex items-center gap-2" style="color:#f7d000;font-weight:600;">
+                <span>⭐</span> Movie Reviews
+              </a>
+              <div class="my-1 border-t" style="border-color: var(--border);"></div>
               <a href="/category/anime" class="dropdown-item">Anime</a>
               <a href="/category/korean-movies" class="dropdown-item">K-Drama Movies</a>
               <a href="/category/korean-series" class="dropdown-item">K-Drama Series</a>
@@ -392,6 +434,22 @@
             <Tv size={16} />
             <span>Series</span>
           </a>
+          <a href="/digital-releases" class="mobile-nav-item" class:mobile-nav-active={isActive('/digital-releases')} style="color:#f7d000;">
+            <span>📀</span>
+            <span>Digital Releases</span>
+          </a>
+          <a href="/upcoming" class="mobile-nav-item" class:mobile-nav-active={isActive('/upcoming')} style="color:#f7d000;">
+            <span>🗓️</span>
+            <span>Release Schedule</span>
+          </a>
+          <a href="/universe" class="mobile-nav-item" class:mobile-nav-active={isActive('/universe')} style="color:#f7d000;">
+            <span>🌌</span>
+            <span>Universes</span>
+          </a>
+          <a href="/reviews" class="mobile-nav-item" class:mobile-nav-active={isActive('/reviews')} style="color:#f7d000;">
+            <span>⭐</span>
+            <span>Movie Reviews</span>
+          </a>
         </div>
 
         <!-- Genre -->
@@ -441,20 +499,42 @@
   {/if}
 </header>
 
-<!-- Spacer for fixed header -->
-<div class="h-16 lg:h-20"></div>
+<!-- Spacer for fixed header — NOT on the homepage, where the hero sits under
+     the transparent header on purpose. Other pages need it so content isn't
+     hidden behind the fixed header. -->
+{#if currentPath !== '/'}
+  <div class="h-16 lg:h-20"></div>
+{/if}
 
 <style>
+  /* At the top of the page the header is FULLY transparent — the menu sits
+     directly on the hero image with no background/scrim at all. Legibility comes
+     from white text + a soft shadow. Once scrolled it becomes a solid bar. */
   .header-bg {
-    background: var(--bg-primary);
+    background: transparent;
+    background-image: none;
     border-bottom: 1px solid transparent;
-    backdrop-filter: blur(20px);
-    transition: all 0.3s ease;
+    transition: background-color 0.3s ease, box-shadow 0.3s ease, border-color 0.3s ease;
   }
   .header-bg.scrolled {
     background: var(--bg-primary);
+    background-image: none;
+    backdrop-filter: blur(20px);
     border-bottom: 1px solid var(--border);
     box-shadow: 0 1px 10px var(--shadow);
+  }
+
+  /* While transparent (over the dark hero image), force light text in BOTH
+     themes and add a soft shadow so it stays crisp over any backdrop.
+     Reverts to theme colors once scrolled. */
+  .header-bg:not(.scrolled) .nav-link,
+  .header-bg:not(.scrolled) .logo-text-dark {
+    color: #ffffff;
+    text-shadow: 0 1px 3px rgba(0,0,0,0.6);
+  }
+  .header-bg:not(.scrolled) .nav-link:hover {
+    color: #ffffff;
+    background: rgba(255,255,255,0.15);
   }
 
   .logo-text {

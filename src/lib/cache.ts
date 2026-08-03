@@ -24,6 +24,9 @@ const CACHE_TTL: Record<string, number> = {
   person: 86400000,         // 24 hours
   on_the_air: 3600000,      // 1 hour
   discover: 3600000,        // 1 hour
+  dvdsrd_scrape: 86400000,  // 24 hours (was 6h; stale-cache fallback covers gaps, fewer live scrapes = fewer 504s) - dvdsreleasedates month scrape (dates rarely change)
+  dvdsrd_lookup: 21600000,  // 6 hours - resolved TMDB id+poster per title (stable)
+  digidate: 21600000,       // 6 hours - real digital release date per movie (homepage reel)
 };
 
 // Ensure cache directory exists
@@ -62,6 +65,9 @@ function getTTL(endpoint: string): number {
   if (endpoint.includes('/person/')) return CACHE_TTL.person;
   if (endpoint.includes('/on_the_air')) return CACHE_TTL.on_the_air;
   if (endpoint.includes('/discover/')) return CACHE_TTL.discover;
+  if (endpoint.startsWith('dvdsrd-lk')) return CACHE_TTL.dvdsrd_lookup;
+  if (endpoint.startsWith('dvdsrd-')) return CACHE_TTL.dvdsrd_scrape;
+  if (endpoint.startsWith('digidate-')) return CACHE_TTL.digidate;
 
   return DEFAULT_TTL;
 }

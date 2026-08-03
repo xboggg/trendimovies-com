@@ -368,9 +368,34 @@ export async function getDownloadStats() {
     byContentType[link.content_type].clicks += clicks;
   }
 
+  // Exact active/inactive (dead) counts across the WHOLE table (the 100-row
+  // sample above can't give real totals). Uses PostgREST count via Prefer header.
+  async function exactCount(filter: string): Promise<number> {
+    try {
+      // plain fetch (fetchWithTimeout drops custom headers); need Prefer:count=exact
+      const r = await fetch(`${POSTGREST_URL}/download_links?select=id&${filter}`, {
+        headers: { 'Accept-Profile': 'public', Prefer: 'count=exact', Range: '0-0' }
+      });
+      const cr = r.headers.get('content-range') || '';
+      const n = parseInt(cr.split('/')[1] || '0', 10);
+      return isNaN(n) ? 0 : n;
+    } catch { return 0; }
+  }
+  const [deadMovies, deadEpisodes, activeTotal, grandTotal] = await Promise.all([
+    exactCount('is_active=eq.false&content_type=eq.movie'),
+    exactCount('is_active=eq.false&content_type=eq.episode'),
+    exactCount('is_active=eq.true'),
+    exactCount(''),
+  ]);
+  const deadTotal = deadMovies + deadEpisodes;
+
   return {
     totalClicks,
-    totalLinks: links?.length || 0,
+    totalLinks: grandTotal || (links?.length || 0),
+    deadMovies,
+    deadEpisodes,
+    deadTotal,
+    activeTotal,
     byQuality,
     bySource,
     byContentType,

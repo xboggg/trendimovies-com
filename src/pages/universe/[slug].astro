@@ -1,0 +1,416 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import { fetchFromTMDB } from '../../lib/tmdb';
+
+// ============================================================================
+// UNIVERSE PAGES — curated "watch the whole saga in order" showcases.
+// Expandable: add a new universe to the UNIVERSES map and a /universe/<slug>
+// page exists automatically. Each entry is a movie or series; posters come from
+// TMDB; availability is checked against our catalogue (movie has_downloads /
+// episodes with files). Missing titles show a REQUEST badge.
+// ============================================================================
+
+const POSTGREST_URL = import.meta.env.PUBLIC_SUPABASE_URL || 'http://localhost:3001';
+
+type Item = { title: string; year: string; type: 'movie' | 'series'; tmdb_id: number };
+type Group = { heading: string; items: Item[] };
+type Universe = { name: string; tagline: string; accent: string; emoji: string; backdropId: number; backdropType: 'movie' | 'tv'; groups: Group[] };
+
+const UNIVERSES: Record<string, Universe> = {
+  'star-wars': {
+    name: 'Star Wars',
+    tagline: 'The complete Star Wars universe — every film and series, in release order.',
+    accent: '#FFE81F',
+    emoji: '⭐',
+    backdropId: 140607, backdropType: 'movie', // The Force Awakens backdrop
+    groups: [
+      { heading: 'Prequel Trilogy', items: [
+        { title: 'The Phantom Menace', year: '1999', type: 'movie', tmdb_id: 1893 },
+        { title: 'Attack of the Clones', year: '2002', type: 'movie', tmdb_id: 1894 },
+        { title: 'Revenge of the Sith', year: '2005', type: 'movie', tmdb_id: 1895 },
+      ]},
+      { heading: 'Original Trilogy', items: [
+        { title: 'A New Hope', year: '1977', type: 'movie', tmdb_id: 11 },
+        { title: 'The Empire Strikes Back', year: '1980', type: 'movie', tmdb_id: 1891 },
+        { title: 'Return of the Jedi', year: '1983', type: 'movie', tmdb_id: 1892 },
+      ]},
+      { heading: 'Sequel Trilogy', items: [
+        { title: 'The Force Awakens', year: '2015', type: 'movie', tmdb_id: 140607 },
+        { title: 'The Last Jedi', year: '2017', type: 'movie', tmdb_id: 181808 },
+        { title: 'The Rise of Skywalker', year: '2019', type: 'movie', tmdb_id: 181812 },
+      ]},
+      { heading: 'Standalone Stories', items: [
+        { title: 'Rogue One: A Star Wars Story', year: '2016', type: 'movie', tmdb_id: 330459 },
+        { title: 'Solo: A Star Wars Story', year: '2018', type: 'movie', tmdb_id: 348350 },
+      ]},
+      { heading: 'Animated Series', items: [
+        { title: 'The Clone Wars', year: '2008–2020', type: 'series', tmdb_id: 4194 },
+        { title: 'Star Wars Rebels', year: '2014–2018', type: 'series', tmdb_id: 60554 },
+        { title: 'Star Wars Resistance', year: '2018–2020', type: 'series', tmdb_id: 79093 },
+        { title: 'The Bad Batch', year: '2021–2024', type: 'series', tmdb_id: 105971 },
+        { title: 'Tales of the Jedi', year: '2022', type: 'series', tmdb_id: 203085 },
+      ]},
+      { heading: 'Disney+ Live-Action Era', items: [
+        { title: 'The Mandalorian', year: '2019–', type: 'series', tmdb_id: 82856 },
+        { title: 'The Book of Boba Fett', year: '2021', type: 'series', tmdb_id: 115036 },
+        { title: 'Obi-Wan Kenobi', year: '2022', type: 'series', tmdb_id: 92830 },
+        { title: 'Andor', year: '2022–', type: 'series', tmdb_id: 83867 },
+        { title: 'Ahsoka', year: '2023–', type: 'series', tmdb_id: 114461 },
+        { title: 'The Acolyte', year: '2024', type: 'series', tmdb_id: 114479 },
+      ]},
+    ],
+  },
+
+  'mcu': {
+    name: 'Marvel Cinematic Universe',
+    tagline: 'Watch every Phase in release order — from Iron Man to the Multiverse Saga.',
+    accent: '#ed1d24', emoji: '🦸',
+    backdropId: 299536, backdropType: 'movie',
+    groups: [
+      { heading: 'Phase One', items: [
+        { title: 'Iron Man', year: '2008', type: 'movie', tmdb_id: 1726 },
+        { title: 'The Incredible Hulk', year: '2008', type: 'movie', tmdb_id: 1724 },
+        { title: 'Iron Man 2', year: '2010', type: 'movie', tmdb_id: 10138 },
+        { title: 'Thor', year: '2011', type: 'movie', tmdb_id: 10195 },
+        { title: 'Captain America: The First Avenger', year: '2011', type: 'movie', tmdb_id: 1771 },
+        { title: 'The Avengers', year: '2012', type: 'movie', tmdb_id: 24428 },
+      ]},
+      { heading: 'Phase Two', items: [
+        { title: 'Iron Man 3', year: '2013', type: 'movie', tmdb_id: 68721 },
+        { title: 'Thor: The Dark World', year: '2013', type: 'movie', tmdb_id: 76338 },
+        { title: 'Captain America: The Winter Soldier', year: '2014', type: 'movie', tmdb_id: 100402 },
+        { title: 'Guardians of the Galaxy', year: '2014', type: 'movie', tmdb_id: 118340 },
+        { title: 'Avengers: Age of Ultron', year: '2015', type: 'movie', tmdb_id: 99861 },
+        { title: 'Ant-Man', year: '2015', type: 'movie', tmdb_id: 102899 },
+      ]},
+      { heading: 'Phase Three', items: [
+        { title: 'Captain America: Civil War', year: '2016', type: 'movie', tmdb_id: 271110 },
+        { title: 'Doctor Strange', year: '2016', type: 'movie', tmdb_id: 284052 },
+        { title: 'Guardians of the Galaxy Vol. 2', year: '2017', type: 'movie', tmdb_id: 283995 },
+        { title: 'Spider-Man: Homecoming', year: '2017', type: 'movie', tmdb_id: 315635 },
+        { title: 'Thor: Ragnarok', year: '2017', type: 'movie', tmdb_id: 284053 },
+        { title: 'Black Panther', year: '2018', type: 'movie', tmdb_id: 284054 },
+        { title: 'Avengers: Infinity War', year: '2018', type: 'movie', tmdb_id: 299536 },
+        { title: 'Ant-Man and the Wasp', year: '2018', type: 'movie', tmdb_id: 363088 },
+        { title: 'Captain Marvel', year: '2019', type: 'movie', tmdb_id: 299537 },
+        { title: 'Avengers: Endgame', year: '2019', type: 'movie', tmdb_id: 299534 },
+        { title: 'Spider-Man: Far From Home', year: '2019', type: 'movie', tmdb_id: 429617 },
+      ]},
+      { heading: 'Phase Four', items: [
+        { title: 'WandaVision', year: '2021', type: 'series', tmdb_id: 85271 },
+        { title: 'The Falcon and the Winter Soldier', year: '2021', type: 'series', tmdb_id: 88396 },
+        { title: 'Loki', year: '2021', type: 'series', tmdb_id: 84958 },
+        { title: 'Black Widow', year: '2021', type: 'movie', tmdb_id: 497698 },
+        { title: 'Shang-Chi and the Legend of the Ten Rings', year: '2021', type: 'movie', tmdb_id: 566525 },
+        { title: 'Eternals', year: '2021', type: 'movie', tmdb_id: 524434 },
+        { title: 'Hawkeye', year: '2021', type: 'series', tmdb_id: 88329 },
+        { title: 'Spider-Man: No Way Home', year: '2021', type: 'movie', tmdb_id: 634649 },
+        { title: 'Moon Knight', year: '2022', type: 'series', tmdb_id: 92749 },
+        { title: 'Doctor Strange in the Multiverse of Madness', year: '2022', type: 'movie', tmdb_id: 453395 },
+        { title: 'Ms. Marvel', year: '2022', type: 'series', tmdb_id: 92782 },
+        { title: 'Thor: Love and Thunder', year: '2022', type: 'movie', tmdb_id: 616037 },
+        { title: 'She-Hulk: Attorney at Law', year: '2022', type: 'series', tmdb_id: 92783 },
+        { title: 'Black Panther: Wakanda Forever', year: '2022', type: 'movie', tmdb_id: 505642 },
+      ]},
+      { heading: 'Phase Five', items: [
+        { title: 'Ant-Man and the Wasp: Quantumania', year: '2023', type: 'movie', tmdb_id: 640146 },
+        { title: 'Guardians of the Galaxy Vol. 3', year: '2023', type: 'movie', tmdb_id: 447365 },
+        { title: 'Secret Invasion', year: '2023', type: 'series', tmdb_id: 114472 },
+        { title: 'The Marvels', year: '2023', type: 'movie', tmdb_id: 609681 },
+        { title: 'Echo', year: '2024', type: 'series', tmdb_id: 122226 },
+        { title: 'Deadpool & Wolverine', year: '2024', type: 'movie', tmdb_id: 533535 },
+        { title: 'Agatha All Along', year: '2024', type: 'series', tmdb_id: 138501 },
+        { title: 'Captain America: Brave New World', year: '2025', type: 'movie', tmdb_id: 822119 },
+        { title: 'Daredevil: Born Again', year: '2025', type: 'series', tmdb_id: 202555 },
+        { title: 'Thunderbolts', year: '2025', type: 'movie', tmdb_id: 986056 },
+        { title: 'Ironheart', year: '2025', type: 'series', tmdb_id: 114471 },
+        { title: 'The Fantastic Four: First Steps', year: '2025', type: 'movie', tmdb_id: 617126 },
+      ]},
+    ],
+  },
+
+  'dc': {
+    name: 'DC Universe',
+    tagline: 'From the DCEU to the new DCU — every era in release order.',
+    accent: '#0476f2', emoji: '🦇',
+    backdropId: 414906, backdropType: 'movie',
+    groups: [
+      { heading: 'DCEU', items: [
+        { title: 'Man of Steel', year: '2013', type: 'movie', tmdb_id: 49521 },
+        { title: 'Batman v Superman: Dawn of Justice', year: '2016', type: 'movie', tmdb_id: 209112 },
+        { title: 'Suicide Squad', year: '2016', type: 'movie', tmdb_id: 297761 },
+        { title: 'Wonder Woman', year: '2017', type: 'movie', tmdb_id: 297762 },
+        { title: 'Justice League', year: '2017', type: 'movie', tmdb_id: 141052 },
+        { title: 'Aquaman', year: '2018', type: 'movie', tmdb_id: 297802 },
+        { title: 'Shazam!', year: '2019', type: 'movie', tmdb_id: 287947 },
+        { title: 'Birds of Prey', year: '2020', type: 'movie', tmdb_id: 495764 },
+        { title: 'Wonder Woman 1984', year: '2020', type: 'movie', tmdb_id: 464052 },
+        { title: "Zack Snyder's Justice League", year: '2021', type: 'movie', tmdb_id: 791373 },
+        { title: 'The Suicide Squad', year: '2021', type: 'movie', tmdb_id: 436969 },
+        { title: 'Black Adam', year: '2022', type: 'movie', tmdb_id: 436270 },
+        { title: 'Shazam! Fury of the Gods', year: '2023', type: 'movie', tmdb_id: 594767 },
+        { title: 'The Flash', year: '2023', type: 'movie', tmdb_id: 298618 },
+        { title: 'Blue Beetle', year: '2023', type: 'movie', tmdb_id: 565770 },
+        { title: 'Aquaman and the Lost Kingdom', year: '2023', type: 'movie', tmdb_id: 572802 },
+      ]},
+      { heading: 'The Dark Knight Trilogy', items: [
+        { title: 'Batman Begins', year: '2005', type: 'movie', tmdb_id: 272 },
+        { title: 'The Dark Knight', year: '2008', type: 'movie', tmdb_id: 155 },
+        { title: 'The Dark Knight Rises', year: '2012', type: 'movie', tmdb_id: 49026 },
+      ]},
+      { heading: 'Standalone / Elseworlds', items: [
+        { title: 'Joker', year: '2019', type: 'movie', tmdb_id: 475557 },
+        { title: 'The Batman', year: '2022', type: 'movie', tmdb_id: 414906 },
+        { title: 'Joker: Folie à Deux', year: '2024', type: 'movie', tmdb_id: 889737 },
+      ]},
+      { heading: 'DCU (2025+)', items: [
+        { title: 'Peacemaker', year: '2022', type: 'series', tmdb_id: 110492 },
+        { title: 'Creature Commandos', year: '2024', type: 'series', tmdb_id: 219543 },
+        { title: 'Superman', year: '2025', type: 'movie', tmdb_id: 1061474 },
+      ]},
+    ],
+  },
+
+  'wizarding-world': {
+    name: 'Wizarding World',
+    tagline: 'The complete Harry Potter & Fantastic Beasts saga — every film in order.',
+    accent: '#d3a625', emoji: '⚡',
+    backdropId: 671, backdropType: 'movie',
+    groups: [
+      { heading: 'Harry Potter', items: [
+        { title: "Harry Potter and the Philosopher's Stone", year: '2001', type: 'movie', tmdb_id: 671 },
+        { title: 'Harry Potter and the Chamber of Secrets', year: '2002', type: 'movie', tmdb_id: 672 },
+        { title: 'Harry Potter and the Prisoner of Azkaban', year: '2004', type: 'movie', tmdb_id: 673 },
+        { title: 'Harry Potter and the Goblet of Fire', year: '2005', type: 'movie', tmdb_id: 674 },
+        { title: 'Harry Potter and the Order of the Phoenix', year: '2007', type: 'movie', tmdb_id: 675 },
+        { title: 'Harry Potter and the Half-Blood Prince', year: '2009', type: 'movie', tmdb_id: 767 },
+        { title: 'Harry Potter and the Deathly Hallows: Part 1', year: '2010', type: 'movie', tmdb_id: 12444 },
+        { title: 'Harry Potter and the Deathly Hallows: Part 2', year: '2011', type: 'movie', tmdb_id: 12445 },
+      ]},
+      { heading: 'Fantastic Beasts', items: [
+        { title: 'Fantastic Beasts and Where to Find Them', year: '2016', type: 'movie', tmdb_id: 259316 },
+        { title: 'Fantastic Beasts: The Crimes of Grindelwald', year: '2018', type: 'movie', tmdb_id: 338952 },
+        { title: 'Fantastic Beasts: The Secrets of Dumbledore', year: '2022', type: 'movie', tmdb_id: 338953 },
+      ]},
+    ],
+  },
+
+  'middle-earth': {
+    name: 'Middle-earth',
+    tagline: 'The Lord of the Rings & The Hobbit — the full journey through Middle-earth.',
+    accent: '#c8a24a', emoji: '💍',
+    backdropId: 120, backdropType: 'movie',
+    groups: [
+      { heading: 'The Lord of the Rings', items: [
+        { title: 'The Fellowship of the Ring', year: '2001', type: 'movie', tmdb_id: 120 },
+        { title: 'The Two Towers', year: '2002', type: 'movie', tmdb_id: 121 },
+        { title: 'The Return of the King', year: '2003', type: 'movie', tmdb_id: 122 },
+      ]},
+      { heading: 'The Hobbit', items: [
+        { title: 'The Hobbit: An Unexpected Journey', year: '2012', type: 'movie', tmdb_id: 49051 },
+        { title: 'The Hobbit: The Desolation of Smaug', year: '2013', type: 'movie', tmdb_id: 57158 },
+        { title: 'The Hobbit: The Battle of the Five Armies', year: '2014', type: 'movie', tmdb_id: 122917 },
+      ]},
+      { heading: 'Series', items: [
+        { title: 'The Lord of the Rings: The Rings of Power', year: '2022–', type: 'series', tmdb_id: 84773 },
+      ]},
+    ],
+  },
+
+  'fast-furious': {
+    name: 'Fast & Furious',
+    tagline: 'The entire Fast Saga — every film in release order.',
+    accent: '#00a3e0', emoji: '🏎️',
+    backdropId: 168259, backdropType: 'movie',
+    groups: [
+      { heading: 'The Fast Saga', items: [
+        { title: 'The Fast and the Furious', year: '2001', type: 'movie', tmdb_id: 9799 },
+        { title: '2 Fast 2 Furious', year: '2003', type: 'movie', tmdb_id: 584 },
+        { title: 'The Fast and the Furious: Tokyo Drift', year: '2006', type: 'movie', tmdb_id: 9615 },
+        { title: 'Fast & Furious', year: '2009', type: 'movie', tmdb_id: 13804 },
+        { title: 'Fast Five', year: '2011', type: 'movie', tmdb_id: 51497 },
+        { title: 'Fast & Furious 6', year: '2013', type: 'movie', tmdb_id: 82992 },
+        { title: 'Furious 7', year: '2015', type: 'movie', tmdb_id: 168259 },
+        { title: 'The Fate of the Furious', year: '2017', type: 'movie', tmdb_id: 337339 },
+        { title: 'F9', year: '2021', type: 'movie', tmdb_id: 385128 },
+        { title: 'Fast X', year: '2023', type: 'movie', tmdb_id: 385687 },
+      ]},
+      { heading: 'Spin-off', items: [
+        { title: 'Fast & Furious Presents: Hobbs & Shaw', year: '2019', type: 'movie', tmdb_id: 384018 },
+      ]},
+    ],
+  },
+
+  'jurassic': {
+    name: 'Jurassic',
+    tagline: 'Jurassic Park & Jurassic World — 30+ years of dinosaurs, in order.',
+    accent: '#d2362d', emoji: '🦖',
+    backdropId: 135397, backdropType: 'movie',
+    groups: [
+      { heading: 'Jurassic Park', items: [
+        { title: 'Jurassic Park', year: '1993', type: 'movie', tmdb_id: 329 },
+        { title: 'The Lost World: Jurassic Park', year: '1997', type: 'movie', tmdb_id: 330 },
+        { title: 'Jurassic Park III', year: '2001', type: 'movie', tmdb_id: 331 },
+      ]},
+      { heading: 'Jurassic World', items: [
+        { title: 'Jurassic World', year: '2015', type: 'movie', tmdb_id: 135397 },
+        { title: 'Jurassic World: Fallen Kingdom', year: '2018', type: 'movie', tmdb_id: 351286 },
+        { title: 'Jurassic World Dominion', year: '2022', type: 'movie', tmdb_id: 507086 },
+        { title: 'Jurassic World Rebirth', year: '2025', type: 'movie', tmdb_id: 1234821 },
+      ]},
+    ],
+  },
+};
+
+const { slug } = Astro.params;
+const universe = slug ? UNIVERSES[slug] : undefined;
+if (!universe) return Astro.redirect('/franchises');
+
+// Gather all tmdb_ids by type for batched availability checks.
+const movieIds = universe.groups.flatMap(g => g.items.filter(i => i.type === 'movie').map(i => i.tmdb_id));
+const seriesIds = universe.groups.flatMap(g => g.items.filter(i => i.type === 'series').map(i => i.tmdb_id));
+
+// Which movies have files? (has_downloads + slug→tmdb_id for the /movie/{tmdb_id} link)
+const availMovies = new Set<number>();
+const posterByTmdb = new Map<number, string | null>();
+try {
+  if (movieIds.length) {
+    const res = await fetch(`${POSTGREST_URL}/movies?tmdb_id=in.(${movieIds.join(',')})&select=tmdb_id,has_downloads,poster_path`);
+    if (res.ok) for (const r of await res.json()) {
+      if (r.has_downloads) availMovies.add(r.tmdb_id);
+      if (r.poster_path) posterByTmdb.set(r.tmdb_id, r.poster_path);
+    }
+  }
+  // Which series have at least one episode with a file?
+  if (seriesIds.length) {
+    const res = await fetch(`${POSTGREST_URL}/series?tmdb_id=in.(${seriesIds.join(',')})&select=tmdb_id,poster_path`);
+    if (res.ok) for (const r of await res.json()) { if (r.poster_path) posterByTmdb.set(r.tmdb_id, r.poster_path); }
+  }
+} catch (e) {}
+
+// Series availability: any episode with has_downloads. Query episodes grouped.
+const availSeries = new Set<number>();
+try {
+  if (seriesIds.length) {
+    // PostgREST: episodes joined to series via series_id; we need tmdb_id → has any file.
+    // Simpler: ask for episodes with has_downloads for these series' internal ids.
+    const sres = await fetch(`${POSTGREST_URL}/series?tmdb_id=in.(${seriesIds.join(',')})&select=id,tmdb_id`);
+    if (sres.ok) {
+      const rows = await sres.json();
+      const idToTmdb = new Map<number, number>(rows.map((r: any) => [r.id, r.tmdb_id]));
+      const internalIds = rows.map((r: any) => r.id);
+      if (internalIds.length) {
+        const eres = await fetch(`${POSTGREST_URL}/episodes?series_id=in.(${internalIds.join(',')})&has_downloads=eq.true&select=series_id`);
+        if (eres.ok) for (const e of await eres.json()) {
+          const t = idToTmdb.get(e.series_id); if (t) availSeries.add(t);
+        }
+      }
+    }
+  }
+} catch (e) {}
+
+// Poster fetch from TMDB for any item we don't already have a poster for (cached by tmdb.ts).
+async function tmdbPoster(item: Item): Promise<string | null> {
+  const have = posterByTmdb.get(item.tmdb_id);
+  if (have) return `https://image.tmdb.org/t/p/w342${have}`;
+  try {
+    const d: any = await fetchFromTMDB(`/${item.type === 'movie' ? 'movie' : 'tv'}/${item.tmdb_id}`, {});
+    return d.poster_path ? `https://image.tmdb.org/t/p/w342${d.poster_path}` : null;
+  } catch { return null; }
+}
+
+// Shape groups with poster + availability + watch url.
+const groups = await Promise.all(universe.groups.map(async (g) => ({
+  heading: g.heading,
+  items: await Promise.all(g.items.map(async (it) => {
+    const available = it.type === 'movie' ? availMovies.has(it.tmdb_id) : availSeries.has(it.tmdb_id);
+    const watch_url = it.type === 'movie' ? `/movie/${it.tmdb_id}` : `/tv/${it.tmdb_id}`;
+    const request_url = `/request?title=${encodeURIComponent(it.title)}&year=${it.year.slice(0, 4)}`;
+    return { ...it, poster: await tmdbPoster(it), available, watch_url, request_url };
+  })),
+})));
+
+const totalItems = groups.reduce((a, g) => a + g.items.length, 0);
+const availCount = groups.reduce((a, g) => a + g.items.filter(i => i.available).length, 0);
+
+// Backdrop for hero + OG.
+let heroBackdrop = '';
+try {
+  const d: any = await fetchFromTMDB(`/${universe.backdropType}/${universe.backdropId}`, {});
+  if (d.backdrop_path) heroBackdrop = `https://image.tmdb.org/t/p/w1280${d.backdrop_path}`;
+} catch {}
+
+// OG collage = first 5 available posters (or just first 5).
+const ogPosters = groups.flatMap(g => g.items).filter(i => i.poster).slice(0, 5)
+  .map(i => (i.poster as string).replace('https://image.tmdb.org/t/p/w342', '')).join('|');
+const pageTitle = `${universe.name} — Watch the Full Saga in Order | TrendiMovies`;
+const pageDesc = `${universe.tagline} Stream every film and series of the ${universe.name} universe in HD on TrendiMovies.`;
+const ogImage = ogPosters
+  ? `/api/og.png?type=digital&posters=${encodeURIComponent(ogPosters)}&accent=${encodeURIComponent(universe.accent)}&eyebrow=${encodeURIComponent('WATCH IN ORDER')}&eyebrowEmoji=${encodeURIComponent(universe.emoji)}&headline=${encodeURIComponent(universe.name)}&subtitle=${encodeURIComponent('Every film & series of the saga — in order')}&ogurl=${encodeURIComponent('trendimovies.com/universe/' + slug)}`
+  : '/images/og-default.jpg';
+const isLight = universe.accent === '#FFE81F';
+---
+
+<BaseLayout title={pageTitle} description={pageDesc} image={ogImage}>
+  <!-- Hero -->
+  <section class="relative overflow-hidden border-b" style="border-color: var(--border);">
+    {heroBackdrop && (
+      <img src={heroBackdrop} alt={universe.name} class="absolute inset-0 w-full h-full object-cover" style="opacity:0.25;" loading="eager" />
+    )}
+    <div class="absolute inset-0" style={`background: linear-gradient(0deg, var(--bg-primary) 12%, rgba(10,10,15,0.6) 60%, ${universe.accent}1a 100%);`}></div>
+    <div class="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-28 pb-10">
+      <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full mb-4 text-xs font-bold uppercase tracking-widest"
+           style={`background:${universe.accent}22; color:${universe.accent}; border:1px solid ${universe.accent}66;`}>
+        {universe.emoji} Watch in Order
+      </div>
+      <h1 class="text-4xl sm:text-5xl lg:text-6xl font-black text-white leading-tight">{universe.name}</h1>
+      <p class="mt-3 max-w-2xl text-sm sm:text-base" style="color: var(--text-secondary);">{universe.tagline}</p>
+      <div class="mt-4 inline-flex items-center gap-2 text-sm" style="color: var(--text-secondary);">
+        <span class="font-bold" style={`color:${universe.accent};`}>{availCount}</span> of {totalItems} available now
+      </div>
+    </div>
+  </section>
+
+  <!-- Era groups -->
+  <section class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
+    <div class="space-y-12">
+      {groups.map((g) => (
+        <div>
+          <div class="flex items-center gap-3 mb-5">
+            <span class="w-1.5 h-7 rounded-full" style={`background:${universe.accent};`}></span>
+            <h2 class="text-xl sm:text-2xl font-black text-white">{g.heading}</h2>
+          </div>
+          <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
+            {g.items.map((it) => (
+              <a href={it.available ? it.watch_url : it.request_url} class="group block">
+                <div class="relative aspect-[2/3] rounded-xl overflow-hidden ring-1 ring-white/10 group-hover:ring-amber-400/50 transition-all bg-black/40">
+                  <img src={it.poster || '/images/no-poster.svg'} alt={it.title} loading="lazy"
+                       onerror="this.src='/images/no-poster.svg'"
+                       class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+                  <!-- badge -->
+                  <div class="absolute top-2 left-2 px-2 py-0.5 rounded-md text-[10px] font-bold"
+                       style={it.available
+                         ? 'background:rgba(22,163,74,0.92); color:#fff;'
+                         : `background:rgba(0,0,0,0.72); color:${universe.accent}; border:1px solid ${universe.accent}66;`}>
+                    {it.available ? '▶ WATCH' : 'REQUEST'}
+                  </div>
+                  <!-- type chip -->
+                  <div class="absolute top-2 right-2 px-1.5 py-0.5 rounded text-[9px] font-bold uppercase"
+                       style="background:rgba(0,0,0,0.6); color:#d1d5db;">
+                    {it.type === 'series' ? 'Series' : 'Film'}
+                  </div>
+                </div>
+                <p class="mt-2 text-sm font-medium line-clamp-1" style="color: var(--text-primary);">{it.title}</p>
+                <p class="text-xs" style="color: var(--text-muted);">{it.year}</p>
+              </a>
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
+
+    <p class="mt-10 text-center text-xs" style="color: var(--text-muted);">
+      Missing a title? Tap any <span style={`color:${universe.accent};`}>REQUEST</span> to ask for it — we add new files daily.
+    </p>
+  </section>
+</BaseLayout>

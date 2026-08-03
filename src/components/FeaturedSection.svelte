@@ -11,6 +11,7 @@
     year: number | null;
     release_date?: string;
     overview?: string;
+    updated_at?: string;
   }
 
   interface BoxOfficeEntry {
@@ -26,8 +27,63 @@
   export let topMovies: Movie[] = [];
   export let boxOffice: BoxOfficeEntry[] = [];
   export let comingSoon: Movie[] = [];
+  export let latestAdditions: Movie[] = [];
 
-  let activeTab: 'topmovies' | 'boxoffice' | 'franchise' | 'comingsoon' = 'boxoffice';
+  // "Just Added" card: posters + count of movies added in the last 7 days.
+  $: latestPosters = latestAdditions.filter((m) => m.poster_path).slice(0, 4);
+  $: newThisWeekCount = latestAdditions.filter((m) => {
+    if (!m.updated_at) return false;
+    const added = new Date(m.updated_at).getTime();
+    return !Number.isNaN(added) && (Date.now() - added) <= 7 * 86400000;
+  }).length;
+
+  // ── "COMING TO DIGITAL" cinematic auto-reel ─────────────────────────────
+  // Repurposed (2026-06-26) to promote the Digital Releases page: spotlights
+  // UPCOMING digital/HD releases. Falls back to latestAdditions if no digital
+  // data was passed (so the card never goes blank).
+  export let digitalReleases: Movie[] = [];
+  export let reviews: any[] = [];
+  $: reelSource = (digitalReleases && digitalReleases.length)
+    ? digitalReleases
+    : latestAdditions;
+  $: reelMovies = reelSource
+    .filter((m) => m.poster_path || m.backdrop_path)
+    .slice(0, 8);
+  $: reelIsDigital = !!(digitalReleases && digitalReleases.length);
+  let reelIndex = 0;
+  let reelInterval: ReturnType<typeof setInterval>;
+  let reelPaused = false;
+  const REEL_MS = 4500;
+
+  // "Awards Season" collapsible bar — the Oscars + Awards Calendar cards are
+  // hidden behind a slim bar so the homepage stays quiet. Collapsed by default;
+  // remembers the visitor's choice via localStorage.
+  let awardsOpen = false;
+  function toggleAwards() {
+    awardsOpen = !awardsOpen;
+    try { localStorage.setItem('tm_awards_open', awardsOpen ? '1' : '0'); } catch {}
+  }
+
+  $: currentReel = reelMovies[reelIndex] || null;
+
+  // True if the title was added within the last 48h → shows a "NEW" pulse.
+  function isFresh(m: Movie | null): boolean {
+    if (!m?.updated_at) return false;
+    const t = new Date(m.updated_at).getTime();
+    return !Number.isNaN(t) && (Date.now() - t) <= 2 * 86400000;
+  }
+
+  function reelNext() {
+    if (reelMovies.length === 0) return;
+    reelIndex = (reelIndex + 1) % reelMovies.length;
+  }
+  function goToReel(i: number) {
+    reelIndex = i;
+  }
+  // Keep index valid if the data shrinks.
+  $: if (reelIndex >= reelMovies.length && reelMovies.length > 0) reelIndex = 0;
+
+  let activeTab: 'topmovies' | 'boxoffice' | 'franchise' | 'comingsoon' | 'reviews' = 'boxoffice';
   let carouselContainer: HTMLDivElement;
   let scrollContainer: HTMLDivElement;
   let comingSoonContainer: HTMLDivElement;
@@ -63,7 +119,72 @@
     return { phase: 'live' as const, dayOfFestival, daysUntil: 0, totalDays: 12 };
   }
 
-    function getDaysUntilRelease(dateStr: string | undefined): number | null {
+  // Awards Calendar — major film/TV festivals & award shows.
+  // AUTO-ROLLS: each event stores month/day (not a fixed year). The displayed
+  // year is computed from the current date, so the calendar advances every year
+  // with no manual edits. `prize` labels the top award; `winners` maps a year to
+  // that year's winning film, shown inline once the event has passed.
+  // `slugBase` maps each row to its dedicated page at /event/<slugBase>-<year>.
+  const _awardsRaw = [
+    { emoji: "⭐", label: "Critics' Choice", slugBase: "critics-choice", month: 1,  day: 4,  prize: "Best Picture",
+      winners: { 2026: "One Battle After Another" } },
+    { emoji: "🏅", label: "Golden Globes",   slugBase: "golden-globes", month: 1,  day: 11, prize: "Best Drama",
+      winners: { 2026: "Hamnet" } },
+    { emoji: "🎿", label: "Sundance",        slugBase: "sundance", month: 1,  day: 22, prize: "Grand Jury",
+      winners: { 2026: "Josephine" }, hideOnCard: true },
+    { emoji: "🐻", label: "Berlinale",       slugBase: "berlinale", month: 2,  day: 12, prize: "Golden Bear",
+      winners: { 2026: "Yellow Letters" }, hideOnCard: true },
+    { emoji: "🎭", label: "BAFTA Film",      slugBase: "bafta", month: 2,  day: 22, prize: "Best Film",
+      winners: { 2026: "One Battle After Another" } },
+    { emoji: "🎸", label: "SXSW",            slugBase: "sxsw", month: 3,  day: 12, prize: "Narrative",
+      winners: { 2026: "Wishful Thinking" }, hideOnCard: true },
+    { emoji: "🏆", label: "Oscars",          slugBase: "oscars", month: 3,  day: 15, prize: "Best Picture",
+      winners: { 2026: "One Battle After Another" } },
+    { emoji: "🌴", label: "Cannes",          slugBase: "cannes", month: 5,  day: 12, prize: "Palme d'Or",
+      winners: { 2026: "Fjord" } },
+    { emoji: "🦁", label: "Venice",          slugBase: "venice", month: 9,  day: 2,  prize: "Golden Lion",
+      winners: {} },
+    { emoji: "🍁", label: "TIFF",            slugBase: "tiff", month: 9,  day: 10, prize: "People's Choice",
+      winners: {} },
+    { emoji: "📺", label: "Primetime Emmys", slugBase: "emmys", month: 9,  day: 14, prize: "Best Drama Series",
+      winners: {} },
+  ];
+
+  $: awardsEvents = (() => {
+    const now = new Date();
+    const yr = now.getFullYear();
+    return _awardsRaw
+      .map((e) => {
+        const d = new Date(yr, e.month - 1, e.day);
+        const days = Math.ceil((d.getTime() - now.getTime()) / 86400000);
+        const past = days <= 0;
+        const winner = past ? (e.winners as Record<number, string>)[yr] : null;
+        return {
+          ...e,
+          name: `${e.label} ${yr}`,
+          dateLabel: d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+          days,
+          past,
+          winner,
+          href: `/event/${e.slugBase}-${yr}`,
+          _t: d.getTime(),
+        };
+      })
+      // upcoming first (soonest), then past events (most recent first)
+      .sort((a, b) => {
+        if (!a.past && !b.past) return a._t - b._t;
+        if (!a.past) return -1;
+        if (!b.past) return 1;
+        return b._t - a._t;
+      });
+  })();
+
+  // Homepage card shows a trimmed set (8) so its height matches the Oscar card
+  // beside it; the events flagged `hideOnCard` (Berlinale, Sundance, SXSW) are
+  // still in the data and appear in full on the /events page via "View All →".
+  $: cardEvents = awardsEvents.filter((e) => !e.hideOnCard);
+
+  function getDaysUntilRelease(dateStr: string | undefined): number | null {
     if (!dateStr) return null;
     const releaseDate = new Date(dateStr);
     const today = new Date();
@@ -154,6 +275,9 @@
   // Auto-rotate coming soon carousel
   let comingSoonInterval: ReturnType<typeof setInterval>;
   onMount(() => {
+    // Restore the visitor's Awards Season expand/collapse choice.
+    try { awardsOpen = localStorage.getItem('tm_awards_open') === '1'; } catch {}
+
     comingSoonInterval = setInterval(() => {
       if (activeTab === 'comingsoon' && comingSoon.length > 1) {
         nextComingSoon();
@@ -165,11 +289,17 @@
     countdownInterval = setInterval(() => {
       updateCountdown();
       }, 1000);
+
+    // Auto-advance the "Just Dropped" reel (pauses on hover).
+    reelInterval = setInterval(() => {
+      if (!reelPaused && reelMovies.length > 1) reelNext();
+    }, REEL_MS);
   });
 
   onDestroy(() => {
     if (comingSoonInterval) clearInterval(comingSoonInterval);
     if (countdownInterval) clearInterval(countdownInterval);
+    if (reelInterval) clearInterval(reelInterval);
   });
 
   // Update countdown when movie changes
@@ -205,85 +335,139 @@
 
 <section class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
   <div class="grid lg:grid-cols-2 gap-6">
-    <!-- Left Column: Oscar Nominations -->
-    <div class="rounded-2xl relative overflow-hidden" style="background-color: var(--bg-card); border: 1px solid var(--border);">
-      <div class="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-amber-400 via-yellow-500 to-amber-400 z-10"></div>
+    <!-- ── JUST DROPPED — cinematic auto-reel (moved here to top grid 2026-06-19) ─ -->
+    <div class="reel-card rounded-2xl overflow-hidden relative"
+         style="background: linear-gradient(135deg, #0a0a0a 0%, #1a0f00 50%, #0a0a0a 100%); border: 1px solid rgba(247,208,0,0.25);"
+         on:mouseenter={() => reelPaused = true}
+         on:mouseleave={() => reelPaused = false}
+         role="region"
+         aria-label="Just dropped on TrendiMovies">
+      <!-- Top accent bar -->
+      <div class="absolute top-0 left-0 right-0 h-1 z-20" style="background: linear-gradient(90deg, #F7D000, #dc2626, #F7D000);"></div>
+      <!-- Ambient glow -->
+      <div class="absolute inset-0 opacity-20 pointer-events-none" style="background: radial-gradient(ellipse at 70% 0%, #F7D000, transparent 60%);"></div>
 
-      {#if featuredOscar}
-        <a href={`/movie/${featuredOscar.id}`} class="block relative h-[400px] overflow-hidden group">
-          <img
-            src="/images/oscars-2026.jpg"
-            alt="98th Academy Awards"
-            class="w-full h-full object-contain transition-transform group-hover:scale-105"
-            style="background: linear-gradient(135deg, #1a1a1a 0%, #0d0d0d 100%);"
-            loading="lazy"
-          />
-          <div class="absolute inset-0 bg-gradient-to-t from-black via-black/50 to-transparent"></div>
-          <div class="absolute bottom-4 left-4 right-4">
-            <div class="flex items-center gap-2 mb-2">
-              <span class="px-2 py-1 rounded text-xs font-bold bg-amber-500 text-black flex items-center gap-1"><Trophy size={12} /> Best Actor Winner</span>
-              <span class="flex items-center gap-1 text-amber-400 text-sm">
-                <Star size={14} fill="currentColor" />
-                {featuredOscar.vote_average.toFixed(1)}
-              </span>
+      <div class="relative p-5">
+        <!-- Header -->
+        <div class="flex items-start justify-between mb-4">
+          <div class="flex items-center gap-3">
+            <span class="text-4xl reel-sparkle">{reelIsDigital ? '📀' : '✨'}</span>
+            <div>
+              <p class="text-xs uppercase tracking-widest font-semibold mb-0.5" style="color: rgba(247,208,0,0.85);">{reelIsDigital ? 'Home Release Tracker' : 'Fresh on TrendiMovies'}</p>
+              <h2 class="text-xl font-black text-white">{reelIsDigital ? 'Coming to Digital' : 'Just Dropped'}</h2>
             </div>
-            <h3 class="text-2xl font-bold text-white">{featuredOscar.title}</h3>
           </div>
+          {#if reelIsDigital}
+            <div class="text-right reel-counter">
+              <div class="text-3xl font-black leading-none" style="color: #F7D000;">{reelMovies.length}</div>
+              <div class="text-[10px] uppercase tracking-wide font-bold" style="color: #F7D000;">upcoming</div>
+            </div>
+          {:else if newThisWeekCount > 0}
+            <div class="text-right reel-counter">
+              <div class="text-3xl font-black leading-none" style="color: #F7D000;">{newThisWeekCount}</div>
+              <div class="text-[10px] uppercase tracking-wide font-bold" style="color: #F7D000;">New this week</div>
+            </div>
+          {:else}
+            <div class="text-right">
+              <div class="text-base font-black" style="color: #F7D000;">DAILY</div>
+              <div class="text-[10px] uppercase tracking-wide font-bold text-gray-400">Updated</div>
+            </div>
+          {/if}
+        </div>
 
-          <!-- Winners Announced Badge -->
-          <div class="absolute bottom-4 right-4 z-10" on:click|preventDefault|stopPropagation={() => window.location.href = '/oscars-2026'}>
-            <div class="oscar-winners-badge">
-              <Trophy size={16} class="text-amber-400" />
-              <div>
-                <span class="oscar-winners-title">Winners Announced</span>
-                <span class="oscar-winners-subtitle">98th Academy Awards</span>
+        {#if currentReel}
+          <!-- Big rotating spotlight -->
+          <a href={reelIsDigital ? '/digital-releases' : `/movie/${currentReel.id}`} class="block relative rounded-xl overflow-hidden group spotlight" style="aspect-ratio: 16/9;">
+            {#key reelIndex}
+              <img
+                src={getBackdropUrl(currentReel.backdrop_path || currentReel.poster_path)}
+                alt={currentReel.title}
+                class="w-full h-full object-cover spotlight-img"
+                loading="lazy"
+              />
+            {/key}
+            <div class="absolute inset-0 bg-gradient-to-t from-black via-black/45 to-transparent"></div>
+
+            <!-- badge -->
+            <div class="absolute top-3 left-3 flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[10px] font-extrabold tracking-wider shadow-lg"
+                 style="background: linear-gradient(135deg, #F7D000, #f59e0b); color:#000;">
+              {#if reelIsDigital}
+                ⏳ COMING SOON
+              {:else if isFresh(currentReel)}
+                <span class="reel-dot"></span> JUST ADDED
+              {:else}
+                NEW THIS WEEK
+              {/if}
+            </div>
+
+            <!-- Rating -->
+            {#if currentReel.vote_average}
+              <div class="absolute top-3 right-3 px-2 py-1 rounded-md text-xs font-bold flex items-center gap-1 bg-black/80 text-amber-400">
+                <Star size={12} fill="currentColor" />
+                <span>{currentReel.vote_average.toFixed(1)}</span>
+              </div>
+            {/if}
+
+            <!-- Title + meta -->
+            <div class="absolute bottom-0 left-0 right-0 p-4">
+              <h3 class="text-lg sm:text-xl font-bold text-white leading-tight line-clamp-1">{currentReel.title}</h3>
+              <div class="flex items-center gap-2 mt-1">
+                {#if reelIsDigital}
+                  <span class="inline-flex items-center gap-1 text-[11px] font-semibold text-amber-300">
+                    📀 {(currentReel as any).digital_label || 'Coming to digital'}
+                  </span>
+                {:else}
+                  {#if currentReel.year}
+                    <span class="text-[11px] font-semibold text-amber-300">{currentReel.year}</span>
+                  {/if}
+                  <span class="inline-flex items-center gap-1 text-[11px] font-medium text-white/90 group-hover:text-amber-300 transition-colors">
+                    <Play size={11} fill="currentColor" /> Watch now
+                  </span>
+                {/if}
               </div>
             </div>
-          </div>
-        </a>
-      {/if}
 
-      <div class="p-4">
-        <div class="flex items-center justify-between mb-3">
-          <div class="flex items-center gap-2">
-            <Trophy size={18} class="text-amber-400" />
-            <h2 class="text-sm font-bold" style="color: var(--text-primary);">2026 Oscar Winners</h2>
-          </div>
-          <a href="/oscars-2026" class="text-xs font-medium text-amber-400 hover:text-amber-300 transition-colors">
-            View All →
+            <!-- Auto-advance progress bar -->
+            {#if reelMovies.length > 1}
+              {#key reelIndex}
+                <div class="absolute bottom-0 left-0 right-0 h-[3px] bg-white/10 z-10">
+                  <div class="reel-progress h-full" class:paused={reelPaused} style="background: linear-gradient(90deg, #F7D000, #f59e0b);"></div>
+                </div>
+              {/key}
+            {/if}
           </a>
-        </div>
 
-        <div
-          class="relative overflow-x-auto hide-scrollbar"
-          bind:this={scrollContainer}
-          on:mouseenter={pauseAnimation}
-          on:mouseleave={resumeAnimation}
-          on:touchstart={handleTouchStart}
-          on:touchmove={handleTouchMove}
-          on:touchend={handleTouchEnd}
-        >
-          <div class="oscar-scroll-container flex gap-3" class:paused={isPaused}>
-            {#each oscarMovies as movie, i}
-              <a href={`/movie/${movie.id}`} class="flex-shrink-0 w-24 group">
-                <div class="relative aspect-[2/3] rounded-lg overflow-hidden mb-1">
-                  <img src={getPosterUrl(movie.poster_path)} alt={movie.title} class="w-full h-full object-cover transition-transform group-hover:scale-110" loading="lazy" />
-                  <div class="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
-                </div>
-                <p class="text-[10px] font-medium line-clamp-1 text-center" style="color: var(--text-primary);">{movie.title}</p>
-              </a>
-            {/each}
-            {#each oscarMovies as movie, i}
-              <a href={`/movie/${movie.id}`} class="flex-shrink-0 w-24 group">
-                <div class="relative aspect-[2/3] rounded-lg overflow-hidden mb-1">
-                  <img src={getPosterUrl(movie.poster_path)} alt={movie.title} class="w-full h-full object-cover transition-transform group-hover:scale-110" loading="lazy" />
-                  <div class="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
-                </div>
-                <p class="text-[10px] font-medium line-clamp-1 text-center" style="color: var(--text-primary);">{movie.title}</p>
-              </a>
-            {/each}
+          <!-- Clickable filmstrip of what's in rotation -->
+          {#if reelMovies.length > 1}
+            <div class="flex gap-2 mt-3">
+              {#each reelMovies as m, i}
+                <button
+                  on:click={() => goToReel(i)}
+                  class="relative flex-1 rounded-md overflow-hidden aspect-[2/3] film-thumb"
+                  class:active={i === reelIndex}
+                  title={m.title}
+                  aria-label={`Show ${m.title}`}
+                >
+                  <img src={getPosterUrl(m.poster_path || m.backdrop_path)} alt={m.title} loading="lazy" class="w-full h-full object-cover" />
+                  {#if i !== reelIndex}<div class="absolute inset-0 bg-black/45"></div>{/if}
+                </button>
+              {/each}
+            </div>
+          {/if}
+        {:else}
+          <div class="flex items-center gap-2 mb-4 px-3 py-3 rounded-lg" style="background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.08);">
+            <span class="text-sm">🎬</span>
+            <span class="text-sm text-gray-300">New movies & series added daily — with download links.</span>
           </div>
-        </div>
+        {/if}
+
+        <!-- CTA -->
+        <a href={reelIsDigital ? '/digital-releases' : '/movies/latest'} class="cta-row flex items-center justify-between mt-4 group">
+          <p class="text-xs text-gray-500">{reelIsDigital ? 'Real HD/digital dates · with countdowns' : 'Latest releases with download links'}</p>
+          <span class="px-4 py-2 rounded-lg text-sm font-bold text-black transition-all group-hover:scale-105 group-hover:shadow-lg" style="background: linear-gradient(135deg, #F7D000, #f59e0b);">
+            {reelIsDigital ? 'See all →' : 'Browse New →'}
+          </span>
+        </a>
       </div>
     </div>
 
@@ -325,8 +509,19 @@
           class:text-white={activeTab === 'comingsoon'}
           style={activeTab !== 'comingsoon' ? 'color: var(--text-secondary); background-color: var(--bg-hover);' : ''}
         >
-          Coming Soon
+          Release Schedule
         </button>
+        {#if reviews && reviews.length}
+        <button
+          on:click={() => activeTab = 'reviews'}
+          class="px-3 py-1.5 rounded-lg text-xs font-medium transition-all flex items-center gap-1"
+          class:bg-amber-500={activeTab === 'reviews'}
+          class:text-black={activeTab === 'reviews'}
+          style={activeTab !== 'reviews' ? 'color: var(--text-secondary); background-color: var(--bg-hover);' : ''}
+        >
+          ★ Reviews
+        </button>
+        {/if}
       </div>
 
       <!-- Tab Content -->
@@ -436,7 +631,7 @@
             <p class="text-center py-12 text-[#666]">No upcoming movies</p>
           {/if}
           <a href="/upcoming" class="block text-center text-sm font-medium text-purple-400 hover:text-purple-300 mt-3 pt-3" style="border-top: 1px solid var(--border);">
-            View All Upcoming →
+            View Full Release Schedule →
           </a>
         {:else if activeTab === 'boxoffice'}
           <!-- Box Office List -->
@@ -455,7 +650,12 @@
                 {/if}
                 <div class="flex-1 min-w-0">
                   <p class="text-sm font-medium truncate" style="color: var(--text-primary);">{entry.title}</p>
-                  <p class="text-xs" style="color: var(--text-muted);">Weekend: {entry.weekend_gross}</p>
+                  <div class="flex items-center gap-2">
+                    <p class="text-xs" style="color: var(--text-muted);">Weekend: {entry.weekend_gross}</p>
+                    {#if entry.reviewSlug}
+                      <span class="text-xs font-semibold" style="color:#f59e0b;">★ Review</span>
+                    {/if}
+                  </div>
                 </div>
                 <div class="text-right">
                   <p class="text-xs font-semibold text-green-500">{entry.total_gross}</p>
@@ -483,6 +683,25 @@
           </div>
           <a href="/franchises" class="block text-center text-sm font-medium text-amber-400 hover:text-amber-300 mt-3 pt-3" style="border-top: 1px solid var(--border);">
             View All Franchises →
+          </a>
+        {:else if activeTab === 'reviews'}
+          <!-- Latest Reviews -->
+          <div class="space-y-1">
+            {#each reviews.slice(0, 5) as rv, i}
+              <a href={`/review/${rv.slug}`} class="flex items-center gap-3 p-2 rounded-lg transition-colors hover:bg-[var(--bg-hover)]">
+                {#if rv.poster_path}
+                  <img src={getPosterUrl(rv.poster_path)} alt={rv.title} class="w-8 h-12 rounded object-cover flex-none" loading="lazy" />
+                {/if}
+                <div class="flex-1 min-w-0">
+                  <p class="text-sm font-semibold truncate" style="color: var(--text-primary);">{rv.headline}</p>
+                  <p class="text-xs truncate" style="color: var(--text-muted);">{rv.title}{rv.year ? ` (${rv.year})` : ''}{rv.rt_score ? `  ·  🍅 ${rv.rt_score}` : ''}</p>
+                </div>
+                <span class="text-xs font-semibold flex-none" style="color:#f59e0b;">Read →</span>
+              </a>
+            {/each}
+          </div>
+          <a href="/reviews" class="block text-center text-sm font-medium text-amber-400 hover:text-amber-300 mt-3 pt-3" style="border-top: 1px solid var(--border);">
+            View All Reviews →
           </a>
         {:else}
           <!-- TOP MOVIES — Hero Poster + Strip Design -->
@@ -577,80 +796,116 @@
   </div>
 </section>
 
-<!-- ── CANNES 2026 WIDGET ─────────────────────────────────────────────────── -->
+<!-- ── AWARDS SEASON (collapsible) ─────────────────────────────────────────── -->
 <section class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-  <div class="grid lg:grid-cols-2 gap-6">
+  <!-- Slim toggle bar: quiet by default, expands the Oscars + Awards cards -->
+  <button
+    type="button"
+    on:click={toggleAwards}
+    class="awards-bar w-full flex items-center justify-between gap-3 rounded-2xl px-5 py-4 transition-all"
+    class:open={awardsOpen}
+    aria-expanded={awardsOpen}
+  >
+    <span class="flex items-center gap-3 min-w-0">
+      <span class="text-2xl flex-shrink-0">🏆</span>
+      <span class="text-left min-w-0">
+        <span class="block font-black text-base sm:text-lg leading-tight" style="color: var(--text-primary);">Awards Season</span>
+        <span class="block text-xs truncate" style="color: var(--text-muted);">Oscars, Cannes, Venice &amp; more — winners and the full calendar</span>
+      </span>
+    </span>
+    <span class="awards-chevron flex-shrink-0 text-sm font-bold flex items-center gap-1.5" style="color: var(--text-secondary);">
+      <span class="hidden sm:inline">{awardsOpen ? 'Hide' : 'Show'}</span>
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style={`transform: rotate(${awardsOpen ? 180 : 0}deg); transition: transform 0.3s;`}><path d="M6 9l6 6 6-6"/></svg>
+    </span>
+  </button>
 
-    <!-- Cannes 2026 Feature -->
-    <a href="/cannes-2026" class="group block rounded-2xl overflow-hidden relative transition-all duration-300 hover:-translate-y-1 hover:shadow-2xl"
-       style="background: linear-gradient(135deg, #1a0005 0%, #2d0010 50%, #1a0008 100%); border: 1px solid rgba(181,12,27,0.3);">
-      <!-- Top bar -->
-      <div class="absolute top-0 left-0 right-0 h-1" style="background: linear-gradient(90deg, #B50C1B, #F7D000, #B50C1B);"></div>
+  {#if awardsOpen}
+  <div class="grid lg:grid-cols-2 gap-6 mt-4 awards-reveal">
 
-      <!-- Background glow -->
-      <div class="absolute inset-0 opacity-20" style="background: radial-gradient(ellipse at 30% 50%, #B50C1B, transparent 60%);"></div>
+    <!-- Left Column: Oscar Nominations (moved here from top grid on 2026-06-19) -->
+    <div class="rounded-2xl relative overflow-hidden" style="background-color: var(--bg-card); border: 1px solid var(--border);">
+      <div class="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-amber-400 via-yellow-500 to-amber-400 z-10"></div>
 
-      <div class="relative p-6">
-        <!-- Header -->
-        <div class="flex items-start justify-between mb-4">
-          <div class="flex items-center gap-3">
-            <span class="text-4xl">🌴</span>
-            <div>
-              <p class="text-xs uppercase tracking-widest font-semibold mb-0.5" style="color: rgba(247,208,0,0.7);">Festival de Cannes</p>
-              <h2 class="text-xl font-black text-white">Cannes 2026</h2>
+      {#if featuredOscar}
+        <a href={`/movie/${featuredOscar.id}`} class="block relative h-[400px] overflow-hidden group">
+          <img
+            src="/images/oscars-2026.jpg"
+            alt="98th Academy Awards"
+            class="w-full h-full object-contain transition-transform group-hover:scale-105"
+            style="background: linear-gradient(135deg, #1a1a1a 0%, #0d0d0d 100%);"
+            loading="lazy"
+          />
+          <div class="absolute inset-0 bg-gradient-to-t from-black via-black/50 to-transparent"></div>
+          <div class="absolute bottom-4 left-4 right-4">
+            <div class="flex items-center gap-2 mb-2">
+              <span class="px-2 py-1 rounded text-xs font-bold bg-amber-500 text-black flex items-center gap-1"><Trophy size={12} /> Best Actor Winner</span>
+              <span class="flex items-center gap-1 text-amber-400 text-sm">
+                <Star size={14} fill="currentColor" />
+                {featuredOscar.vote_average.toFixed(1)}
+              </span>
+            </div>
+            <h3 class="text-2xl font-bold text-white">{featuredOscar.title}</h3>
+          </div>
+
+          <!-- Winners Announced Badge -->
+          <div class="absolute bottom-4 right-4 z-10" on:click|preventDefault|stopPropagation={() => window.location.href = '/oscars-2026'}>
+            <div class="oscar-winners-badge">
+              <Trophy size={16} class="text-amber-400" />
+              <div>
+                <span class="oscar-winners-title">Winners Announced</span>
+                <span class="oscar-winners-subtitle">98th Academy Awards</span>
+              </div>
             </div>
           </div>
-          {#if getCannesStatus().phase === 'live'}
-            <div class="text-right">
-              <div class="text-2xl font-black" style="color: #ff5566;">{getCannesStatus().dayOfFestival}/{getCannesStatus().totalDays}</div>
-              <div class="text-[10px] uppercase tracking-wide font-bold" style="color: #ff5566;">DAY · LIVE</div>
-            </div>
-          {:else if getCannesStatus().phase === 'ended'}
-            <div class="text-right">
-              <div class="text-xl font-black text-gray-400">ENDED</div>
-              <div class="text-[10px] text-gray-500 uppercase tracking-wide">See winners</div>
-            </div>
-          {:else}
-            <div class="text-right">
-              <div class="text-2xl font-black" style="color: #F7D000;">{getCannesStatus().daysUntil}</div>
-              <div class="text-xs text-gray-500 uppercase tracking-wide">days</div>
-            </div>
-          {/if}
+        </a>
+      {/if}
+
+      <div class="p-4">
+        <div class="flex items-center justify-between mb-3">
+          <div class="flex items-center gap-2">
+            <Trophy size={18} class="text-amber-400" />
+            <h2 class="text-sm font-bold" style="color: var(--text-primary);">2026 Oscar Winners</h2>
+          </div>
+          <a href="/oscars-2026" class="text-xs font-medium text-amber-400 hover:text-amber-300 transition-colors">
+            View All →
+          </a>
         </div>
 
-        <!-- Date strip -->
-        <div class="flex items-center gap-2 mb-4 px-3 py-2 rounded-lg" style="background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.08);">
-          <span class="text-sm">📅</span>
-          <span class="text-sm text-gray-300">May 13–24, 2026 · Cannes, France</span>
-          {#if getCannesStatus().phase === 'live'}
-            <span class="ml-auto px-2 py-0.5 rounded-full text-xs font-bold flex items-center gap-1" style="background: rgba(220,38,38,0.3); color: #ff5566; border: 1px solid rgba(220,38,38,0.5);"><span class="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse"></span>LIVE</span>
-          {:else if getCannesStatus().phase === 'ended'}
-            <span class="ml-auto px-2 py-0.5 rounded-full text-xs font-bold" style="background: rgba(107,114,128,0.3); color: #d1d5db; border: 1px solid rgba(107,114,128,0.4);">Ended</span>
-          {:else}
-            <span class="ml-auto px-2 py-0.5 rounded-full text-xs font-bold" style="background: rgba(181,12,27,0.3); color: #ff6b7a; border: 1px solid rgba(181,12,27,0.4);">Upcoming</span>
-          {/if}
-        </div>
-
-        <!-- Award pills -->
-        <div class="flex flex-wrap gap-2 mb-5">
-          {#each ["Palme d'Or", "Grand Prix", "Jury Prize", "Best Director", "Best Actor/Actress"] as award}
-            <span class="px-2.5 py-1 rounded-lg text-xs font-medium" style="background: rgba(247,208,0,0.1); color: rgba(247,208,0,0.8); border: 1px solid rgba(247,208,0,0.2);">{award}</span>
-          {/each}
-        </div>
-
-        <!-- CTA -->
-        <div class="flex items-center justify-between">
-          <p class="text-xs text-gray-500">79th Edition · Official Competition Lineup</p>
-          <span class="px-4 py-2 rounded-lg text-sm font-bold text-white transition-all group-hover:scale-105 group-hover:shadow-lg" style="background: linear-gradient(135deg, #B50C1B, #8B0011);">
-            View Lineup →
-          </span>
+        <div
+          class="relative overflow-x-auto hide-scrollbar"
+          bind:this={scrollContainer}
+          on:mouseenter={pauseAnimation}
+          on:mouseleave={resumeAnimation}
+          on:touchstart={handleTouchStart}
+          on:touchmove={handleTouchMove}
+          on:touchend={handleTouchEnd}
+        >
+          <div class="oscar-scroll-container flex gap-3" class:paused={isPaused}>
+            {#each oscarMovies as movie, i}
+              <a href={`/movie/${movie.id}`} class="flex-shrink-0 w-24 group">
+                <div class="relative aspect-[2/3] rounded-lg overflow-hidden mb-1">
+                  <img src={getPosterUrl(movie.poster_path)} alt={movie.title} class="w-full h-full object-cover transition-transform group-hover:scale-110" loading="lazy" />
+                  <div class="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                </div>
+                <p class="text-[10px] font-medium line-clamp-1 text-center" style="color: var(--text-primary);">{movie.title}</p>
+              </a>
+            {/each}
+            {#each oscarMovies as movie, i}
+              <a href={`/movie/${movie.id}`} class="flex-shrink-0 w-24 group">
+                <div class="relative aspect-[2/3] rounded-lg overflow-hidden mb-1">
+                  <img src={getPosterUrl(movie.poster_path)} alt={movie.title} class="w-full h-full object-cover transition-transform group-hover:scale-110" loading="lazy" />
+                  <div class="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                </div>
+                <p class="text-[10px] font-medium line-clamp-1 text-center" style="color: var(--text-primary);">{movie.title}</p>
+              </a>
+            {/each}
+          </div>
         </div>
       </div>
-    </a>
+    </div>
 
     <!-- Events Calendar Summary -->
-    <a href="/events" class="group block rounded-2xl overflow-hidden relative transition-all duration-300 hover:-translate-y-1 hover:shadow-xl"
-       style="background-color: var(--bg-card); border: 1px solid var(--border);">
+    <div class="rounded-2xl overflow-hidden relative" style="background-color: var(--bg-card); border: 1px solid var(--border);">
       <!-- Top bar -->
       <div class="absolute top-0 left-0 right-0 h-1" style="background: linear-gradient(90deg, #6366f1, #8b5cf6, #ec4899);"></div>
 
@@ -660,38 +915,70 @@
             <span class="text-2xl">📅</span>
             <h2 class="font-black text-lg" style="color: var(--text-primary);">Awards Calendar</h2>
           </div>
-          <span class="text-xs font-medium group-hover:text-yellow-300 transition-colors" style="color: var(--text-muted);">View All →</span>
+          <a href="/events" class="text-xs font-medium hover:text-yellow-300 transition-colors" style="color: var(--text-muted);">View All →</a>
         </div>
 
-        <div class="space-y-3">
-          {#each [
-            { emoji: "🌴", name: "Cannes 2026", date: "May 13", startDate: "2026-05-13", color: "#B50C1B" },
-            { emoji: "🎬", name: "MTV Awards", date: "Jun 7", startDate: "2026-06-07", color: "#FF0033" },
-            { emoji: "🦁", name: "Venice 2026", date: "Aug 26", startDate: "2026-08-26", color: "#8B0000" },
-            { emoji: "🏆", name: "Oscars 2026", date: "Mar 15", startDate: "2026-03-15", color: "#D4AF37" },
-          ].map(e => ({ ...e, days: getDaysUntilRelease(e.startDate) })) as event}
-            <div class="flex items-center gap-3 p-2.5 rounded-xl transition-colors hover:bg-[var(--bg-hover)]">
+        <div class="space-y-2.5">
+          {#each cardEvents as event}
+            <a href={event.href} class="flex items-center gap-3 p-2.5 rounded-xl transition-colors hover:bg-[var(--bg-hover)] group/row">
               <span class="text-xl w-8 text-center flex-shrink-0">{event.emoji}</span>
               <div class="flex-1 min-w-0">
-                <p class="font-semibold text-sm truncate" style="color: var(--text-primary);">{event.name}</p>
-                <p class="text-xs" style="color: var(--text-muted);">{event.date}, 2026</p>
+                <p class="font-semibold text-sm truncate group-hover/row:text-yellow-300 transition-colors" style="color: var(--text-primary);">{event.name}</p>
+                {#if event.winner}
+                  <p class="text-xs truncate flex items-center gap-1" style="color: #fbbf24;">
+                    <Trophy size={11} class="flex-shrink-0" />
+                    <span class="truncate">{event.prize}: {event.winner}</span>
+                  </p>
+                {:else}
+                  <p class="text-xs" style="color: var(--text-muted);">{event.dateLabel}</p>
+                {/if}
               </div>
-              {#if !event.days || event.days <= 0}
-                <span class="px-2 py-0.5 rounded text-[10px] font-bold" style="background: rgba(107,114,128,0.2); color: #9ca3af;">Past</span>
-              {:else}
-                <span class="px-2 py-1 rounded-lg text-xs font-bold" style="background: rgba(34,197,94,0.1); color: #4ade80; border: 1px solid rgba(34,197,94,0.2);">{event.days}d</span>
+              {#if !event.past}
+                {#if event.days <= 30}
+                  <span class="px-2 py-1 rounded-lg text-xs font-bold flex-shrink-0" style="background: rgba(245,158,11,0.12); color: #fbbf24; border: 1px solid rgba(245,158,11,0.25);">{event.days}d</span>
+                {:else}
+                  <span class="px-2 py-1 rounded-lg text-xs font-bold flex-shrink-0" style="background: rgba(34,197,94,0.1); color: #4ade80; border: 1px solid rgba(34,197,94,0.2);">{event.days}d</span>
+                {/if}
+              {:else if !event.winner}
+                <span class="px-2 py-0.5 rounded text-[10px] font-bold flex-shrink-0" style="background: rgba(107,114,128,0.2); color: #9ca3af;">Past</span>
               {/if}
-            </div>
+            </a>
           {/each}
         </div>
       </div>
-    </a>
+    </div>
 
   </div>
+  {/if}
 </section>
 
 
 <style>
+  .awards-bar {
+    background-color: var(--bg-card);
+    border: 1px solid var(--border);
+    cursor: pointer;
+  }
+  .awards-bar:hover {
+    border-color: rgba(247, 208, 0, 0.4);
+    background-color: var(--bg-hover);
+  }
+  .awards-bar.open {
+    border-color: rgba(247, 208, 0, 0.35);
+    border-bottom-left-radius: 0;
+    border-bottom-right-radius: 0;
+  }
+  .awards-reveal {
+    animation: awards-slide 0.35s ease-out;
+  }
+  @keyframes awards-slide {
+    from { opacity: 0; transform: translateY(-8px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .awards-reveal { animation: none; }
+  }
+
   .hide-scrollbar {
     -ms-overflow-style: none;
     scrollbar-width: none;
@@ -768,5 +1055,94 @@
     font-weight: 600;
     color: rgba(255,255,255,0.8);
     margin-top: 2px;
+  }
+
+  /* ── JUST DROPPED reel ──────────────────────────────────────────────── */
+  .reel-card {
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+  }
+  .reel-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 20px 40px -12px rgba(247, 208, 0, 0.25);
+  }
+
+  /* Ken-Burns slow zoom on each spotlight image; {#key} remounts it per slide */
+  .spotlight-img {
+    animation: kenburns 5s ease-out forwards;
+    transform-origin: center;
+  }
+  @keyframes kenburns {
+    0%   { transform: scale(1.08); }
+    100% { transform: scale(1); }
+  }
+  .spotlight:hover .spotlight-img {
+    transform: scale(1.04);
+    transition: transform 0.4s ease;
+    animation: none;
+  }
+
+  /* Auto-advance progress bar; remounted per slide via {#key} so it restarts */
+  .reel-progress {
+    width: 0%;
+    animation: reelfill 4.5s linear forwards;
+  }
+  .reel-progress.paused {
+    animation-play-state: paused;
+  }
+  @keyframes reelfill {
+    0%   { width: 0%; }
+    100% { width: 100%; }
+  }
+
+  /* Pulsing "JUST ADDED" dot */
+  .reel-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 9999px;
+    background: #dc2626;
+    box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.7);
+    animation: reelpulse 1.6s infinite;
+  }
+  @keyframes reelpulse {
+    0%   { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.6); }
+    70%  { box-shadow: 0 0 0 6px rgba(220, 38, 38, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0); }
+  }
+
+  /* Subtle sparkle wobble + glowing counter */
+  .reel-sparkle {
+    display: inline-block;
+    animation: sparkle 3s ease-in-out infinite;
+  }
+  @keyframes sparkle {
+    0%, 100% { transform: rotate(0deg) scale(1); opacity: 1; }
+    50%      { transform: rotate(8deg) scale(1.08); opacity: 0.85; }
+  }
+  .reel-counter {
+    animation: countglow 2.5s ease-in-out infinite;
+  }
+  @keyframes countglow {
+    0%, 100% { filter: drop-shadow(0 0 0px rgba(247, 208, 0, 0)); }
+    50%      { filter: drop-shadow(0 0 6px rgba(247, 208, 0, 0.5)); }
+  }
+
+  /* Filmstrip thumbnails */
+  .film-thumb {
+    opacity: 0.7;
+    transition: opacity 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+  }
+  .film-thumb:hover { opacity: 1; transform: translateY(-2px); }
+  .film-thumb.active {
+    opacity: 1;
+    border-color: rgba(247, 208, 0, 0.7);
+    box-shadow: 0 0 0 1px rgba(247, 208, 0, 0.5), 0 4px 12px -4px rgba(247, 208, 0, 0.4);
+  }
+
+  /* Respect reduced-motion preferences */
+  @media (prefers-reduced-motion: reduce) {
+    .spotlight-img, .reel-progress, .reel-dot, .reel-sparkle, .reel-counter {
+      animation: none !important;
+    }
   }
 </style>
