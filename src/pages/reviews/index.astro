@@ -1,0 +1,127 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+
+const POSTGREST_URL = import.meta.env.PUBLIC_SUPABASE_URL || 'http://localhost:3001';
+
+let reviews: any[] = [];
+try {
+  const res = await fetch(`${POSTGREST_URL}/movie_reviews?status=eq.published&select=slug,title,year,headline,deck,poster_path,accent,genre,rt_score,box_office,published_at&order=published_at.desc&limit=60`);
+  if (res.ok) reviews = await res.json();
+} catch (e) { reviews = []; }
+
+const featured = reviews[0];
+const rest = reviews.slice(1);
+const poster = (p: string | null) => p ? `https://image.tmdb.org/t/p/w500${p}` : '/images/no-poster.svg';
+
+// Unique OG image: a poster collage of the latest reviews (reuses the digital
+// collage template — same pattern as /movies, /guides, etc.).
+const _ogPosters = reviews
+  .map((r) => r.poster_path)
+  .filter(Boolean)
+  .slice(0, 5)
+  .join('|');
+const ogImage = _ogPosters
+  ? `/api/og.png?type=digital&posters=${encodeURIComponent(_ogPosters)}`
+    + `&accent=${encodeURIComponent('#f43f5e')}`
+    + `&eyebrow=${encodeURIComponent('MOVIE REVIEWS')}`
+    + `&eyebrowEmoji=${encodeURIComponent('⭐')}`
+    + `&headline=${encodeURIComponent('Movie Reviews')}`
+    + `&subtitle=${encodeURIComponent('Honest, spoiler-free takes on what to watch next')}`
+    + `&ogurl=${encodeURIComponent('trendimovies.com/reviews')}`
+  : '/api/og.png?type=digital&accent=%23f43f5e&eyebrow=MOVIE%20REVIEWS&headline=Movie%20Reviews';
+
+const pageTitle = 'Movie Reviews';
+const pageDesc = 'Honest, spoiler-free movie reviews from the TrendiMovies desk. Find your next watch.';
+---
+
+<BaseLayout title={pageTitle} description={pageDesc} image={ogImage}>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,900&display=swap" rel="stylesheet" />
+
+  <section class="rvh">
+    <div class="rvh-wrap">
+      <div class="rvh-head">
+        <div class="rvh-kicker"><span class="rvh-dot"></span> TrendiMovies</div>
+        <h1 class="rvh-title">Movie Reviews</h1>
+        <p class="rvh-sub">Honest, spoiler-free takes on what&rsquo;s worth your night in. No fluff, no studio-speak — just whether it&rsquo;s good.</p>
+      </div>
+
+      {reviews.length === 0 && (
+        <p class="rvh-empty">No reviews published yet. Check back soon.</p>
+      )}
+
+      {featured && (
+        <a class="rvh-feature" href={`/review/${featured.slug}`} style={`--a:${featured.accent || '#dc2626'}`}>
+          <div class="rvh-feature-poster"><img src={poster(featured.poster_path)} alt={featured.title} /></div>
+          <div class="rvh-feature-body">
+            <div class="rvh-tag">Latest Review{featured.genre ? ` · ${featured.genre}` : ''}</div>
+            <h2 class="rvh-feature-h">{featured.headline}</h2>
+            {featured.deck && <p class="rvh-feature-deck">{featured.deck}</p>}
+            <div class="rvh-scores">
+              {featured.rt_score && <span class="rvh-chip rt">🍅 {featured.rt_score}</span>}
+              {featured.box_office && <span class="rvh-chip mo">{featured.box_office}</span>}
+              <span class="rvh-read">Read review →</span>
+            </div>
+          </div>
+        </a>
+      )}
+
+      {rest.length > 0 && (
+        <div class="rvh-grid">
+          {rest.map((r) => (
+            <a class="rvh-card" href={`/review/${r.slug}`} style={`--a:${r.accent || '#dc2626'}`}>
+              <div class="rvh-card-poster"><img src={poster(r.poster_path)} alt={r.title} loading="lazy" />
+                {r.rt_score && <span class="rvh-card-rt">🍅 {r.rt_score}</span>}
+              </div>
+              <div class="rvh-card-body">
+                <div class="rvh-card-movie">{r.title}{r.year ? ` (${r.year})` : ''}</div>
+                <div class="rvh-card-h">{r.headline}</div>
+              </div>
+            </a>
+          ))}
+        </div>
+      )}
+    </div>
+  </section>
+</BaseLayout>
+
+<style>
+  .rvh{position:relative;padding:0 0 80px}
+  .rvh-wrap{max-width:1180px;margin:0 auto;padding:52px 28px 0}
+  .rvh-head{max-width:720px;margin-bottom:44px}
+  .rvh-kicker{display:inline-flex;align-items:center;gap:9px;font-weight:800;letter-spacing:3px;font-size:12px;color:#f43f5e;text-transform:uppercase;margin-bottom:16px}
+  .rvh-dot{width:7px;height:7px;border-radius:50%;background:#f43f5e;box-shadow:0 0 12px #f43f5e}
+  .rvh-title{font-family:'Fraunces',Georgia,serif;font-weight:900;font-size:clamp(40px,6vw,64px);line-height:1.02;letter-spacing:-1.5px;color:#fff;margin:0 0 14px}
+  .rvh-sub{font-size:18px;line-height:1.6;color:#b9b6c0;max-width:56ch}
+  .rvh-empty{color:#888;padding:40px 0}
+  /* featured */
+  .rvh-feature{display:grid;grid-template-columns:220px 1fr;gap:32px;align-items:center;text-decoration:none;
+    background:linear-gradient(135deg,color-mix(in srgb,var(--a) 14%,transparent),rgba(255,255,255,.02));
+    border:1px solid color-mix(in srgb,var(--a) 26%,rgba(255,255,255,.08));border-radius:24px;padding:26px;margin-bottom:46px;
+    box-shadow:0 24px 60px rgba(0,0,0,.4);transition:transform .2s,border-color .2s}
+  .rvh-feature:hover{transform:translateY(-3px);border-color:color-mix(in srgb,var(--a) 55%,transparent)}
+  .rvh-feature-poster img{width:220px;border-radius:16px;display:block;box-shadow:0 20px 40px rgba(0,0,0,.5)}
+  .rvh-tag{color:var(--a);font-weight:800;letter-spacing:2px;font-size:12px;text-transform:uppercase;margin-bottom:14px}
+  .rvh-feature-h{font-family:'Fraunces',Georgia,serif;font-weight:900;font-size:clamp(26px,3.4vw,40px);line-height:1.08;letter-spacing:-1px;color:#fff;margin:0 0 12px}
+  .rvh-feature-deck{font-size:17px;line-height:1.55;color:#c3c0cc;margin:0 0 18px;max-width:56ch}
+  .rvh-scores{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+  .rvh-chip{font-weight:700;font-size:14px;padding:7px 14px;border-radius:100px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12)}
+  .rvh-chip.rt{color:#22c55e}.rvh-chip.mo{color:#f59e0b}
+  .rvh-read{color:var(--a);font-weight:800;font-size:15px}
+  /* grid */
+  .rvh-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:24px}
+  .rvh-card{text-decoration:none;border-radius:18px;overflow:hidden;background:#141216;border:1px solid rgba(255,255,255,.07);transition:transform .2s,border-color .2s}
+  .rvh-card:hover{transform:translateY(-4px);border-color:color-mix(in srgb,var(--a) 55%,transparent)}
+  .rvh-card-poster{position:relative;aspect-ratio:2/3;overflow:hidden}
+  .rvh-card-poster img{width:100%;height:100%;object-fit:cover;display:block}
+  .rvh-card-rt{position:absolute;top:10px;left:10px;background:rgba(0,0,0,.7);backdrop-filter:blur(6px);color:#22c55e;font-weight:700;font-size:12px;padding:5px 9px;border-radius:100px}
+  .rvh-card-body{padding:14px 15px 18px}
+  .rvh-card-movie{font-size:12px;color:#8a8790;margin-bottom:5px;text-transform:uppercase;letter-spacing:.5px}
+  .rvh-card-h{font-family:'Fraunces',Georgia,serif;font-weight:900;font-size:17px;line-height:1.2;color:#fff;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+  @media(max-width:640px){
+    .rvh-feature{grid-template-columns:1fr;text-align:center;gap:20px}
+    .rvh-feature-poster img{width:160px;margin:0 auto}
+    .rvh-scores{justify-content:center}
+    .rvh-grid{grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:16px}
+  }
+</style>

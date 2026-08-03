@@ -3,6 +3,7 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
 import MovieJsonLd from '../../components/MovieJsonLd.astro';
 import VideoPlayer from '../../components/VideoPlayer.svelte';
 import DownloadSection from '../../components/DownloadSection.svelte';
+import Comments from '../../components/Comments.svelte';
 import ContentRow from '../../components/ContentRow.svelte';
 import UserActions from '../../components/UserActions.svelte';
 import { getMovieDetails, transformMovieData } from '../../lib/tmdb';
@@ -18,16 +19,51 @@ if (!tmdbId) {
 
 // Fetch movie from TMDB
 const tmdbData = await getMovieDetails(tmdbId);
-if (!tmdbData) {
-  return Astro.redirect('/404');
-}
 
-const movie = transformMovieData(tmdbData);
+// ADDITIVE FALLBACK (2026-07-18): some films aren't on TMDB at all (regional
+// titles like Kamal Sridevi). Previously those 404'd. When TMDB has nothing,
+// build the movie object from OUR DB row instead so it still renders. This code
+// path ONLY runs when tmdbData is null — every TMDB-backed movie is unchanged.
+let movie: any;
+if (tmdbData) {
+  movie = transformMovieData(tmdbData);
+} else {
+  const { data: dbOnly } = await supabase
+    .from('movies')
+    .select('tmdb_id, title, slug, overview, year, release_date, runtime, poster_path, backdrop_path, vote_average, original_language')
+    .eq('tmdb_id', tmdbId)
+    .single();
+  if (!dbOnly) {
+    return Astro.redirect('/404');
+  }
+  movie = {
+    tmdb_id: dbOnly.tmdb_id,
+    imdb_id: null,
+    title: dbOnly.title,
+    slug: dbOnly.slug,
+    original_title: dbOnly.title,
+    overview: dbOnly.overview || '',
+    tagline: null,
+    release_date: dbOnly.release_date || null,
+    year: dbOnly.year || null,
+    runtime: dbOnly.runtime || null,
+    budget: null, revenue: null, popularity: 0,
+    vote_average: dbOnly.vote_average || 0,
+    vote_count: 0,
+    poster_path: dbOnly.poster_path || null,
+    backdrop_path: dbOnly.backdrop_path || null,
+    trailer_key: null,
+    original_language: dbOnly.original_language || 'en',
+    spoken_languages: [], production_countries: [], production_companies: [],
+    genres: [], cast_data: [], crew_data: [], keywords: [],
+    watch_providers: {}, status: 'released',
+  };
+}
 
 // Look up internal DB ID for this movie (cron stores content_id = movies.id, not tmdb_id)
 const { data: dbMovie } = await supabase
   .from('movies')
-  .select('id, poster_path, backdrop_path')
+  .select('id, poster_path, backdrop_path, year, release_date')
   .eq('tmdb_id', tmdbId)
   .single();
 
@@ -42,7 +78,27 @@ if (!movie.backdrop_path && dbMovie?.backdrop_path) {
   movie.backdrop_path = dbMovie.backdrop_path;
 }
 
+// DB year/release_date override: TMDB sometimes has a wrong/early date (e.g. a
+// festival premiere) while our DB holds the correct release year. If the DB year
+// differs from TMDB's, trust the DB (it was set/corrected deliberately).
+if (dbMovie?.year && dbMovie.year !== movie.year) {
+  movie.year = dbMovie.year;
+  if (dbMovie.release_date) movie.release_date = dbMovie.release_date;
+}
+
 const internalId = dbMovie?.id;
+
+// Is there a published review for this movie? (drives the Read Review banner)
+let movieReview = null;
+try {
+  const { data: rvRows } = await supabase
+    .from('movie_reviews')
+    .select('slug, headline, deck, accent, rt_score, box_office, verdict')
+    .eq('tmdb_id', tmdbId)
+    .eq('status', 'published')
+    .limit(1);
+  movieReview = (rvRows && rvRows.length) ? rvRows[0] : null;
+} catch (e) { movieReview = null; }
 
 // Fetch download links using internal DB ID
 const { data: rawLinks } = internalId ? await supabase
@@ -115,7 +171,7 @@ const directors = (movie.crew_data || []).filter((c: any) => c.job === 'Director
 const writers = (movie.crew_data || []).filter((c: any) => ['Writer', 'Screenplay'].includes(c.job));
 
 // Transform similar movies for ContentRow
-const similar = (tmdbData.similar?.results || []).slice(0, 12).map((m: any) => ({
+const similar = (tmdbData?.similar?.results || []).slice(0, 12).map((m: any) => ({
   id: m.id,
   tmdb_id: m.id,
   title: m.title,
@@ -177,6 +233,12 @@ const ogTitle = `${movie.title} ${ogYear}`.trim();
             {movie.title}
             {movie.year && <span class="text-xl md:text-2xl font-normal" style="color: var(--text-secondary);"> ({movie.year})</span>}
           </h1>
+
+          {movie.original_title && movie.original_title.trim().toLowerCase() !== movie.title.trim().toLowerCase() && (
+            <p class="-mt-1 mb-3 md:mb-4 text-sm md:text-base" style="color: var(--text-secondary);">
+              Original title: <span style="color: var(--text-primary);">{movie.original_title}</span>
+            </p>
+          )}
 
           {movie.tagline && (
             <p class="text-base md:text-lg italic mb-3 md:mb-4" style="color: var(--text-secondary);">
@@ -270,6 +332,20 @@ const ogTitle = `${movie.title} ${ogYear}`.trim();
     />
   </section>
 
+  <!-- Adsterra Banner 320x50 -->
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 flex justify-center">
+    <script is:inline>
+      atOptions = {
+        'key' : '72e8a3ac047110fa65f71d101343d2fd',
+        'format' : 'iframe',
+        'height' : 50,
+        'width' : 320,
+        'params' : {}
+      };
+    </script>
+    <script is:inline src="https://www.highperformanceformat.com/72e8a3ac047110fa65f71d101343d2fd/invoke.js"></script>
+  </div>
+
   <!-- Downloads Section -->
   <section class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
     <DownloadSection
@@ -278,8 +354,28 @@ const ogTitle = `${movie.title} ${ogYear}`.trim();
       subtitles={subtitleLinks || []}
       contentId={tmdbId}
       contentType="movie"
+      title={movie.title}
+      originalTitle={movie.original_title || ''}
     />
   </section>
+
+  {movieReview && (
+    <section class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-8">
+      <a href={`/review/${movieReview.slug}`} class="rv-banner" style={`--a:${movieReview.accent || '#dc2626'}`}>
+        <div class="rv-banner-left">
+          <div class="rv-banner-tag">⭐ TrendiMovies Review</div>
+          <div class="rv-banner-h">{movieReview.headline}</div>
+          {movieReview.deck && <div class="rv-banner-deck">{movieReview.deck}</div>}
+          <div class="rv-banner-meta">
+            {movieReview.rt_score && <span class="rv-banner-chip rt">🍅 {movieReview.rt_score}</span>}
+            {movieReview.box_office && <span class="rv-banner-chip mo">{movieReview.box_office}</span>}
+            {movieReview.verdict && <span class="rv-banner-verdict">“{movieReview.verdict}”</span>}
+          </div>
+        </div>
+        <span class="rv-banner-cta">Read the full review →</span>
+      </a>
+    </section>
+  )}
 
   <!-- Cast -->
   {movie.cast_data && movie.cast_data.length > 0 && (
@@ -353,4 +449,25 @@ const ogTitle = `${movie.title} ${ogYear}`.trim();
       items={similar}
     />
   )}
+  <section class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <Comments client:visible contentType="movie" contentId={tmdbId} />
+  </section>
 </BaseLayout>
+
+<style>
+  .rv-banner{display:flex;align-items:center;justify-content:space-between;gap:24px;flex-wrap:wrap;
+    background:linear-gradient(135deg,color-mix(in srgb,var(--a) 16%,transparent),rgba(255,255,255,.02));
+    border:1px solid color-mix(in srgb,var(--a) 30%,rgba(255,255,255,.08));border-radius:20px;padding:24px 28px;
+    text-decoration:none;transition:transform .2s,border-color .2s;box-shadow:0 16px 40px rgba(0,0,0,.3)}
+  .rv-banner:hover{transform:translateY(-2px);border-color:color-mix(in srgb,var(--a) 60%,transparent)}
+  .rv-banner-left{min-width:0}
+  .rv-banner-tag{color:var(--a);font-weight:800;letter-spacing:2px;font-size:12px;text-transform:uppercase;margin-bottom:8px}
+  .rv-banner-h{font-size:24px;font-weight:800;color:#fff;line-height:1.15;margin-bottom:6px}
+  .rv-banner-deck{color:#c3c0cc;font-size:15px;line-height:1.5;margin-bottom:12px;max-width:60ch}
+  .rv-banner-meta{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+  .rv-banner-chip{font-weight:700;font-size:13px;padding:5px 12px;border-radius:100px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12)}
+  .rv-banner-chip.rt{color:#22c55e}.rv-banner-chip.mo{color:#f59e0b}
+  .rv-banner-verdict{font-style:italic;color:#e9e7ee;font-size:14px}
+  .rv-banner-cta{color:var(--a);font-weight:800;font-size:16px;white-space:nowrap;flex:none}
+  @media(max-width:640px){.rv-banner{flex-direction:column;align-items:flex-start}.rv-banner-h{font-size:20px}}
+</style>

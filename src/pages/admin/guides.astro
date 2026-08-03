@@ -1,0 +1,8 @@
+---
+import AdminLayout from '../../layouts/AdminLayout.astro';
+import GuidesManager from '../../components/admin/GuidesManager.svelte';
+---
+
+<AdminLayout title="Movie Guides" activeTab="guides">
+  <GuidesManager client:load />
+</AdminLayout>

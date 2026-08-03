@@ -64,9 +64,9 @@ function transformToItem(movie: any) {
 ---
 
 <BaseLayout
-  title="Coming Soon"
-  description="Browse upcoming movies coming to theaters"
-  image={`/api/og.png?type=list&label=${encodeURIComponent('Coming Soon')}&emoji=${encodeURIComponent('🗓️')}&color=%23a855f7&backdrop=${encodeURIComponent(movies.find((m: any) => m.backdrop_path)?.backdrop_path || movies[0]?.poster_path || '')}&titles=${encodeURIComponent(movies.slice(0, 4).map((m: any) => m.title).join('|'))}`}
+  title="Coming Soon — Upcoming Movies | TrendiMovies"
+  description="The most anticipated movies on the way. Browse upcoming releases, see when each one lands, and watch the moment it drops on TrendiMovies."
+  image={`/api/og.png?type=digital&posters=${encodeURIComponent(movies.filter((m: any) => m.poster_path).slice(0, 5).map((m: any) => m.poster_path).join('|'))}&accent=${encodeURIComponent('#a855f7')}&eyebrow=${encodeURIComponent('COMING SOON')}&eyebrowEmoji=${encodeURIComponent('🗓️')}&headline=${encodeURIComponent('Upcoming Movies')}&subtitle=${encodeURIComponent('The most anticipated films — and when they arrive')}&ogurl=${encodeURIComponent('trendimovies.com/movies/upcoming')}`}
 >
   <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
     <div class="flex flex-col md:flex-row md:items-center md:justify-between mb-8">

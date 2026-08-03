@@ -632,6 +632,235 @@ export const POST: APIRoute = async ({ request }) => {
   }
 };
 
+export const PUT: APIRoute = async ({ request }) => {
+  // Auth check
+  const authError = requireAuth(request);
+  if (authError) return authError;
+
+  try {
+    const body = await request.json();
+    const {
+      id,
+      content_type,
+      content_id,
+      quality,
+      url,
+      telegram_file_id,
+      file_size,
+      // For episode auto-import when reassigning to a not-yet-imported episode
+      show_id,
+      season_number,
+      episode_number,
+    } = body;
+
+    if (!id || isNaN(parseInt(id)) || parseInt(id) <= 0) {
+      return new Response(JSON.stringify({ error: 'Invalid link id' }), {
+        status: 400,
+        headers: _linkAuthHeaders()
+      });
+    }
+    const linkId = parseInt(id);
+
+    // Load the existing link — this is what makes it an in-place edit: we
+    // never touch click_count, created_at, or is_active below.
+    const getRes = await fetch(`${POSTGREST_URL}/download_links?id=eq.${linkId}`, {
+      headers: { 'Accept-Profile': 'public' }
+    });
+    const existingRows = await getRes.json();
+    const existing = existingRows?.[0];
+    if (!existing) {
+      return new Response(JSON.stringify({ error: 'Link not found' }), {
+        status: 404,
+        headers: _linkAuthHeaders()
+      });
+    }
+
+    // Validate any fields the caller is actually changing.
+    const newContentType = content_type || existing.content_type;
+    if (!VALID_CONTENT_TYPES.includes(newContentType)) {
+      return new Response(JSON.stringify({
+        error: 'content_type must be "movie" or "episode"'
+      }), {
+        status: 400,
+        headers: _linkAuthHeaders()
+      });
+    }
+
+    const newQuality = quality || existing.quality;
+    if (!VALID_QUALITIES.includes(newQuality)) {
+      return new Response(JSON.stringify({
+        error: 'quality must be "720p", "1080p", "2160p", "hdrip", or "540p"'
+      }), {
+        status: 400,
+        headers: _linkAuthHeaders()
+      });
+    }
+    if (newContentType === 'episode' && newQuality === '2160p') {
+      return new Response(JSON.stringify({
+        error: '2160p is not allowed for episodes'
+      }), {
+        status: 400,
+        headers: _linkAuthHeaders()
+      });
+    }
+
+    // Resolve the target content_id. If the caller didn't send a new one,
+    // keep pointing at the same content the link already has.
+    let dbContentId = existing.content_id;
+    const isReassigning = content_id !== undefined && content_id !== null && content_id !== '';
+
+    if (isReassigning) {
+      const parsedContentId = parseInt(content_id);
+      if (isNaN(parsedContentId)) {
+        return new Response(JSON.stringify({ error: 'Invalid content_id' }), {
+          status: 400,
+          headers: _linkAuthHeaders()
+        });
+      }
+
+      if (newContentType === 'movie') {
+        const exists = await movieExists(parsedContentId);
+        if (!exists) {
+          const imported = await importMovieFromTMDB(parsedContentId);
+          if (!imported) {
+            return new Response(JSON.stringify({
+              error: 'Movie not in database and failed to import from TMDB. Please try again.'
+            }), {
+              status: 500,
+              headers: _linkAuthHeaders()
+            });
+          }
+        }
+        const movieIdRes = await fetch(`${POSTGREST_URL}/movies?tmdb_id=eq.${parsedContentId}&select=id`, {
+          headers: { 'Accept-Profile': 'public' }
+        });
+        const movieIdData = await movieIdRes.json();
+        if (Array.isArray(movieIdData) && movieIdData.length > 0) {
+          dbContentId = movieIdData[0].id;
+        }
+      } else if (newContentType === 'episode') {
+        let dbEpId = await getDbEpisodeId(parsedContentId);
+        if (!dbEpId) {
+          if (show_id && season_number && episode_number) {
+            dbEpId = await importEpisodeFromTMDB(parsedContentId, show_id, season_number, episode_number);
+          }
+          if (!dbEpId) {
+            return new Response(JSON.stringify({
+              error: `Episode not found in database (TMDB ID: ${parsedContentId}). The TV series may not be imported yet.`
+            }), {
+              status: 404,
+              headers: _linkAuthHeaders()
+            });
+          }
+        }
+        dbContentId = dbEpId;
+      }
+    }
+
+    const contentChanged = dbContentId !== existing.content_id || newContentType !== existing.content_type;
+
+    // Prevent colliding with a DIFFERENT existing link at the same
+    // (content_type, content_id, quality, source) — excludes itself.
+    if (contentChanged || newQuality !== existing.quality) {
+      const duplicateCheck = await fetch(
+        `${POSTGREST_URL}/download_links?content_type=eq.${newContentType}&content_id=eq.${dbContentId}&quality=eq.${newQuality}&source=eq.${existing.source}&id=neq.${linkId}&select=id`,
+        { headers: { 'Accept-Profile': 'public' } }
+      );
+      const collisions = await duplicateCheck.json();
+      if (Array.isArray(collisions) && collisions.length > 0) {
+        return new Response(JSON.stringify({
+          error: `A ${newQuality} link from ${existing.source} already exists for this content. Delete that one first if you want to replace it.`
+        }), {
+          status: 409,
+          headers: _linkAuthHeaders()
+        });
+      }
+    }
+
+    // Build the update payload — ONLY the fields being changed. click_count,
+    // created_at, and is_active are deliberately never included here, so an
+    // edit never resets the analytics this feature exists to preserve.
+    const updatePayload: Record<string, any> = {
+      content_type: newContentType,
+      content_id: dbContentId,
+      quality: newQuality,
+    };
+    // When the caller sends a new telegram_file_id, the URL MUST be rebuilt
+    // from it (same as POST does) -- otherwise the row would end up pointing
+    // at a new file_id while the stored url still serves the OLD file.
+    if (telegram_file_id !== undefined && telegram_file_id !== null && telegram_file_id !== '') {
+      if (!/^[A-Za-z0-9_-]+$/.test(String(telegram_file_id))) {
+        return new Response(JSON.stringify({ error: 'Invalid telegram_file_id format' }), {
+          status: 400,
+          headers: _linkAuthHeaders()
+        });
+      }
+      updatePayload.telegram_file_id = String(telegram_file_id);
+      updatePayload.url = existing.source === 'telegram' ? `${TGSTREAM_BASE}/${telegram_file_id}` : (url || existing.url);
+    } else if (url) {
+      updatePayload.url = url;
+    }
+    if (file_size) updatePayload.file_size = file_size;
+
+    const updateRes = await fetch(`${POSTGREST_URL}/download_links?id=eq.${linkId}`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept-Profile': 'public',
+        'Prefer': 'return=representation'
+      },
+      body: JSON.stringify(updatePayload)
+    });
+
+    if (!updateRes.ok) {
+      return new Response(JSON.stringify({ error: 'Failed to update link' }), {
+        status: 500,
+        headers: _linkAuthHeaders()
+      });
+    }
+
+    const updated = await updateRes.json();
+
+    // Keep has_downloads flags correct on both ends of a reassignment.
+    if (contentChanged) {
+      const setFlag = async (type: string, cid: number, value: boolean) => {
+        const table = type === 'movie' ? 'movies' : 'episodes';
+        await fetch(`${POSTGREST_URL}/${table}?id=eq.${cid}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json', 'Accept-Profile': 'public' },
+          body: JSON.stringify({ has_downloads: value })
+        });
+      };
+
+      await setFlag(newContentType, dbContentId, true);
+
+      // Did the OLD content lose its last link?
+      const remainingRes = await fetch(
+        `${POSTGREST_URL}/download_links?content_type=eq.${existing.content_type}&content_id=eq.${existing.content_id}&select=count`,
+        { headers: { 'Accept-Profile': 'public' } }
+      );
+      const remaining = await remainingRes.json();
+      if ((remaining?.[0]?.count || 0) === 0) {
+        await setFlag(existing.content_type, existing.content_id, false);
+      }
+    }
+
+    return new Response(JSON.stringify({
+      success: true,
+      link: Array.isArray(updated) ? updated[0] : updated
+    }), {
+      headers: _linkAuthHeaders()
+    });
+  } catch (error: any) {
+    return new Response(JSON.stringify({
+      error: 'Failed to update link'
+    }), {
+      status: 500,
+      headers: _linkAuthHeaders()
+    });
+  }
+};
+
 export const DELETE: APIRoute = async ({ request }) => {
   // Auth check
   const authError = requireAuth(request);

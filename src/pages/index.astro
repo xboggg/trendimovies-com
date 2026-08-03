@@ -7,7 +7,8 @@ import Collections from '../components/Collections.svelte';
 import PickYourMood from '../components/PickYourMood.svelte';
 import ContinueWatching from '../components/ContinueWatching.svelte';
 import TrendingNowRow from '../components/TrendingNowRow.svelte';
-import { getTrendingMovies, getNowPlayingMovies, getPopularMovies, getTopRatedMovies, getTrendingTV, getPopularTV, getOnTheAirTV, discoverMovies, getMovieDetails, getMovieGenres, getTVDetails, searchMovies } from '../lib/tmdb';
+import { getTrendingMovies, getNowPlayingMovies, getPopularMovies, getTopRatedMovies, getTrendingTV, getPopularTV, getOnTheAirTV, discoverMovies, getMovieDetails, getMovieGenres, getTVDetails, searchMovies, fetchFromTMDB } from '../lib/tmdb';
+import { getCache as _getCache, setCache as _setCache } from '../lib/cache';
 import topMoviesData from '../data/top_movies_by_year.json';
 
 const POSTGREST_URL = import.meta.env.PUBLIC_SUPABASE_URL || 'http://localhost:3001';
@@ -90,9 +91,16 @@ const upcoming = (upcomingData?.results || []).filter((m: any) => m.poster_path 
 // Create a genre map for quick lookup
 const genreMap = new Map(movieGenres.map((g: any) => [g.id, g.name]));
 
-// Fetch detailed info for hero carousel items (top 8 trending)
+// Fetch detailed info for hero carousel items.
+// The hero mixes MOVIES + SERIES: top 8 trending movies + top 4 trending series,
+// interleaved so series appear throughout the rotation (see heroItems below).
 const heroMovieIds = (trending || []).slice(0, 8).map((m: any) => m.id);
 const heroDetailsPromises = heroMovieIds.map((id: number) => getMovieDetails(id).catch(() => null));
+
+// Same for series: pull full TV details (genres / tagline / seasons) for the top trending shows.
+const heroSeriesIds = (trendingTV || []).slice(0, 4).map((t: any) => t.id);
+const heroSeriesDetailsPromises = heroSeriesIds.map((id: number) => getTVDetails(id).catch(() => null));
+const _heroSeriesDetailsP = Promise.all(heroSeriesDetailsPromises);
 
 // PERF: kick off all the independent downstream fetches NOW (in parallel) instead
 // of awaiting each one sequentially further down. They don't depend on each other,
@@ -111,6 +119,7 @@ const _moodGenresP = Promise.all([
 ]);
 
 const heroDetails = await _heroDetailsP;
+const heroSeriesDetails = await _heroSeriesDetailsP;
 
 // Load custom poster/backdrop overrides — any movie whose poster_path or backdrop_path
 // in our DB starts with /images/ overrides TMDB on every section of the homepage.
@@ -199,8 +208,8 @@ function transformDbMovie(m: any) {
   };
 }
 
-// Transform hero items with full details (tagline, runtime, genres)
-const heroItems = (trending || []).slice(0, 8).map((m: any, index: number) => {
+// Transform hero MOVIE items with full details (tagline, runtime, genres)
+const heroMovieItems = (trending || []).slice(0, 8).map((m: any, index: number) => {
   const details = heroDetails[index];
   const ov = applyOverride(m.id, m.poster_path, m.backdrop_path);
   return {
@@ -213,7 +222,6 @@ const heroItems = (trending || []).slice(0, 8).map((m: any, index: number) => {
     vote_count: m.vote_count,
     popularity: m.popularity,
     year: m.release_date ? new Date(m.release_date).getFullYear() : null,
-    release_date: m.release_date || null,
     overview: m.overview,
     type: 'movie' as const,
     // Full details from API
@@ -224,6 +232,48 @@ const heroItems = (trending || []).slice(0, 8).map((m: any, index: number) => {
   };
 });
 
+// Transform hero SERIES items — same shape, but type 'series' so the carousel
+// links to /tv/{id}, shows a "Series" badge, and uses first_air_date for the year.
+const heroSeriesItems = (trendingTV || []).slice(0, 4).map((t: any, index: number) => {
+  const details = heroSeriesDetails[index];
+  const ov = applyOverride(t.id, t.poster_path, t.backdrop_path);
+  return {
+    id: t.id,
+    tmdb_id: t.id,
+    title: t.name,
+    poster_path: ov.poster_path,
+    backdrop_path: ov.backdrop_path,
+    vote_average: t.vote_average,
+    vote_count: t.vote_count,
+    popularity: t.popularity,
+    year: t.first_air_date ? new Date(t.first_air_date).getFullYear() : null,
+    overview: t.overview,
+    type: 'series' as const,
+    // Full details from API
+    tagline: details?.tagline || null,
+    runtime: null,
+    release_date: t.first_air_date || details?.first_air_date || null,
+    genres: details?.genres || (t.genre_ids || []).map((id: number) => ({ id, name: genreMap.get(id) || '' }))
+  };
+});
+
+// Interleave movies + series so shows appear THROUGHOUT the rotation, not clustered
+// at the end. Pattern: 8 movies + 4 series = 12 slides, a series roughly every 3rd slide.
+const heroItems = (() => {
+  const out: any[] = [];
+  let mi = 0, si = 0;
+  // Series slotted every 3rd position: M M S M M S M M S M M S.
+  const pattern = ['m', 'm', 's', 'm', 'm', 's', 'm', 'm', 's', 'm', 'm', 's'];
+  for (const p of pattern) {
+    if (p === 'm' && mi < heroMovieItems.length) out.push(heroMovieItems[mi++]);
+    else if (p === 's' && si < heroSeriesItems.length) out.push(heroSeriesItems[si++]);
+  }
+  // Append any leftovers (in case one list was short) so nothing is dropped.
+  while (mi < heroMovieItems.length) out.push(heroMovieItems[mi++]);
+  while (si < heroSeriesItems.length) out.push(heroSeriesItems[si++]);
+  return out;
+})();
+
 const trendingItems = (trending || []).slice(0, 20).map(transformMovie);
 const featured = heroItems[0] || null;
 const nowPlayingItems = (nowPlaying || []).map(transformMovie);
@@ -233,16 +283,121 @@ const topRatedItems = (topRatedRecent?.results || []).slice(0, 20).map(transform
 // Transform latest additions from database
 const latestAdditionItems = (latestAdditions || []).map(transformDbMovie);
 
-// The "Just Dropped" reel inside FeaturedSection spotlights the first 8 items
-// that have artwork. Build the IDs it will use so the "Latest Additions" row
-// below can SKIP them — no movie appears in both sections.
-const reelSpotlightIds = new Set(
-  latestAdditionItems
-    .filter((m: any) => m.poster_path || m.backdrop_path)
+// "Coming to Digital" reel card. MUST stay consistent with the /digital-releases
+// page, so it reads the SAME scraped dvdsreleasedates data (cache keys dvdsrd-2026-N)
+// — NOT a separate TMDB query (that mismatch showed movies on the card that weren't
+// on the page). Picks the SOONEST strictly-upcoming titles; posters/tmdbId come from
+// the same TMDB lookup the page uses (shared dvdsrd-lk2 cache).
+const _dToday = new Date();
+const _midnight = new Date(_dToday); _midnight.setHours(0, 0, 0, 0);
+const _todayISO = _midnight.toISOString().slice(0, 10);
+let digitalReleaseItems: any[] = [];
+try {
+  // The dvdsrd cache (6h TTL) is normally populated by the /digital-releases page.
+  // But if it has EXPIRED and nobody visited that page, this reel would go blank and
+  // the homepage falls back to "Just Dropped". So scrape-on-miss here too — same
+  // regexes + cache keys as the page, so both stay identical & the reel never empties.
+  const _SRC = 'https://www.dvdsreleasedates.com';
+  const _MONTH_NAMES = ['january','february','march','april','may','june','july','august','september','october','november','december'];
+  const _DATE_RE = /class=["']reldate[^>]*>(?:<a[^>]*><\/a>)?([A-Za-z]+day\s+[A-Za-z]+\s+\d{1,2},\s*\d{4})/g;
+  const _MOVIE_RE = /href=['"]\/movies\/(\d+)\/([^'"]+)['"]><img[^>]*alt=['"]([^'"]+?)\s+DVD Release Date['"][^>]*src=['"]([^'"]+)['"]/g;
+  async function _getOrScrapeMonth(mNum: number): Promise<any[]> {
+    const cacheKey = `dvdsrd-2026-${mNum}`;
+    const cached = _getCache<any[]>(cacheKey, {});
+    if (cached) return cached;
+    let html = '';
+    try {
+      const url = `${_SRC}/digital-releases/2026/${mNum}/digital-hd-releases-${_MONTH_NAMES[mNum - 1]}-2026`;
+      const r = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120' } });
+      if (r.ok) html = await r.text();
+    } catch (e) { html = ''; }
+    const marks: { date: string; idx: number }[] = [];
+    let m: RegExpExecArray | null; _DATE_RE.lastIndex = 0;
+    while ((m = _DATE_RE.exec(html))) marks.push({ date: m[1], idx: m.index });
+    const groups: any[] = [];
+    for (let i = 0; i < marks.length; i++) {
+      const chunk = html.slice(marks[i].idx, i + 1 < marks.length ? marks[i + 1].idx : html.length);
+      const movies: any[] = []; let mm: RegExpExecArray | null; _MOVIE_RE.lastIndex = 0;
+      while ((mm = _MOVIE_RE.exec(chunk))) {
+        movies.push({ id: mm[1], slug: mm[2], title: mm[3].replace(/&amp;/g, '&').replace(/&#039;/g, "'").trim() });
+      }
+      if (!movies.length) continue;
+      const d = new Date(marks[i].date);
+      groups.push({ date: marks[i].date, iso: isNaN(+d) ? null : d.toISOString().slice(0, 10), movies });
+    }
+    // Only cache a non-empty scrape, so a transient fetch failure doesn't poison the
+    // cache with an empty month for the full TTL.
+    if (groups.length) _setCache(cacheKey, {}, groups);
+    return groups;
+  }
+  // Same TMDB poster+id lookup as the page (reuses dvdsrd-lk2-* cache → identical results).
+  async function dvdsrdLookup(title: string, year: number): Promise<{ poster: string | null; tmdbId: number | null }> {
+    const key = `dvdsrd-lk2-${title}-${year}`.toLowerCase();
+    const cached = _getCache<{ poster: string | null; tmdbId: number | null }>(key, {});
+    if (cached) return cached;
+    let poster: string | null = null, tmdbId: number | null = null;
+    try {
+      let hit: any = null;
+      const r: any = await fetchFromTMDB('/search/movie', { query: title, year: String(year), include_adult: 'false' });
+      hit = (r.results || [])[0];
+      if (!hit) { const r2: any = await fetchFromTMDB('/search/movie', { query: title, include_adult: 'false' }); hit = (r2.results || [])[0]; }
+      if (hit) { tmdbId = hit.id ?? null; if (hit.poster_path) poster = `https://image.tmdb.org/t/p/w342${hit.poster_path}`; }
+    } catch (e) { /* nulls */ }
+    const out = { poster, tmdbId };
+    _setCache(key, {}, out);
+    return out;
+  }
+
+  // Read scraped months from the current month forward (same cache the page wrote).
+  const _monthsAhead = [0, 1, 2, 3]; // current + next 3 months is plenty for an 8-slot reel
+  const _curMonth = _midnight.getMonth(); // 0-based
+  const _flat: { title: string; iso: string; days: number }[] = [];
+  for (const off of _monthsAhead) {
+    const mNum = _curMonth + off + 1; // cache key uses 1-based month of the SAME year (2026)
+    if (mNum > 12) break;
+    const groups = await _getOrScrapeMonth(mNum); // read cache, or scrape+cache on miss
+    if (!groups || !groups.length) continue;
+    for (const g of groups) {
+      if (!g.iso || g.iso <= _todayISO) continue; // strictly upcoming only
+      const days = Math.ceil((new Date(g.iso + 'T00:00:00').getTime() - _midnight.getTime()) / 86400000);
+      for (const mv of (g.movies || [])) {
+        if (mv && mv.title) _flat.push({ title: mv.title, iso: g.iso, days });
+      }
+    }
+  }
+  // Soonest first; resolve poster+tmdbId for the first 12, keep 8 that have a poster.
+  _flat.sort((a, b) => a.days - b.days);
+  const picked = _flat.slice(0, 14);
+  const resolved = await Promise.all(picked.map(async (it) => {
+    const lk = await dvdsrdLookup(it.title, Number(it.iso.slice(0, 4)));
+    return { ...it, poster: lk.poster, tmdbId: lk.tmdbId };
+  }));
+  digitalReleaseItems = resolved
+    .filter((it) => it.poster) // only show ones we have a (CSP-allowed TMDB) poster for
     .slice(0, 8)
-    .map((m: any) => m.id)
-);
-const latestAdditionsRowItems = latestAdditionItems.filter((m: any) => !reelSpotlightIds.has(m.id));
+    .map((it) => {
+      const label = it.days === 1 ? 'Digital tomorrow' : `Digital in ${it.days} days`;
+      return {
+        id: it.tmdbId || 0, tmdb_id: it.tmdbId || 0, title: it.title,
+        poster_path: it.poster ? it.poster.replace('https://image.tmdb.org/t/p/w342', '') : null,
+        backdrop_path: null,
+        vote_average: 0,
+        year: Number(it.iso.slice(0, 4)),
+        digital_label: label, days_until: it.days, type: 'movie' as const,
+      };
+    });
+} catch (e) { digitalReleaseItems = []; }
+
+// All latest additions go into the "Newly Added Movies" row below -- EXCEPT when
+// the Digital Releases reel above (FeaturedSection) has come up empty and fallen
+// back to spotlighting these same latest additions under a "Just Dropped" label.
+// In that fallback case, skip the titles the reel is already showing so the row
+// beneath it doesn't repeat them (restores a dedupe fix that was dropped in an
+// earlier sync; see FeaturedSection.svelte's reelIsDigital/reelSource fallback).
+const _reelFallbackIds = digitalReleaseItems.length === 0
+  ? new Set(latestAdditionItems.filter((m: any) => m.poster_path || m.backdrop_path).slice(0, 8).map((m: any) => m.id))
+  : new Set();
+const latestAdditionsRowItems = latestAdditionItems.filter((m: any) => !_reelFallbackIds.has(m.id));
 
 // "Trending Now" — real most-viewed movies (rpc/top_viewed_movies). The RPC's
 // poster_path/year can be stale (e.g. dead .webp posters, wrong year), so we
@@ -490,6 +645,33 @@ const boxOfficeWithPosters = await Promise.all(boxOfficeData.map(async (entry) =
   } catch (e) {}
   return entry;
 }));
+
+// Attach reviewSlug to box-office + digital items that have a PUBLISHED review.
+try {
+  const POSTGREST_RV = import.meta.env.PUBLIC_SUPABASE_URL || 'http://localhost:3001';
+  const rvIds = [...new Set([
+    ...boxOfficeWithPosters.map((e: any) => e.tmdb_id).filter(Boolean),
+    ...digitalReleaseItems.map((e: any) => e.tmdb_id).filter(Boolean),
+  ])];
+  if (rvIds.length) {
+    const rvRes = await fetch(`${POSTGREST_RV}/movie_reviews?status=eq.published&tmdb_id=in.(${rvIds.join(',')})&select=tmdb_id,slug`);
+    if (rvRes.ok) {
+      const rvRows = await rvRes.json();
+      const bySlug = new Map<number, string>();
+      for (const r of rvRows) bySlug.set(Number(r.tmdb_id), r.slug);
+      for (const e of boxOfficeWithPosters) if (e.tmdb_id && bySlug.has(Number(e.tmdb_id))) (e as any).reviewSlug = bySlug.get(Number(e.tmdb_id));
+      for (const e of digitalReleaseItems) if (e.tmdb_id && bySlug.has(Number(e.tmdb_id))) (e as any).reviewSlug = bySlug.get(Number(e.tmdb_id));
+    }
+  }
+} catch (e) { /* reviews are optional enrichment */ }
+
+// Latest published reviews for the homepage Reviews tab.
+let latestReviews: any[] = [];
+try {
+  const POSTGREST_RV2 = import.meta.env.PUBLIC_SUPABASE_URL || 'http://localhost:3001';
+  const rr = await fetch(`${POSTGREST_RV2}/movie_reviews?status=eq.published&select=slug,title,year,headline,poster_path,rt_score&order=published_at.desc&limit=8`);
+  if (rr.ok) latestReviews = await rr.json();
+} catch (e) { latestReviews = []; }
 ---
 
 <BaseLayout title="Watch Movies & TV Series Online Free">
@@ -538,17 +720,19 @@ const boxOfficeWithPosters = await Promise.all(boxOfficeData.map(async (entry) =
         boxOffice={boxOfficeWithPosters}
         comingSoon={upcoming.slice(0, 10).map(transformMovie)}
         latestAdditions={latestAdditionItems}
+        digitalReleases={digitalReleaseItems}
+        reviews={latestReviews}
       />
     </div>
 
-    <!-- Latest Additions (from our database - movies with downloads).
-         Excludes the titles already spotlighted in the "Just Dropped" reel
-         above so nothing appears twice. -->
+    <!-- Newly Added Movies (from our database - movies with downloads).
+         Now the SINGLE latest-additions section (merged from the old
+         "Just Dropped" reel + "More Just Added" row). -->
     {latestAdditionsRowItems.length > 0 && (
       <div class="order-2">
         <ContentRow
           client:load
-          title="More Just Added"
+          title="Newly Added Movies"
           items={latestAdditionsRowItems}
           seeAllLink="/movies/latest"
           autoScroll={false}
@@ -584,7 +768,7 @@ const boxOfficeWithPosters = await Promise.all(boxOfficeData.map(async (entry) =
       client:visible
       title="Popular Movies"
       items={popularItems}
-      seeAllLink="/movies"
+      seeAllLink="/movies/popular"
     />
   )}
 
@@ -667,24 +851,31 @@ const boxOfficeWithPosters = await Promise.all(boxOfficeData.map(async (entry) =
         </div>
         <a href="/guides" class="text-sm font-medium text-purple-400 hover:text-purple-300 transition-colors">See All →</a>
       </div>
-      <p class="text-sm mb-4 -mt-2" style="color: var(--text-muted);">Hand-picked lists for every mood and era.</p>
-      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-        {movieGuides.map((g: any) => (
-          <a href={`/guides/${g.slug}`} class="mg-card group relative block rounded-2xl overflow-hidden">
-            <div class="mg-stack">
-              {(g.posters || []).map((p: string, i: number) => (
-                <img src={p && p.startsWith('/images/') ? p : `https://image.tmdb.org/t/p/w342${p}`} alt="" loading="lazy" class={`mg-p mg-p-${i}`} />
-              ))}
-            </div>
-            <div class="mg-grad"></div>
-            <div class="mg-accent" style={`background: linear-gradient(90deg, ${g.color}, ${g.color}55);`}></div>
-            <div class="relative z-10 p-5 h-full flex flex-col justify-end">
-              <span class="text-3xl mb-1 drop-shadow-lg">{g.emoji}</span>
-              <h3 class="font-black text-lg leading-tight text-white drop-shadow-md">{g.title}</h3>
-              <span class="inline-block mt-2 text-xs font-bold text-white">View list →</span>
-            </div>
-          </a>
-        ))}
+      <p class="text-sm mb-6 -mt-2" style="color: var(--text-muted);">Hand-picked lists for every mood and era.</p>
+      <div class="vinyl-grid">
+        <div class="vinyl-track">
+          {movieGuides.map((g: any) => (
+            <a href={`/guides/${g.slug}`} class="vinyl-card group" style={`--c: ${g.color};`}>
+              <div class="vinyl-disc">
+                <img src={g.posters?.[0] && g.posters[0].startsWith('/images/') ? g.posters[0] : `https://image.tmdb.org/t/p/w342${g.posters?.[0]}`} alt="" loading="lazy" class="vinyl-label" />
+                <div class="vinyl-sheen"></div>
+                <div class="vinyl-hole"></div>
+              </div>
+              <p class="vinyl-name"><span class="vinyl-emoji">{g.emoji}</span> {g.title}</p>
+            </a>
+          ))}
+          {/* duplicate set so the mobile auto-slide loops seamlessly (hidden from screen readers) */}
+          {movieGuides.map((g: any) => (
+            <a href={`/guides/${g.slug}`} class="vinyl-card group vinyl-dupe" style={`--c: ${g.color};`} aria-hidden="true" tabindex="-1">
+              <div class="vinyl-disc">
+                <img src={g.posters?.[0] && g.posters[0].startsWith('/images/') ? g.posters[0] : `https://image.tmdb.org/t/p/w342${g.posters?.[0]}`} alt="" loading="lazy" class="vinyl-label" />
+                <div class="vinyl-sheen"></div>
+                <div class="vinyl-hole"></div>
+              </div>
+              <p class="vinyl-name"><span class="vinyl-emoji">{g.emoji}</span> {g.title}</p>
+            </a>
+          ))}
+        </div>
       </div>
     </section>
   )}
@@ -692,23 +883,79 @@ const boxOfficeWithPosters = await Promise.all(boxOfficeData.map(async (entry) =
 </BaseLayout>
 
 <style>
-  /* Movie Guides cinematic collage cards */
-  .mg-card {
-    aspect-ratio: 16 / 10;
-    background: #14141c;
-    border: 1px solid var(--border);
-    transition: transform 0.35s ease, box-shadow 0.35s ease;
+  /* Movie Guides — auto-spinning vinyl/film-reel discs */
+  /* Tablet/desktop: a normal multi-column grid. The .vinyl-track is transparent
+     to layout (display:contents) and the duplicate set is hidden. */
+  .vinyl-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 24px 16px;
+    justify-items: center;
   }
-  .mg-card:hover { transform: translateY(-6px); box-shadow: 0 24px 50px -16px rgba(0,0,0,0.7); }
-  .mg-accent { position: absolute; top: 0; left: 0; right: 0; height: 4px; z-index: 11; }
-  .mg-grad { position: absolute; inset: 0; z-index: 5; background: linear-gradient(0deg, rgba(10,10,15,0.97) 0%, rgba(10,10,15,0.7) 45%, rgba(10,10,15,0.4) 100%); }
-  .mg-stack { position: absolute; inset: 0; z-index: 1; overflow: hidden; }
-  .mg-p { position: absolute; top: -8%; height: 150%; width: auto; border-radius: 8px; object-fit: cover; box-shadow: 0 8px 20px rgba(0,0,0,0.5); transition: transform 0.4s ease; }
-  .mg-p-0 { right: 6%;  transform: rotate(6deg);  z-index: 4; }
-  .mg-p-1 { right: 26%; transform: rotate(-3deg); z-index: 3; opacity: 0.95; }
-  .mg-p-2 { right: 46%; transform: rotate(4deg);  z-index: 2; opacity: 0.85; }
-  .mg-p-3 { right: 64%; transform: rotate(-5deg); z-index: 1; opacity: 0.7; }
-  .mg-card:hover .mg-p-0 { transform: rotate(3deg) scale(1.05); }
-  .mg-card:hover .mg-p-1 { transform: rotate(-1deg) scale(1.03); }
-  @media (prefers-reduced-motion: reduce) { .mg-card, .mg-p { transition: none; } }
+  @media (min-width: 1024px) { .vinyl-grid { grid-template-columns: repeat(6, 1fr); } }
+  .vinyl-track { display: contents; }
+
+  .vinyl-card { display: flex; flex-direction: column; align-items: center; width: 100%; max-width: 170px; text-decoration: none; }
+  .vinyl-card.vinyl-dupe { display: none; }   /* desktop/tablet: only the real set (beats .vinyl-card) */
+
+  /* Mobile (< 640px): manual finger-swipe carousel (no auto-slide). Discs still spin. */
+  @media (max-width: 639px) {
+    .vinyl-grid {
+      display: block;
+      overflow-x: auto;                 /* swipe horizontally with your finger */
+      overflow-y: hidden;
+      -webkit-overflow-scrolling: touch;
+      scroll-snap-type: x proximity;
+      scrollbar-width: none;            /* hide scrollbar (Firefox) */
+      -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 5%, #000 95%, transparent 100%);
+              mask-image: linear-gradient(90deg, transparent 0, #000 5%, #000 95%, transparent 100%);
+    }
+    .vinyl-grid::-webkit-scrollbar { display: none; }   /* hide scrollbar (WebKit) */
+    .vinyl-track {
+      display: flex;
+      width: max-content;
+      gap: 22px;
+      padding: 0 4px 4px;
+    }
+    .vinyl-card.vinyl-dupe { display: none; }   /* manual scroll → no duplicate set needed */
+    .vinyl-card { width: 132px; max-width: 132px; flex: 0 0 auto; scroll-snap-align: center; }
+  }
+
+  .vinyl-disc {
+    position: relative; width: 100%; aspect-ratio: 1; border-radius: 50%; overflow: hidden;
+    background: radial-gradient(circle at 50% 50%, #1a1a1a 0 30%, #0a0a0a 30%);
+    box-shadow: 0 10px 28px rgba(0,0,0,0.55), inset 0 0 0 7px #111, inset 0 0 0 8px var(--c);
+    /* concentric vinyl grooves */
+    background-image:
+      repeating-radial-gradient(circle at 50% 50%, rgba(255,255,255,0.04) 0 1px, transparent 1px 4px);
+    animation: vinyl-spin 14s linear infinite;     /* AUTO-SPIN — no hover needed */
+    will-change: transform;
+  }
+  .vinyl-card:hover .vinyl-disc { animation-duration: 4s; }   /* desktop bonus: spin faster on hover */
+
+  .vinyl-label {
+    position: absolute; top: 28%; left: 28%; width: 44%; height: 44%;
+    object-fit: cover; border-radius: 50%; box-shadow: 0 0 0 2px rgba(255,255,255,0.15);
+  }
+  .vinyl-sheen {
+    position: absolute; inset: 0; border-radius: 50%; pointer-events: none;
+    background: linear-gradient(125deg, rgba(255,255,255,0.18) 0 18%, transparent 38% 62%, rgba(255,255,255,0.08) 82% 100%);
+  }
+  .vinyl-hole {
+    position: absolute; top: 47%; left: 47%; width: 6%; height: 6%; border-radius: 50%;
+    background: #000; box-shadow: 0 0 0 2px #333; z-index: 3;
+  }
+
+  .vinyl-name {
+    margin-top: 12px; font: 700 12px/1.25 system-ui; color: var(--text-primary);
+    text-align: center; max-width: 160px;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+  }
+  .vinyl-card:hover .vinyl-name { color: #fff; }
+  .vinyl-emoji { font-size: 14px; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .vinyl-disc { animation: none; }
+  }
+  @keyframes vinyl-spin { to { transform: rotate(360deg); } }
 </style>

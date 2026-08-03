@@ -1,6 +1,7 @@
 import type { APIRoute } from 'astro';
 import satori from 'satori';
 import { Resvg } from '@resvg/resvg-js';
+import sharp from 'sharp';
 import { readFileSync } from 'fs';
 import { join } from 'path';
 
@@ -223,7 +224,150 @@ function listTemplate(p: {
   };
 }
 
+// ── Digital releases template (poster collage + headline) ──────────────────────
+
+function digitalTemplate(p: {
+  posters: (string | null)[];
+  eyebrow?: string; eyebrowEmoji?: string; accent?: string;
+  headline?: string; subtitle?: string; url?: string;
+}) {
+  const posters = p.posters.filter(Boolean).slice(0, 5) as string[];
+  const accent = p.accent || '#f7d000';
+  const eyebrow = p.eyebrow || 'HOME RELEASE CALENDAR';
+  const eyebrowEmoji = p.eyebrowEmoji || '📀';
+  const headline = p.headline || 'Digital & HD Release Dates 2026';
+  const subtitle = p.subtitle || 'Every movie’s digital drop — month by month, with countdowns';
+  const url = p.url || 'trendimovies.com/digital-releases';
+  // accent as translucent bg/border for the eyebrow pill — derive from the hex so
+  // ANY accent colour works (gold, purple, red, green…), not just two hardcoded ones.
+  const _hex = (accent || '#f7d000').replace('#', '');
+  const _r = parseInt(_hex.slice(0, 2) || 'f7', 16);
+  const _g = parseInt(_hex.slice(2, 4) || 'd0', 16);
+  const _b = parseInt(_hex.slice(4, 6) || '00', 16);
+  const accentBg = `rgba(${_r},${_g},${_b},0.16)`;
+  const accentBorder = `rgba(${_r},${_g},${_b},0.45)`;
+
+  // Poster strip across the full canvas as the visual backdrop.
+  const posterStrip = {
+    type: 'div', props: {
+      style: row({ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%' }),
+      children: posters.length
+        ? posters.map((src) => ({
+            type: 'img', props: { src, style: { width: `${100 / posters.length}%`, height: '100%', objectFit: 'cover' } },
+          }))
+        : [{ type: 'div', props: { style: { width: '100%', height: '100%', background: '#16161f' } } }],
+    },
+  };
+
+  return {
+    type: 'div', props: {
+      style: { display: 'flex', width: '1200px', height: '630px', fontFamily: 'Roboto', background: '#0a0a0f', position: 'relative', overflow: 'hidden' },
+      children: [
+        posterStrip,
+        // Dark gradient bottom→top so the headline stays readable over the posters.
+        { type: 'div', props: { style: { position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', background: 'linear-gradient(0deg, rgba(10,10,15,0.97) 18%, rgba(10,10,15,0.55) 55%, rgba(10,10,15,0.35) 100%)' } } },
+        // Accent bar at the top.
+        { type: 'div', props: { style: { position: 'absolute', top: 0, left: 0, width: '100%', height: '6px', background: `linear-gradient(90deg,${accent},${accent}99)` } } },
+        // Content (anchored bottom-left)
+        {
+          type: 'div', props: {
+            style: col({ position: 'relative', justifyContent: 'flex-end', width: '100%', height: '100%', padding: '0 64px 56px 64px' }),
+            children: [
+              // Eyebrow pill
+              {
+                type: 'div', props: {
+                  style: row({ alignItems: 'center', gap: '8px', padding: '6px 16px', borderRadius: '24px', background: accentBg, border: `1px solid ${accentBorder}`, marginBottom: '16px' }),
+                  children: [txt(eyebrowEmoji, { fontSize: '20px' }), txt(eyebrow, { fontSize: '16px', fontWeight: 700, color: accent })],
+                },
+              },
+              // Headline
+              { type: 'div', props: { style: row({ maxWidth: '1010px' }), children: [txt(headline, { fontSize: '62px', fontWeight: 700, color: '#fff', lineHeight: '1.05' })] } },
+              // Subtitle
+              { type: 'div', props: { style: row({ marginTop: '14px', maxWidth: '920px' }), children: [txt(subtitle, { fontSize: '25px', color: '#d1d5db' })] } },
+              // Branding row
+              {
+                type: 'div', props: {
+                  style: row({ alignItems: 'center', gap: '12px', marginTop: '26px' }),
+                  children: [
+                    txt('👑', { fontSize: '24px' }),
+                    txt('TrendiMovies', { fontSize: '24px', fontWeight: 700, color: '#fff' }),
+                    txt(url, { fontSize: '18px', color: '#9ca3af', marginLeft: '12px' }),
+                  ],
+                },
+              },
+            ],
+          },
+        },
+      ],
+    },
+  };
+}
+
 // ── Default template ──────────────────────────────────────────────────────────
+
+function reviewTemplate(p: {
+  headline: string; movieTitle: string; poster: string | null; backdrop: string | null;
+  accent: string; rt?: string; box?: string; genre?: string; year?: string;
+}) {
+  const accent = p.accent || '#dc2626';
+  return {
+    type: 'div',
+    props: {
+      style: { width: '1200px', height: '630px', display: 'flex', position: 'relative',
+        background: '#0a0a0c', fontFamily: 'Roboto', overflow: 'hidden' },
+      children: [
+        // ambient blurred backdrop glow
+        p.backdrop ? { type: 'img', props: { src: p.backdrop, style: {
+          position: 'absolute', top: '-80px', left: '-80px', width: '1360px', height: '520px',
+          objectFit: 'cover', filter: 'blur(60px) brightness(0.5) saturate(1.4)', opacity: 0.55 } } } : null,
+        { type: 'div', props: { style: { position: 'absolute', inset: '0', display: 'flex',
+          background: `radial-gradient(1200px 560px at 78% -8%, ${accent}44, transparent 60%)` } } },
+        { type: 'div', props: { style: { position: 'absolute', inset: '0', display: 'flex',
+          background: 'linear-gradient(180deg, rgba(10,10,12,0.35), #0a0a0c 78%)' } } },
+        // content row
+        { type: 'div', props: { style: { position: 'relative', display: 'flex', width: '100%',
+          height: '100%', padding: '54px 60px', alignItems: 'center', gap: '48px' },
+          children: [
+            // poster
+            p.poster ? { type: 'div', props: { style: { display: 'flex', flexShrink: 0,
+              borderRadius: '20px', overflow: 'hidden',
+              boxShadow: `0 30px 70px rgba(0,0,0,0.6), 0 0 0 1px ${accent}55` },
+              children: [ { type: 'img', props: { src: p.poster, style: { width: '350px', height: '522px', objectFit: 'cover' } } } ] } } : null,
+            // text
+            { type: 'div', props: { style: { display: 'flex', flexDirection: 'column', flex: 1 },
+              children: [
+                { type: 'div', props: { style: { display: 'flex', alignItems: 'center', gap: '12px',
+                  color: accent, fontSize: '22px', fontWeight: 800, letterSpacing: '3px', marginBottom: '20px' },
+                  children: [
+                    { type: 'div', props: { style: { display: 'flex', width: '12px', height: '12px', borderRadius: '50%', background: accent } } },
+                    { type: 'div', props: { style: { display: 'flex' }, children: ['TRENDIMOVIES REVIEW'] } },
+                  ] } },
+                { type: 'div', props: { style: { display: 'flex', color: '#ffffff', fontSize: '64px',
+                  fontWeight: 800, lineHeight: 1.02, letterSpacing: '-2px', marginBottom: '22px' },
+                  children: [p.headline] } },
+                { type: 'div', props: { style: { display: 'flex', gap: '16px', marginBottom: '30px' },
+                  children: [
+                    p.rt ? { type: 'div', props: { style: { display: 'flex', flexDirection: 'column', alignItems: 'center',
+                      background: 'rgba(34,197,94,0.12)', border: '2px solid #22c55e', borderRadius: '16px', padding: '14px 22px' },
+                      children: [
+                        { type: 'div', props: { style: { display: 'flex', color: '#22c55e', fontSize: '34px', fontWeight: 800 }, children: [p.rt] } },
+                        { type: 'div', props: { style: { display: 'flex', color: '#9ca3af', fontSize: '14px', letterSpacing: '1px' }, children: ['ROTTEN TOMATOES'] } },
+                      ] } } : null,
+                    p.box ? { type: 'div', props: { style: { display: 'flex', flexDirection: 'column', alignItems: 'center',
+                      background: 'rgba(245,158,11,0.12)', border: '2px solid #f59e0b', borderRadius: '16px', padding: '14px 22px' },
+                      children: [
+                        { type: 'div', props: { style: { display: 'flex', color: '#f59e0b', fontSize: '34px', fontWeight: 800 }, children: [p.box] } },
+                        { type: 'div', props: { style: { display: 'flex', color: '#9ca3af', fontSize: '14px', letterSpacing: '1px' }, children: ['BOX OFFICE'] } },
+                      ] } } : null,
+                  ] } },
+                { type: 'div', props: { style: { display: 'flex', color: '#c3c0cc', fontSize: '24px', fontWeight: 500 },
+                  children: [`${p.movieTitle}${p.year ? ' (' + p.year + ')' : ''}${p.genre ? '  ·  ' + p.genre : ''}`] } },
+              ] } },
+          ] } },
+      ].filter(Boolean),
+    },
+  };
+}
 
 function defaultTemplate() {
   return {
@@ -271,6 +415,13 @@ export const GET: APIRoute = async ({ url }) => {
   const emoji    = p.get('emoji') || '🎬';
   const label    = p.get('label') || '';
   const titles   = (p.get('titles') || '').split('|').map(t => t.trim()).filter(Boolean);
+  // pipe-separated TMDB poster paths (e.g. /abc.jpg|/def.jpg) for the digital collage
+  const posters  = (p.get('posters') || '').split('|').map(t => t.trim()).filter(Boolean);
+  // optional overrides for the digital/collage template (used by the schedule page)
+  const eyebrow      = p.get('eyebrow') || '';
+  const eyebrowEmoji = p.get('eyebrowEmoji') || '';
+  const headline     = p.get('headline') || '';
+  const ogUrl        = p.get('ogurl') || '';
 
   try {
     const [posterData, backdropData] = await Promise.all([
@@ -285,6 +436,54 @@ export const GET: APIRoute = async ({ url }) => {
       node = eventTemplate({ name, subtitle, date, color, emoji, backdrop: backdropData });
     } else if (type === 'list') {
       node = listTemplate({ label, emoji, titles, color, backdrop: backdropData });
+    } else if (type === 'digital') {
+      // Fetch up to 5 posters in parallel for the collage backdrop. Retry once
+      // (with a longer timeout) so a single slow TMDB fetch doesn't leave the
+      // OG image blank — social platforms cache the first scrape, so a blank one
+      // would stick.
+      const fetchPoster = async (path: string): Promise<string | null> => {
+        let d = await toDataUri(`${TMDB_IMG}/w342${path}`);
+        if (!d) {
+          try {
+            const res = await fetch(`${TMDB_IMG}/w342${path}`, { signal: AbortSignal.timeout(8000) });
+            if (res.ok) {
+              const buf = await res.arrayBuffer();
+              const mime = res.headers.get('content-type') || 'image/jpeg';
+              d = `data:${mime};base64,${Buffer.from(buf).toString('base64')}`;
+            }
+          } catch { /* leave null */ }
+        }
+        return d;
+      };
+      const posterDatas = await Promise.all(posters.slice(0, 5).map(fetchPoster));
+      node = digitalTemplate({
+        posters: posterDatas,
+        eyebrow: eyebrow || undefined,
+        eyebrowEmoji: eyebrowEmoji || undefined,
+        headline: headline || undefined,
+        subtitle: subtitle || undefined,
+        url: ogUrl || undefined,
+        accent: p.get('accent') || undefined,
+      });
+    } else if (type === 'review') {
+      // Fetch the review by slug from PostgREST, then render editorial OG.
+      const PGRST = import.meta.env.PUBLIC_SUPABASE_URL || 'http://localhost:3001';
+      const rslug = p.get('slug') || '';
+      let rv: any = null;
+      try {
+        const r = await fetch(`${PGRST}/movie_reviews?slug=eq.${encodeURIComponent(rslug)}&limit=1`);
+        if (r.ok) { const rows = await r.json(); rv = Array.isArray(rows) && rows.length ? rows[0] : null; }
+      } catch { rv = null; }
+      const rPoster = rv?.poster_path ? await toDataUri(`${TMDB_IMG}/w500${rv.poster_path}`) : null;
+      const rBack = rv?.backdrop_path ? await toDataUri(`${TMDB_IMG}/w780${rv.backdrop_path}`) : null;
+      node = reviewTemplate({
+        headline: rv?.headline || 'Movie Review',
+        movieTitle: rv?.title || '',
+        poster: rPoster, backdrop: rBack,
+        accent: rv?.accent || '#dc2626',
+        rt: rv?.rt_score || undefined, box: rv?.box_office || undefined,
+        genre: rv?.genre || undefined, year: rv?.year ? String(rv.year) : undefined,
+      });
     } else {
       node = defaultTemplate();
     }
@@ -312,6 +511,21 @@ export const GET: APIRoute = async ({ url }) => {
     });
 
     const png = new Resvg(svg, { fitTo: { mode: 'width', value: 1200 } }).render().asPng();
+
+    // WhatsApp won't render OG images over ~600KB and prefers JPEG. The photo-heavy
+    // cards (poster collage / list with backdrop) blow past that as PNG (~0.8–1MB),
+    // so re-encode those to a compact JPEG (well under the cap). The plain gradient
+    // default + the smaller movie/series/event cards keep their original PNG.
+    if (type === 'digital' || type === 'list' || type === 'review') {
+      const jpg = await sharp(png).jpeg({ quality: 78, mozjpeg: true }).toBuffer();
+      return new Response(jpg, {
+        status: 200,
+        headers: {
+          'Content-Type': 'image/jpeg',
+          'Cache-Control': 'public, max-age=86400, s-maxage=86400',
+        },
+      });
+    }
 
     return new Response(png, {
       status: 200,

@@ -3,6 +3,13 @@ import { requireAuth } from '../../../lib/admin-auth';
 
 const POSTGREST_URL = import.meta.env.PUBLIC_SUPABASE_URL || 'http://localhost:3001';
 
+// Below this trigram-similarity score, a title is treated as noise rather
+// than a real match. 0.25 (the site's own public-search threshold) is far
+// too loose for this admin list -- it let unrelated titles like "The Lodge"
+// or "The Shaggy Dog" show up for a query like "the shadows edge". 0.4 still
+// tolerates a missing apostrophe/typo but drops the noise.
+const SEARCH_SIM_THRESHOLD = 0.5;
+
 export const GET: APIRoute = async ({ request, url }) => {
   // Auth check
   const authError = requireAuth(request);
@@ -14,67 +21,109 @@ export const GET: APIRoute = async ({ request, url }) => {
   const contentType = url.searchParams.get('content_type') || '';
   const source = url.searchParams.get('source') || '';
   const year = url.searchParams.get('year') || '';
+  const status = url.searchParams.get('status') || '';
   const offset = (page - 1) * limit;
 
   try {
     let movieContentIds: number[] = [];
     let episodeContentIds: number[] = [];
+    // relevance score per "movie:<id>" / "episode:<id>" key, only populated
+    // when a free-text search actually ran (search_local was used).
+    const relevance = new Map<string, number>();
 
     if (search || year) {
-      const cleanSearch = search.replace(/[%_]/g, '\\$&').replace(/\s+/g, '*');
+      const parsedYearFilter = year ? parseInt(year) : null;
+      const validYear = parsedYearFilter && parsedYearFilter >= 1900 && parsedYearFilter <= 2100 ? parsedYearFilter : null;
+      const isTextSearch = !!search && !/^\d+$/.test(search);
 
-      // Search movies
+      // Search movies. When there is free-text search input, use the same
+      // search_local() RPC the public site search uses -- it matches on
+      // trigram similarity, not just a literal substring, so a query like
+      // "the shadows edge" still finds "The Shadow's Edge" even though the
+      // apostrophe is missing (plain ILIKE would not match that). Results
+      // are pre-sorted best-first by the RPC; we also keep the score so the
+      // final list can be ordered by relevance instead of upload order.
       if (!contentType || contentType === 'movie') {
-        let movieSearchUrl = `${POSTGREST_URL}/movies?select=id,tmdb_id`;
-        if (search) {
-          movieSearchUrl += `&title=ilike.*${cleanSearch}*`;
-        }
-        if (year) {
-          const parsedYear = parseInt(year);
-          if (parsedYear >= 1900 && parsedYear <= 2100) {
-            movieSearchUrl += `&year=eq.${parsedYear}`;
+        if (isTextSearch) {
+          const rpcRes = await fetch(`${POSTGREST_URL}/rpc/search_local`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Accept-Profile': 'public' },
+            body: JSON.stringify({ search_query: search, search_type: 'movie', result_limit: 100 })
+          });
+          const matchingMovies = await rpcRes.json();
+          if (Array.isArray(matchingMovies)) {
+            for (const m of matchingMovies) {
+              if (m.sim < SEARCH_SIM_THRESHOLD) continue;
+              if (validYear !== null && m.year !== validYear) continue;
+              movieContentIds.push(m.id);
+              relevance.set(`movie:${m.id}`, m.sim);
+            }
           }
+        } else if (validYear !== null) {
+          const movieSearchRes = await fetch(
+            `${POSTGREST_URL}/movies?select=id,tmdb_id&year=eq.${validYear}&limit=500`,
+            { headers: { 'Accept-Profile': 'public' } }
+          );
+          const matchingMovies = await movieSearchRes.json();
+          movieContentIds = Array.isArray(matchingMovies) ? matchingMovies.map((m: any) => m.id) : [];
         }
-        movieSearchUrl += '&limit=500';
-
-        const movieSearchRes = await fetch(movieSearchUrl, { headers: { 'Accept-Profile': 'public' } });
-        const matchingMovies = await movieSearchRes.json();
-        movieContentIds = Array.isArray(matchingMovies) ? matchingMovies.map((m: any) => m.id) : [];
       }
 
-      // Search series/episodes
+      // Search series/episodes -- same trigram-based matching as movies above.
       if (!contentType || contentType === 'episode') {
-        let seriesSearchUrl = `${POSTGREST_URL}/series?select=id`;
-        if (search) {
-          seriesSearchUrl += `&title=ilike.*${cleanSearch}*`;
-        }
-        if (year) {
-          const parsedYear = parseInt(year);
-          if (parsedYear >= 1900 && parsedYear <= 2100) {
-            seriesSearchUrl += `&year=eq.${parsedYear}`;
-          }
-        }
-        seriesSearchUrl += '&limit=100';
+        let seriesIds: number[] = [];
+        const seriesRelevance = new Map<number, number>();
 
-        const seriesSearchRes = await fetch(seriesSearchUrl, { headers: { 'Accept-Profile': 'public' } });
-        const matchingSeries = await seriesSearchRes.json();
-        const seriesIds = Array.isArray(matchingSeries) ? matchingSeries.map((s: any) => s.id) : [];
+        if (isTextSearch) {
+          const rpcRes = await fetch(`${POSTGREST_URL}/rpc/search_local`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Accept-Profile': 'public' },
+            body: JSON.stringify({ search_query: search, search_type: 'series', result_limit: 50 })
+          });
+          const matchingSeries = await rpcRes.json();
+          if (Array.isArray(matchingSeries)) {
+            for (const s of matchingSeries) {
+              if (s.sim < SEARCH_SIM_THRESHOLD) continue;
+              if (validYear !== null && s.year !== validYear) continue;
+              seriesIds.push(s.id);
+              seriesRelevance.set(s.id, s.sim);
+            }
+          }
+        } else if (validYear !== null) {
+          const seriesSearchRes = await fetch(
+            `${POSTGREST_URL}/series?select=id&year=eq.${validYear}&limit=100`,
+            { headers: { 'Accept-Profile': 'public' } }
+          );
+          const matchingSeries = await seriesSearchRes.json();
+          seriesIds = Array.isArray(matchingSeries) ? matchingSeries.map((s: any) => s.id) : [];
+        }
 
         if (seriesIds.length > 0) {
           const seasonsRes = await fetch(
-            `${POSTGREST_URL}/seasons?select=id&series_id=in.(${seriesIds.join(',')})`,
+            `${POSTGREST_URL}/seasons?select=id,series_id&series_id=in.(${seriesIds.join(',')})`,
             { headers: { 'Accept-Profile': 'public' } }
           );
           const seasons = await seasonsRes.json();
-          const seasonIds = Array.isArray(seasons) ? seasons.map((s: any) => s.id) : [];
+          const seasonToSeries = new Map<number, number>();
+          if (Array.isArray(seasons)) {
+            seasons.forEach((s: any) => seasonToSeries.set(s.id, s.series_id));
+          }
+          const seasonIds = [...seasonToSeries.keys()];
 
           if (seasonIds.length > 0) {
             const episodesRes = await fetch(
-              `${POSTGREST_URL}/episodes?select=id&season_id=in.(${seasonIds.join(',')})`,
+              `${POSTGREST_URL}/episodes?select=id,season_id&season_id=in.(${seasonIds.join(',')})`,
               { headers: { 'Accept-Profile': 'public' } }
             );
             const episodes = await episodesRes.json();
-            episodeContentIds = Array.isArray(episodes) ? episodes.map((e: any) => e.id) : [];
+            if (Array.isArray(episodes)) {
+              for (const e of episodes) {
+                episodeContentIds.push(e.id);
+                const seriesId = seasonToSeries.get(e.season_id);
+                const sim = seriesId != null ? seriesRelevance.get(seriesId) : undefined;
+                if (sim !== undefined) relevance.set(`episode:${e.id}`, sim);
+              }
+            }
           }
         }
       }
@@ -100,6 +149,8 @@ export const GET: APIRoute = async ({ request, url }) => {
         });
       }
     }
+
+    const usingRelevanceSort = relevance.size > 0;
 
     let queryUrl = `${POSTGREST_URL}/download_links?select=*&order=id.desc`;
     let countUrl = `${POSTGREST_URL}/download_links?select=count`;
@@ -129,19 +180,50 @@ export const GET: APIRoute = async ({ request, url }) => {
       countUrl += `&source=eq.${source}`;
     }
 
-    queryUrl += `&offset=${offset}&limit=${limit}`;
+    if (status === 'active' || status === 'inactive') {
+      const val = status === 'active' ? 'true' : 'false';
+      queryUrl += `&is_active=eq.${val}`;
+      countUrl += `&is_active=eq.${val}`;
+    }
 
-    const [linksRes, countRes] = await Promise.all([
-      fetch(queryUrl, { headers: { 'Accept-Profile': 'public' } }),
-      fetch(countUrl, { headers: { 'Accept-Profile': 'public' } })
-    ]);
+    let links: any[];
+    let total: number;
 
-    let links = await linksRes.json();
-    const countData = await countRes.json();
-    const total = Array.isArray(countData) ? (countData[0]?.count || 0) : 0;
+    if (usingRelevanceSort) {
+      // A free-text search narrowed things down to a specific, ranked set of
+      // titles. Fetch every matching link (the candidate pool is already
+      // small -- capped at 100 movies + 50 series above), sort by the
+      // parent title's relevance score, THEN paginate in memory. Sorting by
+      // id (upload order) here would bury the actual best match anywhere
+      // among however many links its lower-ranked look-alikes have.
+      const allRes = await fetch(`${queryUrl}&limit=5000`, { headers: { 'Accept-Profile': 'public' } });
+      let all = await allRes.json();
+      if (!Array.isArray(all)) all = [];
 
-    if (!Array.isArray(links)) {
-      links = [];
+      all.sort((a: any, b: any) => {
+        const simA = relevance.get(`${a.content_type}:${a.content_id}`) ?? 0;
+        const simB = relevance.get(`${b.content_type}:${b.content_id}`) ?? 0;
+        if (simB !== simA) return simB - simA;
+        return b.id - a.id;
+      });
+
+      total = all.length;
+      links = all.slice(offset, offset + limit);
+    } else {
+      queryUrl += `&offset=${offset}&limit=${limit}`;
+
+      const [linksRes, countRes] = await Promise.all([
+        fetch(queryUrl, { headers: { 'Accept-Profile': 'public' } }),
+        fetch(countUrl, { headers: { 'Accept-Profile': 'public' } })
+      ]);
+
+      links = await linksRes.json();
+      const countData = await countRes.json();
+      total = Array.isArray(countData) ? (countData[0]?.count || 0) : 0;
+
+      if (!Array.isArray(links)) {
+        links = [];
+      }
     }
 
     if (links.length > 0) {
@@ -158,7 +240,7 @@ export const GET: APIRoute = async ({ request, url }) => {
         );
         const movies = await moviesRes.json();
         if (Array.isArray(movies)) {
-          movies.forEach((m: any) => movieMap.set(m.id, { title: m.title, year: m.year }));
+          movies.forEach((m: any) => movieMap.set(m.id, { title: m.title, year: m.year, tmdb_id: m.tmdb_id }));
         }
       }
 
@@ -212,11 +294,30 @@ export const GET: APIRoute = async ({ request, url }) => {
         }
       }
 
+      // Real views: aggregate page_views (/movie/{tmdb_id}) for the movies on this page.
+      const viewsByTmdb = new Map<number, number>();
+      const tmdbIds = [...movieMap.values()].map((m: any) => m.tmdb_id).filter((x: any) => x != null);
+      if (tmdbIds.length > 0) {
+        try {
+          const vres = await fetch(`${POSTGREST_URL}/rpc/movie_views_by_tmdb`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Accept-Profile': 'public' },
+            body: JSON.stringify({ ids: tmdbIds.map((x: any) => String(x)) })
+          });
+          if (vres.ok) {
+            const rows = await vres.json();
+            if (Array.isArray(rows)) rows.forEach((r: any) => viewsByTmdb.set(Number(r.tmdb_id), Number(r.views)));
+          }
+        } catch (e) { /* leave views null on failure */ }
+      }
+
       links = links.map((link: any) => {
         if (link.content_type === 'movie') {
           const movie = movieMap.get(link.content_id);
+          const views = movie && movie.tmdb_id != null ? (viewsByTmdb.get(Number(movie.tmdb_id)) ?? 0) : null;
           return {
             ...link,
+            views,
             content_title: movie ? `${movie.title} (${movie.year})` : `Movie ${link.content_id}`
           };
         } else {
@@ -224,11 +325,13 @@ export const GET: APIRoute = async ({ request, url }) => {
           if (episode) {
             return {
               ...link,
+              views: null,
               content_title: `${episode.series_title} S${String(episode.season_number).padStart(2, '0')}E${String(episode.episode_number).padStart(2, '0')} (${episode.series_year})`
             };
           }
           return {
             ...link,
+            views: null,
             content_title: `Episode ${link.content_id}`
           };
         }

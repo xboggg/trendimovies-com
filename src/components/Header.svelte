@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { Search, Menu, X, Sun, Moon, Film, Tv, ChevronDown, Crown, Send, User } from 'lucide-svelte';
+  import { Search, Menu, X, Sun, Moon, Film, Tv, ChevronDown, Send, User } from 'lucide-svelte';
 
   let isMenuOpen = false;
   let isSearchOpen = false;
@@ -133,7 +133,11 @@
   }
 
   function isDiscoveryActive(): boolean {
-    return currentPath.startsWith('/category/');
+    return currentPath.startsWith('/category/')
+      || currentPath.startsWith('/digital-releases')
+      || currentPath.startsWith('/upcoming')
+      || currentPath.startsWith('/universe')
+      || currentPath.startsWith('/review');
   }
 </script>
 
@@ -146,7 +150,24 @@
       <!-- Premium Logo -->
       <a href="/" class="flex items-center space-x-1 group">
         <div class="relative">
-          <Crown size={24} class="text-amber-400 group-hover:text-amber-300 transition-colors lg:w-7 lg:h-7" />
+          <svg width="30" height="30" viewBox="0 0 60 60" class="lg:w-9 lg:h-9 transition-transform group-hover:scale-105" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+            <defs>
+              <linearGradient id="tmGold" x1="0" y1="0" x2="1" y2="1">
+                <stop offset="0%" stop-color="#fde68a"/><stop offset="45%" stop-color="#fbbf24"/><stop offset="100%" stop-color="#d97706"/>
+              </linearGradient>
+              <radialGradient id="tmReel" cx="42%" cy="38%" r="70%">
+                <stop offset="0%" stop-color="#9f1d1d"/><stop offset="100%" stop-color="#6d1414"/>
+              </radialGradient>
+            </defs>
+            <g transform="translate(30,30)">
+              <circle cx="0" cy="0" r="27" fill="url(#tmReel)"/>
+              <circle cx="0" cy="0" r="27" fill="none" stroke="url(#tmGold)" stroke-width="2.5"/>
+              <g fill="#0b0b0d" opacity="0.55">
+                <circle cx="0" cy="-18" r="3.4"/><circle cx="18" cy="0" r="3.4"/><circle cx="0" cy="18" r="3.4"/><circle cx="-18" cy="0" r="3.4"/>
+              </g>
+              <path d="M-7 -9 L12 0 L-7 9 Z" fill="url(#tmGold)"/>
+            </g>
+          </svg>
         </div>
         <span class="text-xl lg:text-2xl font-black tracking-tight logo-text">Trendi</span>
         <span class="text-xl lg:text-2xl font-black tracking-tight logo-text-dark">Movies</span>
@@ -193,6 +214,19 @@
           </button>
           {#if showDiscoveryDropdown}
             <div class="dropdown-menu w-52">
+              <a href="/digital-releases" class="dropdown-item flex items-center gap-2" style="color:#f7d000;font-weight:600;">
+                <span>📀</span> Digital Releases
+              </a>
+              <a href="/upcoming" class="dropdown-item flex items-center gap-2" style="color:#f7d000;font-weight:600;">
+                <span>🗓️</span> Release Schedule
+              </a>
+              <a href="/universe" class="dropdown-item flex items-center gap-2" style="color:#f7d000;font-weight:600;">
+                <span>🌌</span> Universes
+              </a>
+              <a href="/reviews" class="dropdown-item flex items-center gap-2" style="color:#f7d000;font-weight:600;">
+                <span>⭐</span> Movie Reviews
+              </a>
+              <div class="my-1 border-t" style="border-color: var(--border);"></div>
               <a href="/category/anime" class="dropdown-item">Anime</a>
               <a href="/category/korean-movies" class="dropdown-item">K-Drama Movies</a>
               <a href="/category/korean-series" class="dropdown-item">K-Drama Series</a>
@@ -399,6 +433,22 @@
           <a href="/series" class="mobile-nav-item" class:mobile-nav-active={isActive('/series')}>
             <Tv size={16} />
             <span>Series</span>
+          </a>
+          <a href="/digital-releases" class="mobile-nav-item" class:mobile-nav-active={isActive('/digital-releases')} style="color:#f7d000;">
+            <span>📀</span>
+            <span>Digital Releases</span>
+          </a>
+          <a href="/upcoming" class="mobile-nav-item" class:mobile-nav-active={isActive('/upcoming')} style="color:#f7d000;">
+            <span>🗓️</span>
+            <span>Release Schedule</span>
+          </a>
+          <a href="/universe" class="mobile-nav-item" class:mobile-nav-active={isActive('/universe')} style="color:#f7d000;">
+            <span>🌌</span>
+            <span>Universes</span>
+          </a>
+          <a href="/reviews" class="mobile-nav-item" class:mobile-nav-active={isActive('/reviews')} style="color:#f7d000;">
+            <span>⭐</span>
+            <span>Movie Reviews</span>
           </a>
         </div>
 

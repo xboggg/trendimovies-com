@@ -2,16 +2,39 @@
 """
 Movie Guides — topic curation.
 
-For each topic:
-  - 'ai'     topics: ask Claude for a ranked list of films + a short intro,
-             then resolve each film to a real TMDB movie.
-  - 'filter' topics: query TMDB discover directly.
-Every film is matched against our `movies` table to mark owned (has a slug we
-can link to) vs un-owned. Results are written to movie_topics / movie_topic_items.
+Engines per topic:
+  - 'ai'     : ask Claude for a ranked list of films + intro (knowledge-based;
+               best for "best of / mood / genre" lists). Resolved to TMDB.
+  - 'live'   : pull from TMDB live endpoints (popular / trending / now_playing /
+               top_rated / upcoming) — real CURRENT data, ideal for
+               "popular right now / trending this week" lists.
+  - 'filter' : TMDB discover with explicit filters (decade/genre rules).
 
-Runs on server 144 as root (psql + the API keys live there).
+Every film is matched to a real TMDB movie (poster required). Results go to
+movie_topics / movie_topic_items. Films are auto-linked to our catalogue at
+render time by tmdb_id, so no extra ownership column is needed here.
+
+Modes (CLI):
+  (no args)                 re-curate the built-in TOPICS list (legacy weekly cron)
+  --draft   '<topic json>'  curate ONE topic, print {intro,films} as JSON, DO NOT save
+  --save    '<topic json>'  curate/accept ONE topic and WRITE it (publish)
+  --refresh-live            re-curate only the live/time-sensitive published topics
+                            (weekly cron to keep "right now" lists fresh)
+
+Topic JSON shape (for --draft / --save):
+  {
+    "slug": "...", "title": "...", "category": "best-of",
+    "emoji": "🔥", "color": "#dc2626", "sort_order": 100,
+    "source": "ai" | "live" | "filter",        # optional; auto-detected from title if absent
+    "prompt": "...",                            # for ai (defaults to title)
+    "live_kind": "popular|trending|now_playing|top_rated|upcoming",  # for live (auto)
+    "filter": {...},                            # for filter
+    "films": [ {tmdb_id,title,year,blurb,poster_path,backdrop_path}, ... ]  # for --save edited list
+  }
+
+Runs on server 144 as the postgres user (psql + the API keys live there).
 """
-import os, re, json, sys, time, html
+import os, re, json, sys, time
 import requests
 import psycopg2
 
@@ -32,7 +55,7 @@ CLAUDE_MODEL  = "claude-sonnet-4-6"
 TMDB          = "https://api.themoviedb.org/3"
 DB_DSN        = "dbname=trendimovies user=postgres"
 
-# ── topic definitions (the pilot set) ─────────────────────────────────────────
+# ── built-in topic set (legacy weekly run) ────────────────────────────────────
 TOPICS = [
     # AI-curated mood topics
     {"slug": "movies-that-make-you-cry", "title": "15 Movies That Will Make You Cry",
@@ -61,7 +84,7 @@ TOPICS = [
 ]
 
 # ── helpers ───────────────────────────────────────────────────────────────────
-def call_claude(system, user, max_tokens=2000):
+def call_claude(system, user, max_tokens=2500):
     r = requests.post("https://api.anthropic.com/v1/messages",
         headers={"x-api-key": ANTHROPIC_KEY, "anthropic-version": "2023-06-01", "content-type": "application/json"},
         json={"model": CLAUDE_MODEL, "max_tokens": max_tokens, "system": system,
@@ -82,6 +105,17 @@ def tmdb_discover(params):
             pass
     return out
 
+def tmdb_list(endpoint, pages=2):
+    """Pull a TMDB list endpoint (e.g. movie/popular, trending/movie/week)."""
+    out = []
+    for page in range(1, pages + 1):
+        try:
+            d = requests.get(f"{TMDB}/{endpoint}", params={"api_key": TMDB_KEY, "page": page}, timeout=15).json()
+            out += d.get("results", [])
+        except Exception:
+            pass
+    return out
+
 def tmdb_search(title, year=None):
     p = {"api_key": TMDB_KEY, "query": title}
     if year:
@@ -93,87 +127,233 @@ def tmdb_search(title, year=None):
     except Exception:
         return None
 
-# ── curation ──────────────────────────────────────────────────────────────────
+def _item_from_tmdb(m, blurb=""):
+    return {"tmdb_id": m["id"], "title": m.get("title") or m.get("name"),
+            "year": int((m.get("release_date") or "0")[:4] or 0), "blurb": blurb,
+            "poster_path": m.get("poster_path"), "backdrop_path": m.get("backdrop_path")}
+
+# ── engine auto-detection ─────────────────────────────────────────────────────
+LIVE_HINTS = ("right now", "trending", "this week", "this month", "popular now",
+              "now playing", "in theaters", "in theatres", "currently", "today",
+              "latest", "upcoming", "new releases", "box office")
+
+def detect_engine(topic):
+    if topic.get("source"):
+        return topic["source"]
+    t = (topic.get("title", "") + " " + topic.get("prompt", "")).lower()
+    if any(h in t for h in LIVE_HINTS):
+        return "live"
+    return "ai"
+
+def detect_live_kind(topic):
+    if topic.get("live_kind"):
+        return topic["live_kind"]
+    t = topic.get("title", "").lower()
+    if "trending" in t or "this week" in t or "right now" in t:
+        return "trending"
+    if "now playing" in t or "in theat" in t:
+        return "now_playing"
+    if "upcoming" in t or "coming soon" in t:
+        return "upcoming"
+    if "top rated" in t or "best rated" in t or "highest rated" in t:
+        return "top_rated"
+    return "popular"
+
+# ── curation engines ──────────────────────────────────────────────────────────
 AI_SYSTEM = ("You are a film curator. Return ONLY valid JSON, no prose. "
              "Schema: {\"intro\": \"<2 punchy sentences introducing the list, no markdown>\", "
              "\"films\": [{\"title\": \"<exact movie title>\", \"year\": <release year int>, "
              "\"blurb\": \"<one short sentence on why it belongs>\"}]}. Real, well-known films only.")
 
 def curate_ai(topic):
-    user = f"Make a list of the best {topic['prompt']}. Give 18-20 films, ranked best first."
+    prompt = topic.get("prompt") or topic.get("title")
+    user = f"Make a list of: {prompt}. Give 18-20 real films, ranked best first."
     raw = call_claude(AI_SYSTEM, user, max_tokens=2500)
     m = re.search(r"\{.*\}", raw, re.S)
     data = json.loads(m.group(0)) if m else {"intro": "", "films": []}
-    intro = data.get("intro", "").strip()
-    items = []
+    intro = (data.get("intro") or "").strip()
+    items, seen = [], set()
     for f in data.get("films", []):
         hit = tmdb_search(f.get("title", ""), f.get("year"))
-        if not hit or not hit.get("poster_path"):
+        if not hit or not hit.get("poster_path") or hit["id"] in seen:
             continue
-        items.append({"tmdb_id": hit["id"], "title": hit.get("title") or f.get("title"),
-                      "year": int((hit.get("release_date") or "0")[:4] or 0) or f.get("year"),
-                      "blurb": (f.get("blurb") or "").strip(),
-                      "poster_path": hit.get("poster_path"), "backdrop_path": hit.get("backdrop_path")})
+        seen.add(hit["id"])
+        it = _item_from_tmdb(hit, (f.get("blurb") or "").strip())
+        if not it["title"]:
+            it["title"] = f.get("title")
+        items.append(it)
         time.sleep(0.08)
     return intro, items
 
-def curate_filter(topic):
-    rows = tmdb_discover(topic["filter"])
-    items = []
-    seen = set()
+LIVE_ENDPOINT = {
+    "popular": "movie/popular",
+    "now_playing": "movie/now_playing",
+    "upcoming": "movie/upcoming",
+    "top_rated": "movie/top_rated",
+    "trending": "trending/movie/week",
+}
+
+def curate_live(topic):
+    kind = detect_live_kind(topic)
+    rows = tmdb_list(LIVE_ENDPOINT.get(kind, "movie/popular"))
+    items, seen = [], set()
     for m in rows:
         if not m.get("poster_path") or m["id"] in seen:
             continue
         seen.add(m["id"])
-        items.append({"tmdb_id": m["id"], "title": m.get("title"),
-                      "year": int((m.get("release_date") or "0")[:4] or 0), "blurb": "",
-                      "poster_path": m.get("poster_path"), "backdrop_path": m.get("backdrop_path")})
+        items.append(_item_from_tmdb(m))
         if len(items) >= 20:
             break
-    # short auto-intro
-    intro = ""
+    intro = (topic.get("intro") or "").strip()
     return intro, items
 
+def curate_filter(topic):
+    rows = tmdb_discover(topic["filter"])
+    items, seen = [], set()
+    for m in rows:
+        if not m.get("poster_path") or m["id"] in seen:
+            continue
+        seen.add(m["id"])
+        items.append(_item_from_tmdb(m))
+        if len(items) >= 20:
+            break
+    return (topic.get("intro") or "").strip(), items
+
+def curate(topic):
+    """Dispatch to the right engine. Returns (engine, intro, items)."""
+    engine = detect_engine(topic)
+    if engine == "live":
+        intro, items = curate_live(topic)
+    elif engine == "filter":
+        intro, items = curate_filter(topic)
+    else:
+        engine = "ai"
+        intro, items = curate_ai(topic)
+    return engine, intro, items
+
+# ── slug helper ───────────────────────────────────────────────────────────────
+def slugify(title):
+    s = re.sub(r"[^a-z0-9\s-]", "", (title or "").lower())
+    s = re.sub(r"[\s_]+", "-", s)
+    s = re.sub(r"-+", "-", s).strip("-")
+    return s or "guide"
+
 # ── DB write ──────────────────────────────────────────────────────────────────
-def upsert_topic(cur, topic, intro, items):
+def upsert_topic(cur, topic, engine, intro, items):
     cur.execute("""
-        INSERT INTO movie_topics (slug, title, category, intro, emoji, color, source, sort_order, updated_at)
-        VALUES (%s,%s,%s,%s,%s,%s,%s,%s, now())
+        INSERT INTO movie_topics (slug, title, category, intro, emoji, color, source, is_published, sort_order, updated_at)
+        VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s, now())
         ON CONFLICT (slug) DO UPDATE SET
           title=EXCLUDED.title, category=EXCLUDED.category, intro=EXCLUDED.intro,
           emoji=EXCLUDED.emoji, color=EXCLUDED.color, source=EXCLUDED.source,
           sort_order=EXCLUDED.sort_order, updated_at=now()
         RETURNING id;
-    """, (topic["slug"], topic["title"], topic["category"], intro or None,
-          topic["emoji"], topic["color"], topic["source"], topic["sort_order"]))
+    """, (topic["slug"], topic["title"], topic.get("category") or "best-of", intro or None,
+          topic.get("emoji") or "🎬", topic.get("color") or "#7c3aed", engine,
+          topic.get("is_published", True), topic.get("sort_order") or 100))
     tid = cur.fetchone()[0]
     cur.execute("DELETE FROM movie_topic_items WHERE topic_id=%s", (tid,))
     for pos, it in enumerate(items):
         cur.execute("""INSERT INTO movie_topic_items (topic_id, tmdb_id, title, year, blurb, position, poster_path, backdrop_path)
                        VALUES (%s,%s,%s,%s,%s,%s,%s,%s)""",
-                    (tid, it["tmdb_id"], it["title"], it["year"], it["blurb"] or None, pos,
-                     it.get("poster_path"), it.get("backdrop_path")))
+                    (tid, it["tmdb_id"], it["title"], it.get("year") or None,
+                     (it.get("blurb") or None), pos, it.get("poster_path"), it.get("backdrop_path")))
     return tid, len(items)
 
-def main():
+# ── modes ─────────────────────────────────────────────────────────────────────
+def mode_draft(topic_json):
+    """Curate one topic, print JSON, do NOT save. Used by the admin 'preview' step."""
+    topic = json.loads(topic_json)
+    engine, intro, items = curate(topic)
+    print(json.dumps({"ok": True, "engine": engine, "intro": intro, "films": items}, ensure_ascii=False))
+
+def mode_save(topic_json):
+    """Save a topic. If 'films' provided (edited list), use it as-is; else curate fresh."""
+    topic = json.loads(topic_json)
+    if not topic.get("slug"):
+        topic["slug"] = slugify(topic.get("title"))
+    films = topic.get("films")
+    if films:
+        engine = topic.get("source") or detect_engine(topic)
+        intro = (topic.get("intro") or "").strip()
+        # normalise the edited list to the item shape
+        items = []
+        for f in films:
+            if not f.get("tmdb_id") or not f.get("poster_path"):
+                continue
+            items.append({"tmdb_id": f["tmdb_id"], "title": f.get("title"),
+                          "year": f.get("year"), "blurb": (f.get("blurb") or "").strip(),
+                          "poster_path": f.get("poster_path"), "backdrop_path": f.get("backdrop_path")})
+    else:
+        engine, intro, items = curate(topic)
+    conn = psycopg2.connect(DB_DSN); conn.autocommit = False
+    cur = conn.cursor()
+    try:
+        tid, n = upsert_topic(cur, topic, engine, intro, items)
+        conn.commit()
+        cur.execute("NOTIFY pgrst, 'reload schema'"); conn.commit()
+        print(json.dumps({"ok": True, "id": tid, "slug": topic["slug"], "engine": engine, "count": n}, ensure_ascii=False))
+    except Exception as e:
+        conn.rollback()
+        print(json.dumps({"ok": False, "error": str(e)}, ensure_ascii=False))
+    finally:
+        cur.close(); conn.close()
+
+def mode_refresh_live():
+    """Weekly cron: re-curate every published topic whose source is 'live'."""
+    conn = psycopg2.connect(DB_DSN); conn.autocommit = False
+    cur = conn.cursor()
+    cur.execute("SELECT slug, title, category, emoji, color, source, sort_order FROM movie_topics WHERE source='live' AND is_published=true")
+    rows = cur.fetchall()
+    done = 0
+    for (slug, title, category, emoji, color, source, sort_order) in rows:
+        topic = {"slug": slug, "title": title, "category": category, "emoji": emoji,
+                 "color": color, "source": "live", "sort_order": sort_order}
+        try:
+            engine, intro, items = curate(topic)
+            upsert_topic(cur, topic, "live", intro, items)
+            conn.commit()
+            done += 1
+            print(f"  ✓ refreshed {slug}: {len(items)} films")
+        except Exception as e:
+            conn.rollback()
+            print(f"  ✗ {slug}: {e}")
+    if done:
+        cur.execute("NOTIFY pgrst, 'reload schema'"); conn.commit()
+    cur.close(); conn.close()
+    print(f"refreshed {done} live topics.")
+
+def mode_builtin():
     assert ANTHROPIC_KEY and TMDB_KEY, "missing keys"
-    conn = psycopg2.connect(DB_DSN)
-    conn.autocommit = False
+    conn = psycopg2.connect(DB_DSN); conn.autocommit = False
     cur = conn.cursor()
     for t in TOPICS:
         try:
-            if t["source"] == "ai":
-                intro, items = curate_ai(t)
-            else:
-                intro, items = curate_filter(t)
-            tid, n = upsert_topic(cur, t, intro, items)
+            engine, intro, items = curate(t)
+            tid, n = upsert_topic(cur, t, engine, intro, items)
             conn.commit()
             print(f"  ✓ {t['slug']}: {n} films (id {tid})")
         except Exception as e:
             conn.rollback()
             print(f"  ✗ {t['slug']}: {e}")
+    cur.execute("NOTIFY pgrst, 'reload schema'"); conn.commit()
     cur.close(); conn.close()
     print("done.")
+
+def main():
+    assert TMDB_KEY, "missing TMDB key"
+    args = sys.argv[1:]
+    if not args:
+        mode_builtin()
+    elif args[0] == "--draft" and len(args) > 1:
+        mode_draft(args[1])
+    elif args[0] == "--save" and len(args) > 1:
+        mode_save(args[1])
+    elif args[0] == "--refresh-live":
+        mode_refresh_live()
+    else:
+        print(json.dumps({"ok": False, "error": "usage: --draft <json> | --save <json> | --refresh-live"}))
+        sys.exit(2)
 
 if __name__ == "__main__":
     main()

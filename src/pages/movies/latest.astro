@@ -53,9 +53,9 @@ function transformToItem(movie: any) {
 ---
 
 <BaseLayout
-  title="Latest Additions"
-  description="Recently added movies available for download"
-  image={`/api/og.png?type=list&label=${encodeURIComponent('Just Added')}&emoji=${encodeURIComponent('✨')}&color=%23f7d000&backdrop=${encodeURIComponent(movies.find((m: any) => m.backdrop_path)?.backdrop_path || movies[0]?.poster_path || '')}&titles=${encodeURIComponent(movies.slice(0, 4).map((m: any) => m.title).join('|'))}`}
+  title="Just Added — Latest Movies in HD | TrendiMovies"
+  description="Fresh on TrendiMovies — the newest movies just added and ready to stream or download in HD. Updated daily, so you never miss a new drop."
+  image={`/api/og.png?type=digital&posters=${encodeURIComponent(movies.filter((m: any) => m.poster_path).slice(0, 5).map((m: any) => m.poster_path).join('|'))}&accent=${encodeURIComponent('#f7d000')}&eyebrow=${encodeURIComponent('JUST ADDED')}&eyebrowEmoji=${encodeURIComponent('✨')}&headline=${encodeURIComponent('Just Added to TrendiMovies')}&subtitle=${encodeURIComponent('The newest movies — stream or download in HD, updated daily')}&ogurl=${encodeURIComponent('trendimovies.com/movies/latest')}`}
 >
   <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
     <div class="flex flex-col md:flex-row md:items-center md:justify-between mb-8">

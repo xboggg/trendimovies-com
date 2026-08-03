@@ -37,12 +37,19 @@
     return !Number.isNaN(added) && (Date.now() - added) <= 7 * 86400000;
   }).length;
 
-  // ── "JUST DROPPED" cinematic auto-reel ──────────────────────────────────
-  // Reel uses the freshest additions that have artwork (prefer a backdrop for
-  // the big spotlight). No new data is fetched — reuses `latestAdditions`.
-  $: reelMovies = latestAdditions
+  // ── "COMING TO DIGITAL" cinematic auto-reel ─────────────────────────────
+  // Repurposed (2026-06-26) to promote the Digital Releases page: spotlights
+  // UPCOMING digital/HD releases. Falls back to latestAdditions if no digital
+  // data was passed (so the card never goes blank).
+  export let digitalReleases: Movie[] = [];
+  export let reviews: any[] = [];
+  $: reelSource = (digitalReleases && digitalReleases.length)
+    ? digitalReleases
+    : latestAdditions;
+  $: reelMovies = reelSource
     .filter((m) => m.poster_path || m.backdrop_path)
     .slice(0, 8);
+  $: reelIsDigital = !!(digitalReleases && digitalReleases.length);
   let reelIndex = 0;
   let reelInterval: ReturnType<typeof setInterval>;
   let reelPaused = false;
@@ -76,7 +83,7 @@
   // Keep index valid if the data shrinks.
   $: if (reelIndex >= reelMovies.length && reelMovies.length > 0) reelIndex = 0;
 
-  let activeTab: 'topmovies' | 'boxoffice' | 'franchise' | 'comingsoon' = 'boxoffice';
+  let activeTab: 'topmovies' | 'boxoffice' | 'franchise' | 'comingsoon' | 'reviews' = 'boxoffice';
   let carouselContainer: HTMLDivElement;
   let scrollContainer: HTMLDivElement;
   let comingSoonContainer: HTMLDivElement;
@@ -344,13 +351,18 @@
         <!-- Header -->
         <div class="flex items-start justify-between mb-4">
           <div class="flex items-center gap-3">
-            <span class="text-4xl reel-sparkle">✨</span>
+            <span class="text-4xl reel-sparkle">{reelIsDigital ? '📀' : '✨'}</span>
             <div>
-              <p class="text-xs uppercase tracking-widest font-semibold mb-0.5" style="color: rgba(247,208,0,0.85);">Fresh on TrendiMovies</p>
-              <h2 class="text-xl font-black text-white">Just Dropped</h2>
+              <p class="text-xs uppercase tracking-widest font-semibold mb-0.5" style="color: rgba(247,208,0,0.85);">{reelIsDigital ? 'Home Release Tracker' : 'Fresh on TrendiMovies'}</p>
+              <h2 class="text-xl font-black text-white">{reelIsDigital ? 'Coming to Digital' : 'Just Dropped'}</h2>
             </div>
           </div>
-          {#if newThisWeekCount > 0}
+          {#if reelIsDigital}
+            <div class="text-right reel-counter">
+              <div class="text-3xl font-black leading-none" style="color: #F7D000;">{reelMovies.length}</div>
+              <div class="text-[10px] uppercase tracking-wide font-bold" style="color: #F7D000;">upcoming</div>
+            </div>
+          {:else if newThisWeekCount > 0}
             <div class="text-right reel-counter">
               <div class="text-3xl font-black leading-none" style="color: #F7D000;">{newThisWeekCount}</div>
               <div class="text-[10px] uppercase tracking-wide font-bold" style="color: #F7D000;">New this week</div>
@@ -365,7 +377,7 @@
 
         {#if currentReel}
           <!-- Big rotating spotlight -->
-          <a href={`/movie/${currentReel.id}`} class="block relative rounded-xl overflow-hidden group spotlight" style="aspect-ratio: 16/9;">
+          <a href={reelIsDigital ? '/digital-releases' : `/movie/${currentReel.id}`} class="block relative rounded-xl overflow-hidden group spotlight" style="aspect-ratio: 16/9;">
             {#key reelIndex}
               <img
                 src={getBackdropUrl(currentReel.backdrop_path || currentReel.poster_path)}
@@ -376,10 +388,12 @@
             {/key}
             <div class="absolute inset-0 bg-gradient-to-t from-black via-black/45 to-transparent"></div>
 
-            <!-- NEW / JUST ADDED badge -->
+            <!-- badge -->
             <div class="absolute top-3 left-3 flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[10px] font-extrabold tracking-wider shadow-lg"
                  style="background: linear-gradient(135deg, #F7D000, #f59e0b); color:#000;">
-              {#if isFresh(currentReel)}
+              {#if reelIsDigital}
+                ⏳ COMING SOON
+              {:else if isFresh(currentReel)}
                 <span class="reel-dot"></span> JUST ADDED
               {:else}
                 NEW THIS WEEK
@@ -398,12 +412,18 @@
             <div class="absolute bottom-0 left-0 right-0 p-4">
               <h3 class="text-lg sm:text-xl font-bold text-white leading-tight line-clamp-1">{currentReel.title}</h3>
               <div class="flex items-center gap-2 mt-1">
-                {#if currentReel.year}
-                  <span class="text-[11px] font-semibold text-amber-300">{currentReel.year}</span>
+                {#if reelIsDigital}
+                  <span class="inline-flex items-center gap-1 text-[11px] font-semibold text-amber-300">
+                    📀 {(currentReel as any).digital_label || 'Coming to digital'}
+                  </span>
+                {:else}
+                  {#if currentReel.year}
+                    <span class="text-[11px] font-semibold text-amber-300">{currentReel.year}</span>
+                  {/if}
+                  <span class="inline-flex items-center gap-1 text-[11px] font-medium text-white/90 group-hover:text-amber-300 transition-colors">
+                    <Play size={11} fill="currentColor" /> Watch now
+                  </span>
                 {/if}
-                <span class="inline-flex items-center gap-1 text-[11px] font-medium text-white/90 group-hover:text-amber-300 transition-colors">
-                  <Play size={11} fill="currentColor" /> Watch now
-                </span>
               </div>
             </div>
 
@@ -442,10 +462,10 @@
         {/if}
 
         <!-- CTA -->
-        <a href="/movies/latest" class="cta-row flex items-center justify-between mt-4 group">
-          <p class="text-xs text-gray-500">Latest releases with download links</p>
+        <a href={reelIsDigital ? '/digital-releases' : '/movies/latest'} class="cta-row flex items-center justify-between mt-4 group">
+          <p class="text-xs text-gray-500">{reelIsDigital ? 'Real HD/digital dates · with countdowns' : 'Latest releases with download links'}</p>
           <span class="px-4 py-2 rounded-lg text-sm font-bold text-black transition-all group-hover:scale-105 group-hover:shadow-lg" style="background: linear-gradient(135deg, #F7D000, #f59e0b);">
-            Browse New →
+            {reelIsDigital ? 'See all →' : 'Browse New →'}
           </span>
         </a>
       </div>
@@ -491,6 +511,17 @@
         >
           Release Schedule
         </button>
+        {#if reviews && reviews.length}
+        <button
+          on:click={() => activeTab = 'reviews'}
+          class="px-3 py-1.5 rounded-lg text-xs font-medium transition-all flex items-center gap-1"
+          class:bg-amber-500={activeTab === 'reviews'}
+          class:text-black={activeTab === 'reviews'}
+          style={activeTab !== 'reviews' ? 'color: var(--text-secondary); background-color: var(--bg-hover);' : ''}
+        >
+          ★ Reviews
+        </button>
+        {/if}
       </div>
 
       <!-- Tab Content -->
@@ -619,7 +650,12 @@
                 {/if}
                 <div class="flex-1 min-w-0">
                   <p class="text-sm font-medium truncate" style="color: var(--text-primary);">{entry.title}</p>
-                  <p class="text-xs" style="color: var(--text-muted);">Weekend: {entry.weekend_gross}</p>
+                  <div class="flex items-center gap-2">
+                    <p class="text-xs" style="color: var(--text-muted);">Weekend: {entry.weekend_gross}</p>
+                    {#if entry.reviewSlug}
+                      <span class="text-xs font-semibold" style="color:#f59e0b;">★ Review</span>
+                    {/if}
+                  </div>
                 </div>
                 <div class="text-right">
                   <p class="text-xs font-semibold text-green-500">{entry.total_gross}</p>
@@ -647,6 +683,25 @@
           </div>
           <a href="/franchises" class="block text-center text-sm font-medium text-amber-400 hover:text-amber-300 mt-3 pt-3" style="border-top: 1px solid var(--border);">
             View All Franchises →
+          </a>
+        {:else if activeTab === 'reviews'}
+          <!-- Latest Reviews -->
+          <div class="space-y-1">
+            {#each reviews.slice(0, 5) as rv, i}
+              <a href={`/review/${rv.slug}`} class="flex items-center gap-3 p-2 rounded-lg transition-colors hover:bg-[var(--bg-hover)]">
+                {#if rv.poster_path}
+                  <img src={getPosterUrl(rv.poster_path)} alt={rv.title} class="w-8 h-12 rounded object-cover flex-none" loading="lazy" />
+                {/if}
+                <div class="flex-1 min-w-0">
+                  <p class="text-sm font-semibold truncate" style="color: var(--text-primary);">{rv.headline}</p>
+                  <p class="text-xs truncate" style="color: var(--text-muted);">{rv.title}{rv.year ? ` (${rv.year})` : ''}{rv.rt_score ? `  ·  🍅 ${rv.rt_score}` : ''}</p>
+                </div>
+                <span class="text-xs font-semibold flex-none" style="color:#f59e0b;">Read →</span>
+              </a>
+            {/each}
+          </div>
+          <a href="/reviews" class="block text-center text-sm font-medium text-amber-400 hover:text-amber-300 mt-3 pt-3" style="border-top: 1px solid var(--border);">
+            View All Reviews →
           </a>
         {:else}
           <!-- TOP MOVIES — Hero Poster + Strip Design -->

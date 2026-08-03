@@ -1,0 +1,8 @@
+---
+import AdminLayout from '../../layouts/AdminLayout.astro';
+import AcquirerManager from '../../components/admin/AcquirerManager.svelte';
+---
+
+<AdminLayout title="Acquirer Queue" activeTab="acquirer">
+  <AcquirerManager client:load />
+</AdminLayout>

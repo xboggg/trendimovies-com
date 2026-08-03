@@ -30,9 +30,33 @@ const CATS: Record<string, string> = { mood: 'By Mood', decade: 'By Decade', hid
 const grouped: Record<string, any[]> = {};
 for (const t of topics) (grouped[t.category] ||= []).push(t);
 const catOrder = ['mood', 'decade', 'hidden', 'best-of', ...Object.keys(grouped)].filter((c, i, a) => a.indexOf(c) === i && grouped[c]);
+
+// ── OG share card: cinematic poster collage from the guide topics ──────────
+const _ogSeen = new Set<string>();
+const ogPosters: string[] = [];
+for (const t of topics) {
+  for (const pp of (t.posters || [])) {
+    if (pp && !_ogSeen.has(pp)) { _ogSeen.add(pp); ogPosters.push(pp); }
+    if (ogPosters.length >= 5) break;
+  }
+  if (ogPosters.length >= 5) break;
+}
+// Kept short (under Google's ~155-char SERP snippet cutoff) for the page <meta
+// description> -- the OG image below is where the fuller, social-friendly copy lives.
+const pageDesc = 'Hand-picked movie guides: tearjerkers, feel-good films, mind-benders, best of each decade and hidden gems. Find your next watch on TrendiMovies.';
+const ogImage = ogPosters.length
+  ? `/api/og.png?type=digital`
+    + `&posters=${encodeURIComponent(ogPosters.join('|'))}`
+    + `&accent=${encodeURIComponent('#e50914')}`
+    + `&eyebrow=${encodeURIComponent('CURATED MOVIE GUIDES')}`
+    + `&eyebrowEmoji=${encodeURIComponent('🎬')}`
+    + `&headline=${encodeURIComponent('Movie Guides for Every Mood')}`
+    + `&subtitle=${encodeURIComponent('Tearjerkers, feel-good, mind-benders, hidden gems & best-of lists')}`
+    + `&ogurl=${encodeURIComponent('trendimovies.com/guides')}`
+  : '/images/og-default.jpg';
 ---
 
-<BaseLayout title="Movie Guides — Curated Lists for Every Mood & Era | TrendiMovies" description="Hand-picked movie guides: tearjerkers, feel-good films, mind-benders, best of each decade and hidden gems. Find your next watch on TrendiMovies.">
+<BaseLayout title="Movie Guides — Curated Lists for Every Mood & Era | TrendiMovies" description={pageDesc} image={ogImage}>
   <!-- Cinematic hero -->
   <section class="relative overflow-hidden">
     <div class="absolute inset-0" style="background: linear-gradient(135deg, #0a0a0f 0%, #1a0f2e 45%, #2d0a2e 100%);"></div>
@@ -51,24 +75,15 @@ const catOrder = ['mood', 'decade', 'hidden', 'best-of', ...Object.keys(grouped)
           <span class="w-1.5 h-8 rounded-full" style="background: linear-gradient(180deg, #a855f7, #ec4899);"></span>
           {CATS[cat] || cat}
         </h2>
-        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div class="vinyl-grid">
           {grouped[cat].map((t: any) => (
-            <a href={`/guides/${t.slug}`} class="guide-card group relative block rounded-2xl overflow-hidden">
-              <!-- poster collage background -->
-              <div class="poster-stack">
-                {(t.posters || []).map((p: string, i: number) => (
-                  <img src={poster(p)} alt="" loading="lazy" class={`pstr pstr-${i}`} />
-                ))}
+            <a href={`/guides/${t.slug}`} class="vinyl-card group" style={`--c: ${t.color};`}>
+              <div class="vinyl-disc">
+                <img src={poster(t.posters?.[0])} alt="" loading="lazy" class="vinyl-label" />
+                <div class="vinyl-sheen"></div>
+                <div class="vinyl-hole"></div>
               </div>
-              <!-- dark gradient for legibility -->
-              <div class="card-grad"></div>
-              <div class="card-accent" style={`background: linear-gradient(90deg, ${t.color}, ${t.color}55);`}></div>
-              <!-- content -->
-              <div class="relative z-10 p-5 h-full flex flex-col justify-end">
-                <span class="text-3xl mb-1 drop-shadow-lg">{t.emoji}</span>
-                <h3 class="font-black text-lg sm:text-xl leading-tight text-white drop-shadow-md">{t.title}</h3>
-                <span class="inline-flex items-center gap-1 mt-2 text-xs font-bold" style={`color: ${t.color === '#475569' ? '#cbd5e1' : '#fff'};`}>View list →</span>
-              </div>
+              <p class="vinyl-name"><span class="vinyl-emoji">{t.emoji}</span> {t.title}</p>
             </a>
           ))}
         </div>
@@ -78,36 +93,39 @@ const catOrder = ['mood', 'decade', 'hidden', 'best-of', ...Object.keys(grouped)
 </BaseLayout>
 
 <style>
-  .guide-card {
-    aspect-ratio: 16 / 10;
-    background: #14141c;
-    border: 1px solid var(--border);
-    transition: transform 0.35s ease, box-shadow 0.35s ease;
+  /* auto-spinning vinyl/film-reel discs (works on mobile + desktop) */
+  .vinyl-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 28px 18px;
+    justify-items: center;
   }
-  .guide-card:hover {
-    transform: translateY(-6px);
-    box-shadow: 0 24px 50px -16px rgba(0,0,0,0.7);
-  }
-  .card-accent { position: absolute; top: 0; left: 0; right: 0; height: 4px; z-index: 11; }
-  .card-grad {
-    position: absolute; inset: 0; z-index: 5;
-    background: linear-gradient(0deg, rgba(10,10,15,0.97) 0%, rgba(10,10,15,0.7) 45%, rgba(10,10,15,0.4) 100%);
-  }
-  /* fanned poster collage in the upper-right */
-  .poster-stack { position: absolute; inset: 0; z-index: 1; overflow: hidden; }
-  .pstr {
-    position: absolute; top: -8%; height: 150%; width: auto; border-radius: 8px;
-    object-fit: cover; box-shadow: 0 8px 20px rgba(0,0,0,0.5);
-    transition: transform 0.4s ease;
-  }
-  .pstr-0 { right: 6%;  transform: rotate(6deg);  z-index: 4; }
-  .pstr-1 { right: 26%; transform: rotate(-3deg); z-index: 3; opacity: 0.95; }
-  .pstr-2 { right: 46%; transform: rotate(4deg);  z-index: 2; opacity: 0.85; }
-  .pstr-3 { right: 64%; transform: rotate(-5deg); z-index: 1; opacity: 0.7; }
-  .guide-card:hover .pstr-0 { transform: rotate(3deg) scale(1.05); }
-  .guide-card:hover .pstr-1 { transform: rotate(-1deg) scale(1.03); }
+  @media (min-width: 640px) { .vinyl-grid { grid-template-columns: repeat(3, 1fr); } }
+  @media (min-width: 1024px) { .vinyl-grid { grid-template-columns: repeat(4, 1fr); } }
 
-  @media (prefers-reduced-motion: reduce) {
-    .guide-card, .pstr { transition: none; }
+  .vinyl-card { display: flex; flex-direction: column; align-items: center; width: 100%; max-width: 200px; text-decoration: none; }
+
+  .vinyl-disc {
+    position: relative; width: 100%; aspect-ratio: 1; border-radius: 50%; overflow: hidden;
+    background: radial-gradient(circle at 50% 50%, #1a1a1a 0 30%, #0a0a0a 30%);
+    box-shadow: 0 12px 32px rgba(0,0,0,0.55), inset 0 0 0 8px #111, inset 0 0 0 9px var(--c);
+    background-image: repeating-radial-gradient(circle at 50% 50%, rgba(255,255,255,0.04) 0 1px, transparent 1px 4px);
+    animation: vinyl-spin 14s linear infinite;
+    will-change: transform;
   }
+  .vinyl-card:hover .vinyl-disc { animation-duration: 4s; }
+
+  .vinyl-label { position: absolute; top: 28%; left: 28%; width: 44%; height: 44%; object-fit: cover; border-radius: 50%; box-shadow: 0 0 0 2px rgba(255,255,255,0.15); }
+  .vinyl-sheen { position: absolute; inset: 0; border-radius: 50%; pointer-events: none; background: linear-gradient(125deg, rgba(255,255,255,0.18) 0 18%, transparent 38% 62%, rgba(255,255,255,0.08) 82% 100%); }
+  .vinyl-hole { position: absolute; top: 47%; left: 47%; width: 6%; height: 6%; border-radius: 50%; background: #000; box-shadow: 0 0 0 2px #333; z-index: 3; }
+
+  .vinyl-name {
+    margin-top: 14px; font: 700 13px/1.3 system-ui; color: var(--text-primary); text-align: center; max-width: 190px;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+  }
+  .vinyl-card:hover .vinyl-name { color: #fff; }
+  .vinyl-emoji { font-size: 15px; }
+
+  @media (prefers-reduced-motion: reduce) { .vinyl-disc { animation: none; } }
+  @keyframes vinyl-spin { to { transform: rotate(360deg); } }
 </style>

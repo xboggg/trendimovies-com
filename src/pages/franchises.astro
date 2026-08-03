@@ -56,6 +56,7 @@ const franchiseCollections: Record<string, { name: string; collectionId: number;
   'nightmare-elm': { name: 'A Nightmare on Elm Street', collectionId: 8581, color: '#C41E3A' },
   'friday-13th': { name: 'Friday the 13th', collectionId: 9735, color: '#8B0000' },
   'scream': { name: 'Scream Collection', collectionId: 2602, color: '#000000' },
+  'scary-movie': { name: 'Scary Movie Collection', collectionId: 4246, color: '#6B0F1A' },
   'it': { name: 'IT Collection', collectionId: 477962, color: '#C41E3A' },
   'purge': { name: 'The Purge Collection', collectionId: 256322, color: '#8B0000' },
 
@@ -112,28 +113,31 @@ async function getCollectionDetails(collectionId: number) {
   }
 }
 
-// Fetch all collections in parallel
-const collectionPromises = Object.entries(franchiseCollections).map(async ([slug, info]) => {
+// Fetch collections in BATCHES (8 at a time) instead of all 78 at once — firing
+// 78 simultaneous TMDB calls hit the rate limit and randomly dropped a franchise
+// (e.g. Scary Movie) each build. Batching + caching makes every franchise appear.
+async function fetchOne([slug, info]: [string, any]) {
   const data = await getCollectionDetails(info.collectionId);
   if (!data) return null;
-
   return {
-    slug,
-    name: info.name,
-    color: info.color,
-    backdrop_path: data.backdrop_path,
-    poster_path: data.poster_path,
+    slug, name: info.name, color: info.color,
+    backdrop_path: data.backdrop_path, poster_path: data.poster_path,
     overview: data.overview,
     movies: (data.parts || []).sort((a: any, b: any) => {
       const dateA = a.release_date ? new Date(a.release_date).getTime() : 0;
       const dateB = b.release_date ? new Date(b.release_date).getTime() : 0;
       return dateA - dateB;
     }),
-    totalMovies: data.parts?.length || 0
+    totalMovies: data.parts?.length || 0,
   };
-});
-
-const collectionsData = await Promise.all(collectionPromises);
+}
+const entries = Object.entries(franchiseCollections);
+const collectionsData: any[] = [];
+for (let i = 0; i < entries.length; i += 8) {
+  const batch = entries.slice(i, i + 8);
+  const results = await Promise.all(batch.map(fetchOne));
+  collectionsData.push(...results);
+}
 const franchises = collectionsData.filter((f): f is NonNullable<typeof f> => f !== null);
 
 // Sort by total movies
@@ -151,9 +155,9 @@ function getBackdropUrl(path: string | null): string {
 ---
 
 <BaseLayout
-  title="Movie Franchises - Complete Collections"
-  description="Explore complete movie franchise collections including Marvel, DC, Star Wars, Harry Potter, and more."
-  image={`/api/og.png?type=list&label=${encodeURIComponent('Movie Franchises')}&emoji=${encodeURIComponent('🎬')}&color=%23e50914&backdrop=${encodeURIComponent(franchises.find((f: any) => f.backdrop_path)?.backdrop_path || '')}&titles=${encodeURIComponent(franchises.slice(0, 4).map((f: any) => f.name).join('|'))}`}
+  title="Movie Franchises — Complete Collections | TrendiMovies"
+  description="Binge entire movie sagas in order — Marvel, DC, Star Wars, Harry Potter, Fast & Furious, James Bond and more. Every film in each franchise, ready to stream or download in HD."
+  image={`/api/og.png?type=digital&posters=${encodeURIComponent(franchises.filter((f: any) => f.poster_path).slice(0, 5).map((f: any) => f.poster_path).join('|'))}&accent=${encodeURIComponent('#e50914')}&eyebrow=${encodeURIComponent('COMPLETE COLLECTIONS')}&eyebrowEmoji=${encodeURIComponent('🎬')}&headline=${encodeURIComponent('Movie Franchises')}&subtitle=${encodeURIComponent('Marvel, DC, Star Wars, Harry Potter & more — every film in order')}&ogurl=${encodeURIComponent('trendimovies.com/franchises')}`}
 >
   <!-- Header -->
   <section class="relative py-12 overflow-hidden">
@@ -163,74 +167,49 @@ function getBackdropUrl(path: string | null): string {
         <h1 class="text-3xl md:text-5xl font-black mb-4" style="color: var(--text-primary);">
           <span class="text-purple-500">🎬</span> Movie Franchises
         </h1>
-        <p class="text-lg" style="color: var(--text-secondary);">
+        <p class="text-lg mb-6" style="color: var(--text-secondary);">
           Explore complete movie collections and franchise universes
         </p>
+        <div class="max-w-md mx-auto">
+          <input
+            id="franchise-search"
+            type="search"
+            placeholder="Search franchises… (Bond, Scary Movie, Marvel)"
+            autocomplete="off"
+            class="w-full px-5 py-3 rounded-full text-sm"
+            style="background-color: var(--bg-card); color: var(--text-primary); border: 1px solid var(--border);"
+          />
+        </div>
+        <p id="franchise-count" class="text-xs mt-3" style="color: var(--text-muted);">{franchises.length} franchises</p>
       </div>
     </div>
   </section>
 
-  <!-- Franchises Grid -->
-  <section class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-    <div class="space-y-12">
-      {franchises.map((franchise) => (
+  <!-- Franchises: collapsed horizontal rows + search + pagination -->
+  <section class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+    <div id="franchise-list" class="space-y-6">
+      {franchises.map((franchise, idx) => (
         <div
-          class="rounded-2xl overflow-hidden"
+          class="franchise-card rounded-2xl overflow-hidden"
+          data-name={franchise.name.toLowerCase()}
+          data-page={Math.floor(idx / 12)}
           style="background-color: var(--bg-card); border: 1px solid var(--border);"
         >
-          <!-- Franchise Header -->
-          <div class="relative h-48 md:h-64">
-            <img loading="lazy" src={getBackdropUrl(franchise.backdrop_path)}
-              alt={franchise.name}
-              class="w-full h-full object-cover"
-            />
-            <div class="absolute inset-0 bg-gradient-to-t from-black via-black/60 to-transparent"></div>
-            <div class="absolute inset-0" style={`background: linear-gradient(135deg, ${franchise.color}33, transparent);`}></div>
-
-            <div class="absolute bottom-0 left-0 right-0 p-6">
-              <div class="flex items-end justify-between">
-                <div>
-                  <h2 class="text-2xl md:text-3xl font-black text-white mb-2">
-                    {franchise.name}
-                  </h2>
-                  <p class="text-sm text-gray-300">
-                    {franchise.totalMovies} Movies
-                  </p>
-                </div>
-                <div
-                  class="px-4 py-2 rounded-full text-sm font-bold"
-                  style={`background-color: ${franchise.color}; color: ${franchise.color === '#FFE81F' || franchise.color === '#FFD700' ? '#000' : '#fff'};`}
-                >
-                  Collection
-                </div>
-              </div>
+          <div class="p-4 md:p-5">
+            <div class="flex items-center gap-3 min-w-0 mb-3">
+              <span class="inline-block w-2 h-8 rounded-full shrink-0" style={`background-color: ${franchise.color};`}></span>
+              <h2 class="text-lg md:text-xl font-black truncate" style="color: var(--text-primary);">{franchise.name}</h2>
+              <span class="text-xs whitespace-nowrap px-2 py-0.5 rounded-full" style="background: var(--bg-hover); color: var(--text-muted);">{franchise.totalMovies} films</span>
             </div>
-          </div>
-
-          <!-- Movies Grid - Show ALL movies -->
-          <div class="p-6">
-            <div class="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 xl:grid-cols-12 gap-3">
+            <div class="flex gap-3 overflow-x-auto pb-2">
               {franchise.movies.map((movie: any) => (
-                <a
-                  href={`/movie/${movie.id}`}
-                  class="group"
-                >
-                  <div class="relative aspect-[2/3] rounded-lg overflow-hidden mb-2">
-                    <img loading="lazy" src={getPosterUrl(movie.poster_path)}
-                      alt={movie.title}
-                      class="w-full h-full object-cover transition-transform group-hover:scale-110"
-                      loading="lazy"
-                    />
-                    <div class="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                      <span class="text-white text-xs font-medium">View</span>
-                    </div>
+                <a href={`/movie/${movie.id}`} class="group shrink-0" style="width: 96px;">
+                  <div class="relative aspect-[2/3] rounded-lg overflow-hidden mb-1">
+                    <img loading="lazy" src={getPosterUrl(movie.poster_path)} alt={movie.title}
+                      class="w-full h-full object-cover transition-transform group-hover:scale-105" />
                   </div>
-                  <p class="text-xs font-medium line-clamp-2" style="color: var(--text-primary);">
-                    {movie.title}
-                  </p>
-                  <p class="text-xs" style="color: var(--text-muted);">
-                    {movie.release_date ? new Date(movie.release_date).getFullYear() : 'TBA'}
-                  </p>
+                  <p class="text-[11px] font-medium line-clamp-2 leading-tight" style="color: var(--text-primary);">{movie.title}</p>
+                  <p class="text-[10px]" style="color: var(--text-muted);">{movie.release_date ? new Date(movie.release_date).getFullYear() : 'TBA'}</p>
                 </a>
               ))}
             </div>
@@ -238,6 +217,62 @@ function getBackdropUrl(path: string | null): string {
         </div>
       ))}
     </div>
+
+    <p id="franchise-empty" class="hidden text-center py-12" style="color: var(--text-secondary);">No franchises match your search.</p>
+    <div id="franchise-pagination" class="flex justify-center items-center gap-2 mt-8"></div>
   </section>
+
+  <script>
+    (function () {
+      const PER_PAGE = 12;
+      const cards = Array.from(document.querySelectorAll('.franchise-card')) as HTMLElement[];
+      const searchEl = document.getElementById('franchise-search') as HTMLInputElement | null;
+      const emptyEl = document.getElementById('franchise-empty')!;
+      const pagEl = document.getElementById('franchise-pagination')!;
+      const countEl = document.getElementById('franchise-count')!;
+      let page = 0;
+      let query = '';
+
+      const filtered = () => cards.filter(c => !query || (c.dataset.name || '').includes(query));
+
+      function render() {
+        const list = filtered();
+        const pages = Math.max(1, Math.ceil(list.length / PER_PAGE));
+        if (page >= pages) page = 0;
+        cards.forEach(c => (c.style.display = 'none'));
+        list.slice(page * PER_PAGE, page * PER_PAGE + PER_PAGE).forEach(c => (c.style.display = ''));
+        emptyEl.classList.toggle('hidden', list.length > 0);
+        countEl.textContent = query
+          ? `${list.length} match${list.length === 1 ? '' : 'es'}`
+          : `${cards.length} franchises`;
+        pagEl.replaceChildren();
+        if (pages > 1) {
+          const mk = (label: string, target: number, disabled: boolean, active = false) => {
+            const b = document.createElement('button');
+            b.textContent = label;
+            b.className = 'px-3 py-1.5 rounded-lg text-sm';
+            b.style.cssText = `background:${active ? 'var(--accent,#e50914)' : 'var(--bg-card)'};color:${active ? '#fff' : 'var(--text-primary)'};border:1px solid var(--border);${disabled ? 'opacity:.4;pointer-events:none;' : 'cursor:pointer;'}`;
+            b.onclick = () => { page = target; render(); window.scrollTo({ top: 0, behavior: 'smooth' }); };
+            return b;
+          };
+          pagEl.appendChild(mk('‹ Prev', page - 1, page === 0));
+          for (let i = 0; i < pages; i++) {
+            if (i === 0 || i === pages - 1 || Math.abs(i - page) <= 1) {
+              pagEl.appendChild(mk(String(i + 1), i, false, i === page));
+            } else if (Math.abs(i - page) === 2) {
+              const dots = document.createElement('span'); dots.textContent = '…'; dots.style.cssText = 'color:var(--text-muted);padding:0 4px;'; pagEl.appendChild(dots);
+            }
+          }
+          pagEl.appendChild(mk('Next ›', page + 1, page === pages - 1));
+        }
+      }
+      let t: ReturnType<typeof setTimeout>;
+      searchEl?.addEventListener('input', () => {
+        clearTimeout(t);
+        t = setTimeout(() => { query = (searchEl.value || '').trim().toLowerCase(); page = 0; render(); }, 120);
+      });
+      render();
+    })();
+  </script>
 </BaseLayout>
 

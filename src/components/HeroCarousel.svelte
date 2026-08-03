@@ -26,8 +26,17 @@
   let autoSlideInterval: ReturnType<typeof setInterval>;
   let isTransitioning = false;
 
-  $: carouselItems = trending.slice(0, 8);
+  $: carouselItems = trending.slice(0, 12);
   $: currentItem = carouselItems[currentIndex] || featured;
+
+  // Per-item hero crop overrides. Some backdrops put the subject/faces on one
+  // side (usually the right), so the default 'center' crop shows an empty area.
+  // Map tmdb_id -> object-position. Add an entry when a hero image looks off.
+  const HERO_OBJECT_POSITION: Record<number, string> = {
+    1083381: '85% center', // Backrooms — woman's face on the right
+    1284465: '85% center', // The Death of Robin Hood — face on the right
+  };
+  $: heroObjectPosition = (currentItem && HERO_OBJECT_POSITION[currentItem.id]) || 'center';
 
   $: backdropUrl = currentItem?.backdrop_path
     ? (currentItem.backdrop_path.startsWith('/images/') ? currentItem.backdrop_path : `https://image.tmdb.org/t/p/original${currentItem.backdrop_path}`)
@@ -68,6 +77,35 @@
     autoSlideInterval = setInterval(() => nextSlide(), 7000);
   }
 
+  // --- Touch swipe (finger-slidable hero) ---
+  // A real horizontal swipe moves the finger a good distance; a tap barely moves,
+  // so tapping the Play/Info buttons or the poster never triggers a slide change.
+  let touchStartX = 0;
+  let touchStartY = 0;
+  let touchTracking = false;
+  const SWIPE_THRESHOLD = 50;      // min horizontal px to count as a swipe
+  const SWIPE_VERTICAL_LIMIT = 80; // if vertical drift exceeds this, treat as a scroll, not a swipe
+
+  function onTouchStart(e: TouchEvent) {
+    if (e.touches.length !== 1) { touchTracking = false; return; }
+    touchTracking = true;
+    touchStartX = e.touches[0].clientX;
+    touchStartY = e.touches[0].clientY;
+  }
+
+  function onTouchEnd(e: TouchEvent) {
+    if (!touchTracking) return;
+    touchTracking = false;
+    const t = e.changedTouches[0];
+    const dx = t.clientX - touchStartX;
+    const dy = t.clientY - touchStartY;
+    // Ignore mostly-vertical gestures (page scroll) and tiny movements (taps).
+    if (Math.abs(dy) > SWIPE_VERTICAL_LIMIT) return;
+    if (Math.abs(dx) < SWIPE_THRESHOLD) return;
+    if (dx < 0) nextSlide();  // swipe left -> next
+    else prevSlide();         // swipe right -> previous
+  }
+
   function getHref(item: TrendingItem): string {
     return item.type === 'movie' ? `/movie/${item.id}` : `/tv/${item.id}`;
   }
@@ -91,7 +129,11 @@
   }
 </script>
 
-<section class="relative h-[100svh] xl:h-screen overflow-hidden bg-black">
+<section
+  class="relative h-[100svh] xl:h-screen overflow-hidden bg-black"
+  on:touchstart={onTouchStart}
+  on:touchend={onTouchEnd}
+>
   <!-- Background Image with Ken Burns effect -->
   <div class="absolute inset-0">
     {#key currentIndex}
@@ -99,7 +141,7 @@
         <img
           src={backdropUrl}
           alt={currentItem?.title || 'Featured'}
-          class="w-full h-full object-cover object-top xl:object-center" fetchpriority="high"
+          class="w-full h-full object-cover" style="object-position: {heroObjectPosition};" fetchpriority="high"
         />
       </div>
     {/key}
