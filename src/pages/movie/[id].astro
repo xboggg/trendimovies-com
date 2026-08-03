@@ -100,6 +100,19 @@ try {
   movieReview = (rvRows && rvRows.length) ? rvRows[0] : null;
 } catch (e) { movieReview = null; }
 
+// Is there a published blog post centered on this movie? (drives the Related Read banner)
+let relatedPost = null;
+try {
+  const { data: blRows } = await supabase
+    .from('blog_posts')
+    .select('slug, title, deck, accent, tags')
+    .eq('related_tmdb_id', tmdbId)
+    .eq('related_type', 'movie')
+    .eq('status', 'published')
+    .limit(1);
+  relatedPost = (blRows && blRows.length) ? blRows[0] : null;
+} catch (e) { relatedPost = null; }
+
 // Fetch download links using internal DB ID
 const { data: rawLinks } = internalId ? await supabase
   .from('download_links')
@@ -373,6 +386,19 @@ const ogTitle = `${movie.title} ${ogYear}`.trim();
           </div>
         </div>
         <span class="rv-banner-cta">Read the full review →</span>
+      </a>
+    </section>
+  )}
+
+  {relatedPost && (
+    <section class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-8">
+      <a href={`/blog/${relatedPost.slug}`} class="rv-banner" style={`--a:${relatedPost.accent || '#f59e0b'}`}>
+        <div class="rv-banner-left">
+          <div class="rv-banner-tag">📝 TrendiMovies Blog</div>
+          <div class="rv-banner-h">{relatedPost.title}</div>
+          {relatedPost.deck && <div class="rv-banner-deck">{relatedPost.deck}</div>}
+        </div>
+        <span class="rv-banner-cta">Read the post →</span>
       </a>
     </section>
   )}

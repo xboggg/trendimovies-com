@@ -1,0 +1,137 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+
+const POSTGREST_URL = import.meta.env.PUBLIC_SUPABASE_URL || 'http://localhost:3001';
+const { slug } = Astro.params;
+const isPreview = Astro.url.searchParams.get('preview') === '1';
+
+// Fetch the post by slug. Public: published only. ?preview=1: any status (admin).
+let post: any = null;
+try {
+  const statusFilter = isPreview ? '' : '&status=eq.published';
+  const res = await fetch(`${POSTGREST_URL}/blog_posts?slug=eq.${encodeURIComponent(slug || '')}${statusFilter}&limit=1`);
+  if (res.ok) {
+    const rows = await res.json();
+    post = Array.isArray(rows) && rows.length ? rows[0] : null;
+  }
+} catch (e) { post = null; }
+
+if (!post) {
+  return Astro.redirect('/404');
+}
+
+const accent = post.accent || '#f59e0b';
+const coverUrl = post.cover_image ? (post.cover_image.startsWith('http') ? post.cover_image : `https://image.tmdb.org/t/p/w1280${post.cover_image}`) : '';
+
+// Body: split on blank lines into paragraphs. The FIRST paragraph is the lead (drop-cap).
+const paras: string[] = (post.body || '').split(/\n\s*\n/).map((p: string) => p.trim()).filter(Boolean);
+
+// Optional "Related Read" — one movie/series this post centers on.
+let related: any = null;
+if (post.related_tmdb_id && post.related_type === 'movie') {
+  try {
+    const r = await fetch(`${POSTGREST_URL}/movies?tmdb_id=eq.${post.related_tmdb_id}&select=tmdb_id,title,poster_path,year&limit=1`);
+    if (r.ok) { const rows = await r.json(); related = Array.isArray(rows) && rows.length ? rows[0] : null; }
+  } catch (e) { related = null; }
+}
+const readMinutes = Math.max(2, Math.round((post.body || '').split(/\s+/).length / 220));
+
+const ogPoster = post.cover_image && !post.cover_image.startsWith('http') ? post.cover_image : '';
+const ogImage = ogPoster
+  ? `/api/og.png?type=digital&posters=${encodeURIComponent(ogPoster)}`
+    + `&accent=${encodeURIComponent(accent)}`
+    + `&eyebrow=${encodeURIComponent('TRENDIMOVIES BLOG')}`
+    + `&headline=${encodeURIComponent(post.title)}`
+    + `&ogurl=${encodeURIComponent(`trendimovies.com/blog/${post.slug}`)}`
+  : `/api/og.png?type=digital&accent=${encodeURIComponent(accent)}&eyebrow=TRENDIMOVIES%20BLOG&headline=${encodeURIComponent(post.title)}`;
+
+const pageTitle = post.title;
+const pageDesc = post.deck || `${post.title} — from the TrendiMovies desk.`;
+---
+
+<BaseLayout title={pageTitle} description={pageDesc} image={ogImage}>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,900&display=swap" rel="stylesheet" />
+
+  <article class="bl-page" style={`--bl-accent:${accent};`}>
+    <div class="bl-ambient" aria-hidden="true">
+      {coverUrl && <div class="bl-b" style={`background-image:url('${coverUrl}')`}></div>}
+    </div>
+
+    <div class="bl-wrap">
+      <a href="/blog" class="bl-kicker"><span class="bl-dot"></span> TrendiMovies Blog{post.tags?.[0] ? ` · ${post.tags[0]}` : ''}</a>
+
+      <h1 class="bl-h1">{post.title}</h1>
+      {post.deck && <p class="bl-deck">{post.deck}</p>}
+
+      <div class="bl-byline">
+        <span>By <b>The TrendiMovies Desk</b></span>
+        <span class="bl-sep">•</span>
+        <span>{readMinutes} min read</span>
+      </div>
+
+      {coverUrl && (
+        <div class="bl-cover"><img src={coverUrl} alt={post.title} loading="eager" /></div>
+      )}
+
+      <div class="bl-grid">
+        <div class="bl-article">
+          {paras.map((p, i) => (
+            i === 0
+              ? <p class="bl-lead" set:html={p} />
+              : <p set:html={p} />
+          ))}
+        </div>
+
+        {related && (
+          <aside class="bl-rail">
+            <a class="bl-card" href={`/movie/${related.tmdb_id}`}>
+              <div class="bl-eyebrow">Related Watch</div>
+              <div class="bl-poster">
+                <img src={related.poster_path ? `https://image.tmdb.org/t/p/w342${related.poster_path}` : '/images/no-poster.svg'} alt={related.title} />
+              </div>
+              <div class="bl-card-title">{related.title}{related.year ? ` (${related.year})` : ''}</div>
+              <div class="bl-card-cta">▶ Watch on TrendiMovies</div>
+            </a>
+          </aside>
+        )}
+      </div>
+    </div>
+  </article>
+</BaseLayout>
+
+<style>
+  .bl-page{position:relative;overflow:hidden;--bl-a2:#f59e0b}
+  .bl-ambient{position:absolute;inset:0;z-index:0;pointer-events:none}
+  .bl-ambient .bl-b{position:absolute;inset:-10% -10% auto -10%;height:560px;background-position:center;background-size:cover;filter:blur(64px) saturate(1.4) brightness(.5);opacity:.4}
+  .bl-ambient:after{content:'';position:absolute;inset:0;background:radial-gradient(1200px 560px at 70% -8%,color-mix(in srgb,var(--bl-accent) 20%,transparent),transparent 60%),linear-gradient(180deg,rgba(10,10,12,.35),var(--bg,#0a0a0c) 72%)}
+  .bl-wrap{position:relative;z-index:1;max-width:820px;margin:0 auto;padding:56px 34px 90px}
+  .bl-kicker{display:inline-flex;align-items:center;gap:9px;font-weight:800;letter-spacing:3px;font-size:12px;color:var(--bl-a2);text-transform:uppercase;margin-bottom:22px;text-decoration:none}
+  .bl-dot{width:7px;height:7px;border-radius:50%;background:var(--bl-a2);box-shadow:0 0 12px var(--bl-a2)}
+  .bl-h1{font-family:'Fraunces',Georgia,serif;font-weight:900;font-size:clamp(34px,5.4vw,58px);line-height:1.04;letter-spacing:-1.2px;margin:0 0 18px;color:#fff}
+  .bl-deck{font-family:'Fraunces',Georgia,serif;font-size:clamp(17px,2.2vw,22px);font-style:italic;color:#e9e7ee;opacity:.85;max-width:60ch;line-height:1.4;margin:0 0 26px}
+  .bl-byline{display:flex;align-items:center;gap:14px;color:#9a97a4;font-size:14px;border-top:1px solid rgba(255,255,255,.09);border-bottom:1px solid rgba(255,255,255,.09);padding:16px 0;margin-bottom:34px}
+  .bl-byline b{color:#e9e7ee;font-weight:700}.bl-sep{opacity:.4}
+  .bl-cover{border-radius:20px;overflow:hidden;box-shadow:0 24px 60px rgba(0,0,0,.5);margin-bottom:38px;aspect-ratio:16/9}
+  .bl-cover img{width:100%;height:100%;object-fit:cover;display:block}
+  .bl-grid{display:grid;grid-template-columns:1fr;gap:40px}
+  .bl-article{min-width:0}
+  .bl-article p{font-size:19px;line-height:1.85;color:#e9e7ee;margin:0 0 24px;opacity:.94}
+  .bl-article :global(em){font-style:italic;color:#fff;opacity:1}
+  .bl-article :global(strong){color:#fff}
+  .bl-lead{font-size:22px !important}
+  .bl-lead::first-letter{font-family:'Fraunces',Georgia,serif;float:left;font-size:80px;line-height:.72;font-weight:900;padding:8px 14px 0 0;color:var(--bl-a2)}
+  .bl-rail{max-width:280px}
+  .bl-card{display:block;text-decoration:none;background:linear-gradient(160deg,rgba(24,22,28,.72),rgba(16,15,20,.72));backdrop-filter:blur(30px);border:1px solid rgba(255,255,255,.1);border-radius:20px;padding:18px;box-shadow:0 24px 60px rgba(0,0,0,.4)}
+  .bl-eyebrow{font-size:11px;font-weight:800;letter-spacing:1.5px;text-transform:uppercase;color:var(--bl-a2);margin-bottom:12px}
+  .bl-poster{border-radius:12px;overflow:hidden;margin-bottom:12px}
+  .bl-poster img{width:100%;display:block}
+  .bl-card-title{font-weight:700;color:#fff;margin-bottom:10px}
+  .bl-card-cta{font-weight:800;color:var(--bl-accent);font-size:14px}
+  @media(max-width:820px){
+    .bl-wrap{padding:34px 20px 70px}
+    .bl-article p{font-size:17px}.bl-lead{font-size:19px !important}
+    .bl-byline{flex-wrap:wrap;gap:8px}
+    .bl-rail{max-width:360px;margin:0 auto}
+  }
+</style>

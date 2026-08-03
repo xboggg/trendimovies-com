@@ -9,7 +9,6 @@
   let searchQuery = '';
   let showGenreDropdown = false;
   let showDiscoveryDropdown = false;
-  let showEventsDropdown = false;
   // Server passes the current pathname so the header spacer renders correctly on
   // first paint (no flash). Updated client-side on mount for SPA-style nav.
   export let pathname = '';
@@ -137,7 +136,10 @@
       || currentPath.startsWith('/digital-releases')
       || currentPath.startsWith('/upcoming')
       || currentPath.startsWith('/universe')
-      || currentPath.startsWith('/review');
+      || currentPath.startsWith('/review')
+      || currentPath.startsWith('/events')
+      || currentPath.startsWith('/cannes-2026')
+      || currentPath.startsWith('/oscars-2026');
   }
 </script>
 
@@ -227,6 +229,10 @@
                 <span>⭐</span> Movie Reviews
               </a>
               <div class="my-1 border-t" style="border-color: var(--border);"></div>
+              <a href="/events" class="dropdown-item flex items-center gap-2"><span>📅</span> All Events</a>
+              <a href="/cannes-2026" class="dropdown-item flex items-center gap-2"><span>🌴</span> Cannes 2026</a>
+              <a href="/oscars-2026" class="dropdown-item flex items-center gap-2"><span>🏆</span> Oscars 2026</a>
+              <div class="my-1 border-t" style="border-color: var(--border);"></div>
               <a href="/category/anime" class="dropdown-item">Anime</a>
               <a href="/category/korean-movies" class="dropdown-item">K-Drama Movies</a>
               <a href="/category/korean-series" class="dropdown-item">K-Drama Series</a>
@@ -244,21 +250,9 @@
           {/if}
         </div>
 
-        <!-- Events Dropdown -->
-        <div class="relative" on:mouseenter={() => showEventsDropdown = true} on:mouseleave={() => showEventsDropdown = false}>
-          <button class="nav-link flex items-center gap-1">
-            <span>Events</span>
-            <ChevronDown size={14} class="transition-transform {showEventsDropdown ? 'rotate-180' : ''}" />
-          </button>
-          {#if showEventsDropdown}
-            <div class="dropdown-menu w-52">
-              <a href="/events" class="dropdown-item flex items-center gap-2"><span>📅</span> All Events</a>
-              <div class="my-1 border-t" style="border-color: var(--border);"></div>
-              <a href="/cannes-2026" class="dropdown-item flex items-center gap-2"><span>🌴</span> Cannes 2026</a>
-              <a href="/oscars-2026" class="dropdown-item flex items-center gap-2"><span>🏆</span> Oscars 2026</a>
-            </div>
-          {/if}
-        </div>
+        <a href="/blog" class="nav-link" class:nav-link-active={isActive('/blog')}>
+          Blog
+        </a>
 
         <a href="/request" class="nav-link-gold">
           Request
@@ -434,6 +428,9 @@
             <Tv size={16} />
             <span>Series</span>
           </a>
+          <a href="/blog" class="mobile-nav-item" class:mobile-nav-active={isActive('/blog')}>
+            <span>Blog</span>
+          </a>
           <a href="/digital-releases" class="mobile-nav-item" class:mobile-nav-active={isActive('/digital-releases')} style="color:#f7d000;">
             <span>📀</span>
             <span>Digital Releases</span>
@@ -449,6 +446,18 @@
           <a href="/reviews" class="mobile-nav-item" class:mobile-nav-active={isActive('/reviews')} style="color:#f7d000;">
             <span>⭐</span>
             <span>Movie Reviews</span>
+          </a>
+          <a href="/events" class="mobile-nav-item" class:mobile-nav-active={isActive('/events')} style="color:#f7d000;">
+            <span>📅</span>
+            <span>All Events</span>
+          </a>
+          <a href="/cannes-2026" class="mobile-nav-item" class:mobile-nav-active={isActive('/cannes-2026')} style="color:#f7d000;">
+            <span>🌴</span>
+            <span>Cannes 2026</span>
+          </a>
+          <a href="/oscars-2026" class="mobile-nav-item" class:mobile-nav-active={isActive('/oscars-2026')} style="color:#f7d000;">
+            <span>🏆</span>
+            <span>Oscars 2026</span>
           </a>
         </div>
 
@@ -477,15 +486,6 @@
 
         <!-- Action Buttons -->
         <div class="grid grid-cols-2 gap-3 pt-3 border-t mobile-border">
-          <a href="/events" class="mobile-nav-item">
-            <span class="mr-2">📅</span> Events
-          </a>
-          <a href="/cannes-2026" class="mobile-nav-item">
-            <span class="mr-2">🌴</span> Cannes 2026
-          </a>
-          <a href="/oscars-2026" class="mobile-nav-item">
-            <span class="mr-2">🏆</span> Oscars 2026
-          </a>
           <a href="/request" class="mobile-btn-gold">
             Request
           </a>
