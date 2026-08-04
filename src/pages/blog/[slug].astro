@@ -36,14 +36,7 @@ if (post.related_tmdb_id && post.related_type === 'movie') {
 }
 const readMinutes = Math.max(2, Math.round((post.body || '').split(/\s+/).length / 220));
 
-const ogPoster = post.cover_image && !post.cover_image.startsWith('http') ? post.cover_image : '';
-const ogImage = ogPoster
-  ? `/api/og.png?type=digital&posters=${encodeURIComponent(ogPoster)}`
-    + `&accent=${encodeURIComponent(accent)}`
-    + `&eyebrow=${encodeURIComponent('TRENDIMOVIES BLOG')}`
-    + `&headline=${encodeURIComponent(post.title)}`
-    + `&ogurl=${encodeURIComponent(`trendimovies.com/blog/${post.slug}`)}`
-  : `/api/og.png?type=digital&accent=${encodeURIComponent(accent)}&eyebrow=TRENDIMOVIES%20BLOG&headline=${encodeURIComponent(post.title)}`;
+const ogImage = `/api/og.png?type=blog&slug=${encodeURIComponent(post.slug)}`;
 
 const pageTitle = post.title;
 const pageDesc = post.deck || `${post.title} — from the TrendiMovies desk.`;

@@ -307,7 +307,7 @@ function digitalTemplate(p: {
 
 function reviewTemplate(p: {
   headline: string; movieTitle: string; poster: string | null; backdrop: string | null;
-  accent: string; rt?: string; box?: string; genre?: string; year?: string;
+  accent: string; rt?: string; box?: string; genre?: string; year?: string; label?: string;
 }) {
   const accent = p.accent || '#dc2626';
   return {
@@ -340,7 +340,7 @@ function reviewTemplate(p: {
                   color: accent, fontSize: '22px', fontWeight: 800, letterSpacing: '3px', marginBottom: '20px' },
                   children: [
                     { type: 'div', props: { style: { display: 'flex', width: '12px', height: '12px', borderRadius: '50%', background: accent } } },
-                    { type: 'div', props: { style: { display: 'flex' }, children: ['TRENDIMOVIES REVIEW'] } },
+                    { type: 'div', props: { style: { display: 'flex' }, children: [p.label || 'TRENDIMOVIES REVIEW'] } },
                   ] } },
                 { type: 'div', props: { style: { display: 'flex', color: '#ffffff', fontSize: '64px',
                   fontWeight: 800, lineHeight: 1.02, letterSpacing: '-2px', marginBottom: '22px' },
@@ -484,6 +484,32 @@ export const GET: APIRoute = async ({ url }) => {
         rt: rv?.rt_score || undefined, box: rv?.box_office || undefined,
         genre: rv?.genre || undefined, year: rv?.year ? String(rv.year) : undefined,
       });
+    } else if (type === 'blog') {
+      // Fetch the blog post by slug from PostgREST. Deliberately reuses the
+      // ALREADY-PROVEN reviewTemplate() rather than a new template function --
+      // a from-scratch blogTemplate crashed the whole Node process twice via a
+      // native resvg panic on real data, root cause never pinned down. Reusing
+      // reviewTemplate means zero new SVG-generation code, only new data
+      // fetching (which mirrors the already-safe review branch below).
+      const PGRST = import.meta.env.PUBLIC_SUPABASE_URL || 'http://localhost:3001';
+      const bslug = p.get('slug') || '';
+      let bp: any = null;
+      try {
+        const r = await fetch(`${PGRST}/blog_posts?slug=eq.${encodeURIComponent(bslug)}&limit=1`);
+        if (r.ok) { const rows = await r.json(); bp = Array.isArray(rows) && rows.length ? rows[0] : null; }
+      } catch { bp = null; }
+      const bCoverPath = bp?.cover_image && !String(bp.cover_image).startsWith('http') ? bp.cover_image : null;
+      const bCover = bCoverPath ? await toDataUri(`${TMDB_IMG}/w500${bCoverPath}`) : null;
+      const clip = (s: string, max: number) => s && s.length > max ? s.slice(0, max - 1).trimEnd() + '\u2026' : (s || '');
+      node = reviewTemplate({
+        headline: clip(bp?.title || 'TrendiMovies Blog', 70),
+        movieTitle: clip(bp?.deck || '', 90),
+        poster: bCover, backdrop: null,
+        accent: bp?.accent || '#f59e0b',
+        rt: undefined, box: undefined,
+        genre: undefined, year: undefined,
+        label: 'TRENDIMOVIES BLOG',
+      });
     } else {
       node = defaultTemplate();
     }
@@ -516,7 +542,7 @@ export const GET: APIRoute = async ({ url }) => {
     // cards (poster collage / list with backdrop) blow past that as PNG (~0.8–1MB),
     // so re-encode those to a compact JPEG (well under the cap). The plain gradient
     // default + the smaller movie/series/event cards keep their original PNG.
-    if (type === 'digital' || type === 'list' || type === 'review') {
+    if (type === 'digital' || type === 'list' || type === 'review' || type === 'blog') {
       const jpg = await sharp(png).jpeg({ quality: 78, mozjpeg: true }).toBuffer();
       return new Response(jpg, {
         status: 200,

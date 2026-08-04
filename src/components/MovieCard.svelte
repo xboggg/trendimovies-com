@@ -124,21 +124,15 @@
       </div>
       <h3 class="text-white font-bold text-center text-sm line-clamp-2 mb-2">{item.title}</h3>
 
-      <!-- Quick Stats -->
-      <div class="flex items-center gap-3 text-xs text-gray-300">
-        {#if displayDate}
-          <span>{displayDate}</span>
-        {/if}
-        {#if item.runtime}
-          <span class="flex items-center gap-1">
-            <Clock size={10} />
-            {formatRuntime(item.runtime)}
-          </span>
-        {/if}
-      </div>
+      {#if item.runtime}
+        <div class="flex items-center gap-1 text-xs text-gray-300 mb-1">
+          <Clock size={10} />
+          {formatRuntime(item.runtime)}
+        </div>
+      {/if}
 
       {#if item.overview}
-        <p class="hover-synopsis text-center line-clamp-4 mt-2.5">{item.overview}</p>
+        <p class="hover-synopsis text-center line-clamp-6 mt-1">{item.overview}</p>
       {/if}
     </div>
 
