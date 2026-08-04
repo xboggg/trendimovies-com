@@ -172,9 +172,6 @@
       </div>
     </div>
 
-    {#if item.overview}
-      <p class="touch-synopsis line-clamp-2 mt-2">{item.overview}</p>
-    {/if}
   </div>
 
   <!-- Hover Border Effect -->
@@ -248,25 +245,5 @@
     letter-spacing: 0.01em;
     color: rgba(229, 231, 235, 0.92);
     max-width: 92%;
-  }
-
-  /* Synopsis — always-visible snippet for touch devices (no hover to reveal
-     the overlay above, so this is the mobile equivalent) */
-  .touch-synopsis {
-    display: none;
-    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-    font-size: 12px;
-    font-weight: 400;
-    line-height: 1.55;
-    letter-spacing: 0.005em;
-    color: var(--text-secondary);
-  }
-  @media (hover: none) and (pointer: coarse) {
-    .touch-synopsis {
-      display: -webkit-box;
-      -webkit-box-orient: vertical;
-      -webkit-line-clamp: 2;
-      overflow: hidden;
-    }
   }
 </style>

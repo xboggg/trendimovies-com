@@ -113,11 +113,11 @@
     </div>
 
     <!-- Carousel Container -->
-    <div class="relative group">
+    <div class="relative group/row">
       <!-- Left Arrow -->
       <button
         on:click={() => scroll('left')}
-        class="absolute left-0 top-1/2 -translate-y-1/2 z-10 p-2 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+        class="absolute left-0 top-1/2 -translate-y-1/2 z-10 p-2 rounded-full opacity-0 group-hover/row:opacity-100 transition-opacity"
         style="background-color: var(--bg-card); box-shadow: 0 4px 20px var(--shadow);"
       >
         <ChevronLeft size={24} style="color: var(--text-primary);" />
@@ -139,7 +139,7 @@
       <!-- Right Arrow -->
       <button
         on:click={() => scroll('right')}
-        class="absolute right-0 top-1/2 -translate-y-1/2 z-10 p-2 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+        class="absolute right-0 top-1/2 -translate-y-1/2 z-10 p-2 rounded-full opacity-0 group-hover/row:opacity-100 transition-opacity"
         style="background-color: var(--bg-card); box-shadow: 0 4px 20px var(--shadow);"
       >
         <ChevronRight size={24} style="color: var(--text-primary);" />
