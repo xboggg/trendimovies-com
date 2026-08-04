@@ -407,7 +407,7 @@ let mvFresh: Record<number, any> = {};
 if (mostViewedRaw.length > 0) {
   try {
     const ids = mostViewedRaw.map((m: any) => m.tmdb_id).filter(Boolean).join(',');
-    const r = await fetch(`${POSTGREST_URL}/movies?tmdb_id=in.(${ids})&select=tmdb_id,title,year,poster_path,vote_average`);
+    const r = await fetch(`${POSTGREST_URL}/movies?tmdb_id=in.(${ids})&select=tmdb_id,title,year,poster_path,vote_average,overview`);
     if (r.ok) {
       const rows = await r.json();
       mvFresh = Object.fromEntries(rows.map((m: any) => [m.tmdb_id, m]));
@@ -429,6 +429,7 @@ const mostViewedItems = mostViewedRaw
       tmdb_id: m.tmdb_id,
       title: fresh.title || m.title,
       poster_path: poster,
+      overview: fresh.overview,
       vote_average: fresh.vote_average || 0,
       year: fresh.year || m.year,
       type: 'movie' as const,
@@ -446,6 +447,7 @@ const upcomingItems = (upcoming || []).map((m: any) => {
     tmdb_id: m.id,
     title: m.title,
     poster_path: ov.poster_path,
+    overview: m.overview,
     vote_average: m.vote_average,
     year: m.release_date ? new Date(m.release_date).getFullYear() : null,
     release_date: m.release_date,

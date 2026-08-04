@@ -52,6 +52,7 @@ const items = topic.items.map((i: any) => {
     type: 'movie' as const,
     has_downloads: !!o.has_downloads,
     blurb: i.blurb || '',
+    overview: i.blurb || '',
   };
 });
 // Need TMDB posters for items where we have no local override — fetch w342 path from owned, else build from TMDB tmdb path stored? We only have tmdb_id, so let the card use TMDB via tmdb poster path. Pull poster_path from TMDB for un-owned:

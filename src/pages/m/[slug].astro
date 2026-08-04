@@ -30,7 +30,7 @@ const [downloadResult, similarResult] = await Promise.all([
 
   supabase
     .from('movies')
-    .select('id, title, slug, poster_path, vote_average, year')
+    .select('id, title, slug, poster_path, overview, vote_average, year')
     .neq('id', movie.id)
     .order('popularity', { ascending: false })
     .limit(12),

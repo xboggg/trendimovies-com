@@ -68,6 +68,7 @@ const tmdbShows = filtered.map((t: any, index: number) => {
     tmdb_id: t.id,
     title: t.name,
     poster_path: t.poster_path,
+    overview: t.overview,
     vote_average: t.vote_average,
     year: t.first_air_date ? new Date(t.first_air_date).getFullYear() : null,
     type: 'series' as const,

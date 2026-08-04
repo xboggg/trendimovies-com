@@ -44,6 +44,7 @@ function transformToItem(movie: any) {
     tmdb_id: movie.tmdb_id,
     title: movie.title,
     poster_path: movie.poster_path,
+    overview: movie.overview,
     vote_average: movie.vote_average || 0,
     year: movie.year,
     type: 'movie' as const,

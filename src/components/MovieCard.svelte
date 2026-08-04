@@ -17,6 +17,7 @@
     runtime?: number;
     release_date?: string | null;
     episode_info?: string;
+    overview?: string | null;
   };
 
   // Format release date as "Feb 14, 2026"
@@ -135,6 +136,10 @@
           </span>
         {/if}
       </div>
+
+      {#if item.overview}
+        <p class="hover-synopsis text-center line-clamp-4 mt-2.5">{item.overview}</p>
+      {/if}
     </div>
 
     <!-- Bottom Gradient -->
@@ -166,6 +171,10 @@
         <span style="color: var(--text-secondary);">{item.vote_average.toFixed(1)}</span>
       </div>
     </div>
+
+    {#if item.overview}
+      <p class="touch-synopsis line-clamp-2 mt-2">{item.overview}</p>
+    {/if}
   </div>
 
   <!-- Hover Border Effect -->
@@ -228,5 +237,36 @@
 
   .info-section {
     background: var(--bg-card);
+  }
+
+  /* Synopsis — desktop hover overlay */
+  .hover-synopsis {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    font-size: 12.5px;
+    font-weight: 400;
+    line-height: 1.6;
+    letter-spacing: 0.01em;
+    color: rgba(229, 231, 235, 0.92);
+    max-width: 92%;
+  }
+
+  /* Synopsis — always-visible snippet for touch devices (no hover to reveal
+     the overlay above, so this is the mobile equivalent) */
+  .touch-synopsis {
+    display: none;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    font-size: 12px;
+    font-weight: 400;
+    line-height: 1.55;
+    letter-spacing: 0.005em;
+    color: var(--text-secondary);
+  }
+  @media (hover: none) and (pointer: coarse) {
+    .touch-synopsis {
+      display: -webkit-box;
+      -webkit-box-orient: vertical;
+      -webkit-line-clamp: 2;
+      overflow: hidden;
+    }
   }
 </style>

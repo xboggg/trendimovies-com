@@ -70,6 +70,7 @@ function transformToItem(show: any) {
     tmdb_id: show.id,
     title: show.name,
     poster_path: show.poster_path,
+    overview: show.overview,
     vote_average: show.vote_average,
     year: show.first_air_date ? new Date(show.first_air_date).getFullYear() : null,
     type: 'series' as const

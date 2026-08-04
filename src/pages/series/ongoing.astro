@@ -27,6 +27,7 @@ function transformToItem(show: any) {
     tmdb_id: show.id,
     title: show.name || 'Unknown',
     poster_path: show.poster_path || null,
+    overview: show.overview || null,
     vote_average: show.vote_average || 0,
     year: show.first_air_date ? new Date(show.first_air_date).getFullYear() : null,
     type: 'series' as const,

@@ -79,7 +79,7 @@ if (episodeIds.length > 0) {
 // Fetch similar series
 const { data: similarSeries } = await supabase
   .from('series')
-  .select('id, title, slug, poster_path, vote_average, year')
+  .select('id, title, slug, poster_path, overview, vote_average, year')
   .neq('id', series.id)
   .order('popularity', { ascending: false })
   .limit(12);

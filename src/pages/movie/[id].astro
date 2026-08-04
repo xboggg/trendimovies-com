@@ -189,6 +189,7 @@ const similar = (tmdbData?.similar?.results || []).slice(0, 12).map((m: any) => 
   tmdb_id: m.id,
   title: m.title,
   poster_path: m.poster_path,
+  overview: m.overview,
   vote_average: m.vote_average,
   year: m.release_date ? new Date(m.release_date).getFullYear() : null,
   type: 'movie' as const

@@ -9,6 +9,7 @@
     title: string;
     slug?: string;
     poster_path: string | null;
+    overview?: string | null;
     year: number | null;
     vote_average: number;
     type: 'movie' | 'series';

@@ -15,6 +15,7 @@ function transformMovie(movie: any) {
     tmdb_id: movie.id,
     title: movie.title,
     poster_path: movie.poster_path,
+    overview: movie.overview,
     vote_average: movie.vote_average,
     year: movie.release_date ? new Date(movie.release_date).getFullYear() : null,
     type: 'movie' as const
@@ -27,6 +28,7 @@ function transformSeries(show: any) {
     tmdb_id: show.id,
     title: show.name,
     poster_path: show.poster_path,
+    overview: show.overview,
     vote_average: show.vote_average,
     year: show.first_air_date ? new Date(show.first_air_date).getFullYear() : null,
     type: 'series' as const

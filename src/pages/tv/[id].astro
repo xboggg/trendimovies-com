@@ -374,6 +374,7 @@ const similar = (tmdbData.similar?.results || []).slice(0, 12).map((s: any) => (
   tmdb_id: s.id,
   title: s.name,
   poster_path: s.poster_path,
+  overview: s.overview,
   vote_average: s.vote_average,
   year: s.first_air_date ? new Date(s.first_air_date).getFullYear() : null,
   type: 'series' as const
