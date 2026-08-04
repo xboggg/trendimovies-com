@@ -119,6 +119,12 @@ const pageDesc = post.deck || `${post.title} — from the TrendiMovies desk.`;
   .bl-article p{font-size:19px;line-height:1.85;color:#e9e7ee;margin:0 0 24px;opacity:.94}
   .bl-article :global(em){font-style:italic;color:#fff;opacity:1}
   .bl-article :global(strong){color:#fff}
+  .bl-article :global(a){color:var(--bl-a2);text-decoration-color:color-mix(in srgb, var(--bl-a2) 45%, transparent);text-underline-offset:3px;transition:color .15s,text-decoration-color .15s}
+  .bl-article :global(a:hover){color:#fff;text-decoration-color:#fff}
+  .bl-article :global(.mn){display:inline-flex;align-items:center;justify-content:center;min-width:28px;height:28px;padding:0 7px;
+    border-radius:999px;background:linear-gradient(135deg,var(--bl-accent),color-mix(in srgb,var(--bl-accent) 55%,#000));
+    color:#0a0a0a;font-weight:800;font-size:13px;font-variant-numeric:tabular-nums;margin-right:12px;
+    box-shadow:0 3px 10px color-mix(in srgb,var(--bl-accent) 45%,transparent);vertical-align:-6px}
   .bl-lead{font-size:22px !important}
   .bl-lead::first-letter{font-family:'Fraunces',Georgia,serif;float:left;font-size:80px;line-height:.72;font-weight:900;padding:8px 14px 0 0;color:var(--bl-a2)}
   .bl-rail{max-width:280px}
