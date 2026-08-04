@@ -9,10 +9,10 @@ try {
   if (res.ok) posts = await res.json();
 } catch (e) { posts = []; }
 
-// "Now Showing" — the 2 most current posts, subtitle/timecode treatment.
+// "Now Showing" — the 3 most current posts, subtitle/timecode treatment.
 // "More From The Blog" — everything else, vinyl sleeve shelf.
-const nowShowing = posts.slice(0, 2);
-const rest = posts.slice(2);
+const nowShowing = posts.slice(0, 3);
+const rest = posts.slice(3);
 
 const cover = (p: string | null) => p ? (p.startsWith('http') ? p : `https://image.tmdb.org/t/p/w780${p}`) : '/images/no-poster.svg';
 const angleLabel = (a: string | null) => a ? a.replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase()) : '';
@@ -106,7 +106,7 @@ const pageDesc = 'Recaps, takes and franchise deep-dives from the TrendiMovies d
   .blh-section-head span{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:#8a8790}
 
   /* Now Showing — subtitle / timecode (sized to 60% of full width, i.e. -40%) */
-  .tc-row{display:grid;grid-template-columns:repeat(var(--tc-cols,2),1fr);gap:16px;max-width:60%;margin:0 auto}
+  .tc-row{display:grid;grid-template-columns:repeat(var(--tc-cols,2),1fr);gap:16px;max-width:calc(var(--tc-cols,2) * 20% + 20%);margin:0 auto}
   .tc-frame{aspect-ratio:2/3;border-radius:12px;position:relative;overflow:hidden;background-size:cover;background-position:center;
     display:flex;flex-direction:column;justify-content:space-between;padding:13px;text-decoration:none;color:inherit;
     border:1px solid color-mix(in srgb, var(--glow) 40%, transparent);
