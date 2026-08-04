@@ -62,9 +62,31 @@
 
   $: daysUntil = getDaysUntilRelease(item.release_date);
   $: isUpcoming = daysUntil !== null && daysUntil > 0;
+
+  // Tap-to-reveal on touch: first tap shows the synopsis overlay, second tap
+  // navigates. Keyed off the actual pointerType of the event (not a
+  // hover/pointer media query -- those can misreport on hybrid touch+mouse
+  // laptops and would break normal mouse clicks).
+  let revealed = false;
+  let lastPointerType = 'mouse';
+  let resetTimer: ReturnType<typeof setTimeout>;
+
+  function handlePointerUp(e: PointerEvent) {
+    lastPointerType = e.pointerType || 'mouse';
+  }
+
+  function handleClick(e: MouseEvent) {
+    if (lastPointerType === 'touch' && !revealed) {
+      e.preventDefault();
+      revealed = true;
+      clearTimeout(resetTimer);
+      resetTimer = setTimeout(() => { revealed = false; }, 3000);
+    }
+  }
 </script>
 
-<a {href} class="group relative block rounded-xl overflow-hidden movie-card">
+<a {href} class="group relative block rounded-xl overflow-hidden movie-card"
+  on:pointerup={handlePointerUp} on:click={handleClick}>
   <!-- Poster Image -->
   <div class="aspect-[2/3] relative overflow-hidden">
     <img
@@ -117,8 +139,9 @@
       </span>
     </div>
 
-    <!-- Hover Overlay -->
-    <div class="absolute inset-0 bg-gradient-to-t from-black via-black/60 to-transparent opacity-0 group-hover:opacity-100 transition-all duration-300 flex flex-col items-center justify-center p-4">
+    <!-- Hover Overlay (desktop hover, or tap-revealed on touch) -->
+    <div class="absolute inset-0 bg-gradient-to-t from-black via-black/60 to-transparent opacity-0 group-hover:opacity-100 transition-all duration-300 flex flex-col items-center justify-center p-4"
+      style:opacity={revealed ? 1 : null}>
       <div class="play-button mb-3">
         <Play size={28} class="text-white ml-1" fill="white" />
       </div>
