@@ -20,6 +20,9 @@ to the server with the locked deploy key, and runs
 
 **Docs-only commits skip the deploy** — workflow has
 `paths-ignore: ['**.md', 'DOCS/**']`.
+If documentation must also exist in the live source checkout, use the
+documentation-only procedure in `WORKSPACE_SYNC.md`. Fast-forward the live Git
+checkout after preserving conflicts; do not rebuild or restart the application.
 
 Watch a deploy: https://github.com/xboggg/trendimovies-com/actions
 
@@ -106,6 +109,10 @@ connection-refused, check the bot service on 38:
 ssh root@38.242.195.0
 systemctl status trendimovies-tg-api
 ```
+
+Download-link auditing, safe inactive-link deletion, series quality handling,
+and interactive bot verification are documented in
+`DOWNLOAD_LINK_OPERATIONS.md`.
 
 ## Backups
 
