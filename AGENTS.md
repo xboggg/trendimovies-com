@@ -45,6 +45,16 @@ After an assignment, verify:
 
 See `DOCS/MOVIE_ASSIGNMENT_RUNBOOK.md` for the full workflow.
 
+## Download-link audits
+
+- Always process one content type at a time. A movie cleanup must never touch series rows, and a series cleanup must never touch movie rows.
+- Classify every inactive link: same content and quality has an active replacement; the content has active links only in other qualities; or the content has no active link.
+- Delete an inactive link only after proving that the same movie, or the same series episode, retains an approved active working download.
+- Never infer safety from aggregate counts. Re-query exact row IDs before deletion, restrict deletion to inactive rows, and verify active rows afterward.
+- Treat an inactive-only title or episode as an assignment problem. Assign and verify a replacement before removing the obsolete row.
+
+See `DOCS/DOWNLOAD_LINK_OPERATIONS.md` for the complete procedure.
+
 ## Related Telegram search bot
 
 - The interactive Telegram search bot is maintained in `xboggg/trendimovies-search-bot`, with the local checkout at the sibling folder `../trendimovies-search-bot`.
@@ -54,4 +64,14 @@ See `DOCS/MOVIE_ASSIGNMENT_RUNBOOK.md` for the full workflow.
 - Treat `Love Island US` and `Love Island USA` as aliases for the same series.
 - Series callbacks must search the selected season directly; do not filter a truncated whole-series result set.
 - Display explicit 480p, 720p, and 1080p qualities accurately. Treat files without a quality label as 720p when the user has authorized that fallback.
-- The live Love Island picker fix was deployed on 2026-08-05 and committed locally as `2d5ba7f` on `fix/series-season-quality-picker`; verify whether it has been pushed before assuming GitHub contains it.
+- The Love Island season/quality picker fix was deployed and synchronized on 2026-08-05 from commit `2d5ba7f` on `fix/series-season-quality-picker`.
+
+## Repository synchronization
+
+- Treat GitHub `main` as the source of truth for tracked source.
+- Preserve tracked and untracked work in a named stash and record its object ID before reconciling a dirty checkout.
+- Compare local, GitHub, and live commits and tracked status. Do not overwrite local variants until current `main` is confirmed equal or newer.
+- Documentation-only commits skip automatic deployment. Fast-forward live documentation separately without rebuilding or restarting when live source must match.
+- A live `dist.prev/` directory is an expected untracked rollback artifact, not a source mismatch.
+
+See `DOCS/WORKSPACE_SYNC.md` for the three-location procedure.
