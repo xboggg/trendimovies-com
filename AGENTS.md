@@ -44,3 +44,14 @@ After an assignment, verify:
 5. The movie appears in "Newly Added Movies" even when it is older than the current or previous year.
 
 See `DOCS/MOVIE_ASSIGNMENT_RUNBOOK.md` for the full workflow.
+
+## Related Telegram search bot
+
+- The interactive Telegram search bot is maintained in `xboggg/trendimovies-search-bot`, with the local checkout at the sibling folder `../trendimovies-search-bot`.
+- Do not confuse it with `xboggg/trendimovies-bot`, which primarily contains website-assignment automation.
+- The deployed interactive bot runs from `/opt/trendimovies/bot` on `38.242.195.0` as the `trendimovies-bot` systemd service.
+- Preserve the search flow: `/m` or `/s` -> available seasons -> available qualities plus All/Best -> paginated episodes or a private batch.
+- Treat `Love Island US` and `Love Island USA` as aliases for the same series.
+- Series callbacks must search the selected season directly; do not filter a truncated whole-series result set.
+- Display explicit 480p, 720p, and 1080p qualities accurately. Treat files without a quality label as 720p when the user has authorized that fallback.
+- The live Love Island picker fix was deployed on 2026-08-05 and committed locally as `2d5ba7f` on `fix/series-season-quality-picker`; verify whether it has been pushed before assuming GitHub contains it.
