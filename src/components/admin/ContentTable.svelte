@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { Search, ChevronLeft, ChevronRight, ExternalLink, Check, X, Film, Tv, Download } from 'lucide-svelte';
+  import { Search, ChevronLeft, ChevronRight, ExternalLink, Check, X, Film, Tv, Download, Image, Loader2 } from 'lucide-svelte';
 
   export let type: 'movies' | 'series' = 'movies';
 
@@ -10,6 +10,12 @@
   let loading = true;
   let search = '';
   let filter: 'all' | 'with_ddl' | 'without_ddl' = 'all';
+
+  // Poster upload state
+  let fileInputEl: HTMLInputElement;
+  let uploadTargetId: number | null = null;
+  let uploadingId: number | null = null;
+  let uploadMessage: { id: number; text: string; ok: boolean } | null = null;
 
   async function fetchData() {
     loading = true;
@@ -68,7 +74,74 @@
     if (type === 'movies') return `/admin/downloads?search=${encodeURIComponent(item.title)}`;
     return `/tv/${item.tmdb_id}`;
   }
+
+  function triggerPosterUpload(item: any) {
+    uploadTargetId = item.id;
+    uploadMessage = null;
+    fileInputEl?.click();
+  }
+
+  // Reads a File as base64 and sends it as JSON rather than
+  // multipart/form-data -- this server's reverse-proxy setup doesn't give
+  // Astro's same-origin check the real request origin, which blocks
+  // multipart POSTs specifically. JSON POSTs aren't affected, so this
+  // sidesteps it without touching shared server config.
+  function fileToBase64(file: File): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const result = reader.result as string;
+        const commaIndex = result.indexOf(',');
+        resolve(commaIndex >= 0 ? result.slice(commaIndex + 1) : result);
+      };
+      reader.onerror = () => reject(reader.error);
+      reader.readAsDataURL(file);
+    });
+  }
+
+  async function handlePosterFileChange(e: Event) {
+    const input = e.currentTarget as HTMLInputElement;
+    const file = input.files?.[0];
+    const movieId = uploadTargetId;
+    input.value = ''; // reset so picking the same file twice still fires change
+    if (!file || movieId === null) return;
+
+    uploadingId = movieId;
+    uploadMessage = null;
+
+    try {
+      const dataBase64 = await fileToBase64(file);
+      const res = await fetch('/api/admin/movie-poster', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ movieId, fileName: file.name, contentType: file.type, dataBase64 }),
+      });
+      const data = await res.json();
+
+      if (res.ok && data.ok) {
+        items = items.map((it) => it.id === movieId ? { ...it, poster_path: data.poster_path } : it);
+        uploadMessage = { id: movieId, text: 'Poster updated', ok: true };
+      } else {
+        uploadMessage = { id: movieId, text: data.error || 'Upload failed', ok: false };
+      }
+    } catch (err) {
+      uploadMessage = { id: movieId, text: 'Upload failed', ok: false };
+    }
+
+    uploadingId = null;
+    uploadTargetId = null;
+    setTimeout(() => { uploadMessage = null; }, 4000);
+  }
 </script>
+
+<!-- Shared hidden file input for poster uploads -->
+<input
+  type="file"
+  accept="image/jpeg,image/png,image/webp"
+  bind:this={fileInputEl}
+  on:change={handlePosterFileChange}
+  style="display: none;"
+/>
 
 <div>
   <!-- Filters -->
@@ -207,22 +280,43 @@
                 </td>
 
                 <td>
-                  <div class="flex gap-1">
-                    <a
-                      href={getViewLink(item)}
-                      target="_blank"
-                      class="p-1.5 rounded hover:bg-[#222] text-[#888] hover:text-white transition-colors"
-                      title="View on site"
-                    >
-                      <ExternalLink size={15} />
-                    </a>
-                    <a
-                      href={getAssignLink(item)}
-                      class="p-1.5 rounded hover:bg-[#222] text-[#888] hover:text-blue-400 transition-colors"
-                      title="Assign downloads"
-                    >
-                      <Download size={15} />
-                    </a>
+                  <div class="flex flex-col gap-1">
+                    <div class="flex gap-1">
+                      <a
+                        href={getViewLink(item)}
+                        target="_blank"
+                        class="p-1.5 rounded hover:bg-[#222] text-[#888] hover:text-white transition-colors"
+                        title="View on site"
+                      >
+                        <ExternalLink size={15} />
+                      </a>
+                      <a
+                        href={getAssignLink(item)}
+                        class="p-1.5 rounded hover:bg-[#222] text-[#888] hover:text-blue-400 transition-colors"
+                        title="Assign downloads"
+                      >
+                        <Download size={15} />
+                      </a>
+                      {#if type === 'movies'}
+                        <button
+                          on:click={() => triggerPosterUpload(item)}
+                          disabled={uploadingId === item.id}
+                          class="p-1.5 rounded hover:bg-[#222] text-[#888] hover:text-amber-400 transition-colors disabled:opacity-50"
+                          title="Upload/replace poster"
+                        >
+                          {#if uploadingId === item.id}
+                            <Loader2 size={15} class="animate-spin" />
+                          {:else}
+                            <Image size={15} />
+                          {/if}
+                        </button>
+                      {/if}
+                    </div>
+                    {#if uploadMessage && uploadMessage.id === item.id}
+                      <span class="text-[10px] {uploadMessage.ok ? 'text-green-400' : 'text-red-400'}">
+                        {uploadMessage.text}
+                      </span>
+                    {/if}
                   </div>
                 </td>
               </tr>
