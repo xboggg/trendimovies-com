@@ -75,3 +75,8 @@ See `DOCS/DOWNLOAD_LINK_OPERATIONS.md` for the complete procedure.
 - A live `dist.prev/` directory is an expected untracked rollback artifact, not a source mismatch.
 
 See `DOCS/WORKSPACE_SYNC.md` for the three-location procedure.
+
+## Related documentation
+
+- This file and `DOCS/*.md` are the sanitized, public-safe operating rules for this repo -- no server addresses, absolute infrastructure paths, or credentials.
+- Full operational runbooks with exact commands, schemas, and infrastructure detail are maintained privately on the production server (not in this repo, on purpose). If you have server access, check there first for anything this file only describes at a high level.
