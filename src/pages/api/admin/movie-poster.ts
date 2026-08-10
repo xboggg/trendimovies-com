@@ -5,7 +5,15 @@ import { existsSync } from 'fs';
 import path from 'path';
 
 const POSTGREST_URL = import.meta.env.PUBLIC_SUPABASE_URL || 'http://localhost:3001';
-const POSTERS_DIR = '/var/www/trendimovies/public/images/posters';
+// Astro's Node adapter (output: 'server') only serves static files from
+// dist/client/ -- that's a build-time COPY of public/, made once by
+// `npm run build`. Writing only to public/ means a runtime upload is
+// invisible (404) until the next full rebuild, which could be hours or
+// days away. Write to both: public/ so the file survives the next
+// rebuild (which wipes and repopulates dist/client/ from public/ alone),
+// and dist/client/ so it's actually reachable immediately.
+const POSTERS_DIR_SRC = '/var/www/trendimovies/public/images/posters';
+const POSTERS_DIR_LIVE = '/var/www/trendimovies/dist/client/images/posters';
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB, checked against the decoded image bytes
 const ALLOWED_TYPES: Record<string, string> = {
   'image/jpeg': 'jpg',
@@ -89,11 +97,12 @@ export const POST: APIRoute = async ({ request }) => {
     const fileName = `${safeSlug}-${movie.tmdb_id || movie.id}-${Date.now()}.${ext}`;
     const posterPath = `/images/posters/${fileName}`;
 
-    if (!existsSync(POSTERS_DIR)) {
-      await mkdir(POSTERS_DIR, { recursive: true });
+    for (const dir of [POSTERS_DIR_SRC, POSTERS_DIR_LIVE]) {
+      if (!existsSync(dir)) {
+        await mkdir(dir, { recursive: true });
+      }
+      await writeFile(path.join(dir, fileName), buffer);
     }
-
-    await writeFile(path.join(POSTERS_DIR, fileName), buffer);
 
     const updateRes = await pg(`movies?id=eq.${movieId}`, {
       method: 'PATCH',
