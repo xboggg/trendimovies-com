@@ -3,6 +3,7 @@ import { requireAuth } from '../../../lib/admin-auth';
 import { writeFile, mkdir } from 'fs/promises';
 import { existsSync } from 'fs';
 import path from 'path';
+import sharp from 'sharp';
 
 const POSTGREST_URL = import.meta.env.PUBLIC_SUPABASE_URL || 'http://localhost:3001';
 // Astro's Node adapter (output: 'server') only serves static files from
@@ -61,10 +62,12 @@ export const POST: APIRoute = async ({ request }) => {
     if (!dataBase64) {
       return new Response(JSON.stringify({ error: 'poster image data is required' }), { status: 400 });
     }
-    const ext = contentType ? ALLOWED_TYPES[contentType] : undefined;
-    if (!ext) {
+    // Input format is validated here but not preserved -- every upload is
+    // re-encoded to JPEG below, so the output extension is always 'jpg'.
+    if (!contentType || !ALLOWED_TYPES[contentType]) {
       return new Response(JSON.stringify({ error: 'Only JPG, PNG, or WEBP images are allowed' }), { status: 400 });
     }
+    const ext = 'jpg';
 
     let buffer: Buffer;
     try {
@@ -77,6 +80,23 @@ export const POST: APIRoute = async ({ request }) => {
     }
     if (buffer.length > MAX_FILE_SIZE) {
       return new Response(JSON.stringify({ error: `File too large (max ${MAX_FILE_SIZE / 1024 / 1024}MB)` }), { status: 400 });
+    }
+
+    // Re-encode as a resized JPEG regardless of the input format. Admin
+    // uploads come straight off a phone/browser at full resolution (seen
+    // as large as 2000x3000, 1.6MB+), and that raw file was going out
+    // untouched as both the poster <img> src AND the og:image for link
+    // previews -- WhatsApp's crawler silently drops previews for images
+    // that large. 780px wide matches the TMDB w780 size already used
+    // everywhere else on the site, and quality 82 keeps posters looking
+    // sharp while landing comfortably under 300KB.
+    try {
+      buffer = await sharp(buffer)
+        .resize({ width: 780, withoutEnlargement: true })
+        .jpeg({ quality: 82 })
+        .toBuffer();
+    } catch {
+      return new Response(JSON.stringify({ error: 'Could not process image (unsupported or corrupt file)' }), { status: 400 });
     }
 
     // Look up the movie first so we can build a stable, readable filename
