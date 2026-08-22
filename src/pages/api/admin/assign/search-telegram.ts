@@ -92,13 +92,20 @@ async function searchSQLiteDirect(query: string, year?: string, quality?: string
   // Build SQL query (values are sanitized above)
   // NOTE: exclude files marked deleted (is_deleted=1) so files removed from
   // Telegram never appear in Manual Assign and cannot be assigned as dead links.
-  const sql = `SELECT id, message_id, file_id, file_name, file_size, quality, year
+  // NOTE: no GROUP BY file_name here on purpose -- the catalog legitimately
+  // contains the exact same release re-uploaded under an identical filename
+  // (e.g. a dead Oct-2025 copy and a still-alive Apr-2026 re-upload of the
+  // same file). Collapsing those into one row silently hid whichever copy
+  // SQLite happened to pick, sometimes the dead one, with no way for the
+  // admin to even see the alive copy existed. Each catalog row (unique by
+  // id) is now returned separately, with added_date so identical-looking
+  // duplicates are distinguishable, newest first.
+  const sql = `SELECT id, message_id, file_id, file_name, file_size, quality, year, added_date
              FROM movies
              WHERE file_name LIKE '%${searchTerm}%'
              AND file_name NOT LIKE '%.srt'
              AND file_name NOT LIKE '%.sub'
              AND (is_deleted = 0 OR is_deleted IS NULL)${yearFilter}${qualityFilter}
-             GROUP BY file_name
              ORDER BY
              CASE quality
                WHEN '2160p' THEN 1
@@ -106,7 +113,8 @@ async function searchSQLiteDirect(query: string, year?: string, quality?: string
                WHEN '720p' THEN 3
                ELSE 4
              END,
-             file_size DESC
+             file_size DESC,
+             added_date DESC
              LIMIT 50`;
 
   // Escape for shell - use base64 encoding to avoid shell injection
@@ -128,7 +136,8 @@ async function searchSQLiteDirect(query: string, year?: string, quality?: string
       file_name: f.file_name,
       file_size: formatFileSize(f.file_size),
       quality: f.quality || extractQuality(f.file_name || ''),
-      year: f.year || extractYear(f.file_name || '')
+      year: f.year || extractYear(f.file_name || ''),
+      added_date: f.added_date || null
     }));
 
     // Filter by quality if specified

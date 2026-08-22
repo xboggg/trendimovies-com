@@ -38,6 +38,16 @@
     file_size: string;
     quality: string;
     year: number | null;
+    added_date: string | null;
+  }
+
+  // Same filename/size can legitimately appear more than once in the
+  // catalog (a dead re-upload alongside a still-alive one) -- show just
+  // the date portion of added_date so those are distinguishable at a
+  // glance instead of looking identical in the results list.
+  function formatAddedDate(addedDate: string | null): string {
+    if (!addedDate) return '';
+    return addedDate.split(' ')[0];
   }
 
   let searchQuery = '';
@@ -621,7 +631,7 @@
                   class="w-full text-left px-3 py-2 bg-[#0a0a0a] hover:bg-[#222] rounded-lg text-sm"
                 >
                   <div class="truncate">{file.file_name}</div>
-                  <div class="text-xs text-[#666]">{file.quality || 'unknown quality'} · {file.file_size}</div>
+                  <div class="text-xs text-[#666]">{file.quality || 'unknown quality'} · {file.file_size}{#if file.added_date} · Uploaded {formatAddedDate(file.added_date)}{/if}</div>
                 </button>
               {/each}
             </div>

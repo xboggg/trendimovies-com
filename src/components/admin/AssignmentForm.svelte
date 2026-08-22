@@ -8,6 +8,16 @@
     file_size: string;
     quality: string;
     year: number | null;
+    added_date: string | null;
+  }
+
+  // Same filename/size can legitimately appear more than once in the
+  // catalog (a dead re-upload alongside a still-alive one) -- show just
+  // the date portion of added_date so those are distinguishable at a
+  // glance instead of looking identical in the results list.
+  function formatAddedDate(addedDate: string | null): string {
+    if (!addedDate) return '';
+    return addedDate.split(' ')[0];
   }
 
   interface SearchResult {
@@ -333,6 +343,9 @@
                       <span>{formatFileSize(file.file_size)}</span>
                       {#if file.year}
                         <span>{file.year}</span>
+                      {/if}
+                      {#if file.added_date}
+                        <span>Uploaded {formatAddedDate(file.added_date)}</span>
                       {/if}
                     </div>
                   </div>
