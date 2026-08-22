@@ -230,6 +230,15 @@
   border-color: var(--admin-accent);
 }
 
+/* Some admin pages pair .select with a "w-auto" utility class intending to
+   shrink it back to content width next to a search input (ContentTable,
+   CronMonitor) -- that utility isn't present in either page's compiled CSS
+   bundle, so .select's width:100% above wins uncontested and the dropdown
+   swallows the whole row, hiding the actual search field beside it. */
+.select.w-auto {
+  width: auto;
+}
+
 /* Card */
 .card {
   background: var(--admin-card);
