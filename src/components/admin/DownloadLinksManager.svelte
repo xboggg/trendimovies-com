@@ -163,6 +163,7 @@
 
     try {
       const params = new URLSearchParams({ query: editFileSearchQuery });
+      if (editQuality) params.append('quality', editQuality);
       const res = await fetch(`/api/admin/assign/search-telegram?${params}`, {
         signal: AbortSignal.timeout(30000)
       });
