@@ -1,0 +1,157 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import MovieCard from '../../components/MovieCard.svelte';
+import { discoverTV } from '../../lib/tmdb';
+
+// Get query params
+const page = parseInt(Astro.url.searchParams.get('page') || '1');
+const sort = Astro.url.searchParams.get('sort') || 'popular';
+
+// Map sort options (TV uses first_air_date, not primary_release_date)
+const sortMap: Record<string, string> = {
+  'popular': 'popularity.desc',
+  'rating': 'vote_average.desc',
+  'newest': 'first_air_date.desc',
+  'title': 'name.asc'
+};
+
+const sortBy = sortMap[sort] || 'popularity.desc';
+
+// Each site page = 2 TMDB pages (40 -> 30 after poster filter), matching /movies/popular.
+const tmdbPage1 = (page - 1) * 2 + 1;
+const tmdbPage2 = tmdbPage1 + 1;
+
+// Popular series with a real vote base so we don't surface obscure/empty entries.
+const [response1, response2] = await Promise.all([
+  discoverTV({
+    sort_by: sortBy,
+    'vote_count.gte': '150',
+    page: tmdbPage1.toString()
+  }),
+  discoverTV({
+    sort_by: sortBy,
+    'vote_count.gte': '150',
+    page: tmdbPage2.toString()
+  })
+]);
+
+const allSeries = [...(response1.results || []), ...(response2.results || [])]
+  .filter((s: any) => s.poster_path && !s.adult);
+const series = allSeries.slice(0, 30);
+const totalPages = Math.min(Math.ceil((response1.total_pages || 1) / 2), 250);
+
+function transformToItem(show: any) {
+  return {
+    id: show.id,
+    tmdb_id: show.id,
+    title: show.name || 'Unknown',
+    poster_path: show.poster_path,
+    overview: show.overview,
+    vote_average: show.vote_average,
+    popularity: show.popularity,
+    year: show.first_air_date ? new Date(show.first_air_date).getFullYear() : null,
+    release_date: show.first_air_date,
+    type: 'series' as const
+  };
+}
+
+// WhatsApp-safe OG collage (type=digital -> satori->sharp JPEG ~25-60KB, well under
+// the ~300KB comfortable / 600KB hard limit). Uses the top posters of THIS page.
+const ogPosters = series
+  .filter((s: any) => s.poster_path)
+  .slice(0, 5)
+  .map((s: any) => s.poster_path)
+  .join('|');
+
+const ogImage = `/api/og.png?type=digital`
+  + `&posters=${encodeURIComponent(ogPosters)}`
+  + `&accent=${encodeURIComponent('#e50914')}`
+  + `&eyebrow=${encodeURIComponent('MOST POPULAR')}`
+  + `&eyebrowEmoji=${encodeURIComponent('🔥')}`
+  + `&headline=${encodeURIComponent('Popular Series')}`
+  + `&subtitle=${encodeURIComponent('The shows everyone is watching right now — stream or download free')}`
+  + `&ogurl=${encodeURIComponent('trendimovies.com/series/popular')}`;
+---
+
+<BaseLayout
+  title="Popular TV Series — What Everyone's Watching | TrendiMovies"
+  description="The most popular TV series right now on TrendiMovies. Browse what everyone's watching and stream or download free in 720p & 1080p."
+  image={ogImage}
+>
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <div class="flex flex-col md:flex-row md:items-center md:justify-between mb-8">
+      <div>
+        <h1 class="text-3xl font-bold mb-2" style="color: var(--text-primary);">🔥 Popular Series</h1>
+        <p style="color: var(--text-secondary);">The shows everyone's watching right now</p>
+      </div>
+
+      <!-- Sort Filter -->
+      <div class="mt-4 md:mt-0">
+        <select
+          id="sort-select"
+          class="px-4 py-2 rounded-lg text-sm"
+          style="background-color: var(--bg-card); color: var(--text-primary); border: 1px solid var(--border);"
+        >
+          <option value="popular" selected={sort === 'popular'}>Most Popular</option>
+          <option value="rating" selected={sort === 'rating'}>Highest Rated</option>
+          <option value="newest" selected={sort === 'newest'}>Newest</option>
+          <option value="title" selected={sort === 'title'}>Title A-Z</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- Series Grid -->
+    {series.length > 0 ? (
+      <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 lg:grid-cols-6 gap-4">
+        {series.map(show => (
+          <MovieCard client:visible item={transformToItem(show)} />
+        ))}
+      </div>
+    ) : (
+      <div class="text-center py-16">
+        <p style="color: var(--text-secondary);">No popular series found</p>
+      </div>
+    )}
+
+    <!-- Pagination -->
+    {totalPages > 1 && (
+      <div class="flex justify-center mt-8 gap-2">
+        {page > 1 && (
+          <a
+            href={`/series/popular?sort=${sort}&page=${page - 1}`}
+            class="px-4 py-2 rounded-lg"
+            style="background-color: var(--bg-card); color: var(--text-primary); border: 1px solid var(--border);"
+          >
+            Previous
+          </a>
+        )}
+
+        <span class="px-4 py-2" style="color: var(--text-secondary);">
+          Page {page} of {totalPages}
+        </span>
+
+        {page < totalPages && (
+          <a
+            href={`/series/popular?sort=${sort}&page=${page + 1}`}
+            class="px-4 py-2 rounded-lg"
+            style="background-color: var(--bg-card); color: var(--text-primary); border: 1px solid var(--border);"
+          >
+            Next
+          </a>
+        )}
+      </div>
+    )}
+  </div>
+
+  <script>
+    const sortSelect = document.getElementById('sort-select') as HTMLSelectElement;
+    if (sortSelect) {
+      sortSelect.addEventListener('change', () => {
+        const url = new URL(window.location.href);
+        url.searchParams.set('sort', sortSelect.value);
+        url.searchParams.delete('page');
+        window.location.href = url.toString();
+      });
+    }
+  </script>
+</BaseLayout>
