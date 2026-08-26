@@ -92,8 +92,12 @@ The deploy install script (`/usr/local/bin/trendimovies-install`):
    `/var/www/trendimovies.backup/`
 2. Rsyncs the new source over the webroot, **preserving** `.env`,
    `dist/`, `dist.prev/`, `node_modules/`, `.cache/`, `.astro/`,
-   `backups/`, `public_old_backup/`, `src_old_backup/`, and dist
-   backup folders
+   `backups/`, `public_old_backup/`, `src_old_backup/`, dist
+   backup folders, `*.bak*` files, `public/images/posters/`
+   (admin-uploaded, not in git), and `AGENTS.md` / `DOCS/` / `.github/`
+   (excluded from the deploy tarball on purpose, so without this rsync
+   exclusion too they were being silently deleted from the live
+   checkout on every code deploy -- fixed 2026-08-25, see below)
 3. Runs `npm ci` only if `package*.json` changed
 4. Builds `astro build --outDir /var/www/trendimovies/.dist-build.XXXXXX`
 5. Atomic swap: `mv dist dist.prev && mv .dist-build dist`
@@ -114,3 +118,22 @@ The old build sits as `dist.prev` for one-step rollback.
   client bundle.
 - Backups: nightly Postgres schema dump + webroot tarball to Google
   Drive (see OPERATIONS.md).
+
+## Service worker / offline support
+
+`public/sw.js` (network-first for pages, cache-first for TMDB images,
+always-fresh for hashed `/_astro/*` build assets). Fixed 2026-08-25: a
+visitor's very first load could crash with "FetchEvent.respondWith
+received an error: Returned response is null." Cause: the install
+handler used `cache.addAll()`, which is all-or-nothing -- one failed
+request (a transient blip, most exposed on exactly a first visit over a
+weak connection) silently failed the WHOLE static cache, including
+`/offline`, with the error swallowed by a top-level `.catch()`. When a
+later fetch failed and the offline fallback tried
+`caches.match('/offline')`, it resolved to `undefined`, and
+`respondWith()` receiving nothing crashes with that exact error. Fixed
+by caching each static asset independently and by guaranteeing a real
+inline HTML `Response` from the offline fallback even when `/offline`
+itself was never cached. Cache version bumped `v3` -> `v4` so visitors
+already carrying a broken v3 cache also get the fix, not just new ones.
+Backup: `public/sw.js.bak-20260825`.

@@ -11,8 +11,12 @@ to the server with the locked deploy key, and runs
 1. Snapshots `/var/www/trendimovies/` (source files only) to
    `/var/www/trendimovies.backup/`
 2. Rsyncs the new source into webroot, preserving `.env`, `dist/`,
-   `dist.prev/`, `node_modules/`, `.cache/`, `.astro/`, and the
-   `*_backup`/`*_old_backup` folders
+   `dist.prev/`, `node_modules/`, `.cache/`, `.astro/`, the
+   `*_backup`/`*_old_backup` folders, `*.bak*` files,
+   `public/images/posters/`, and `AGENTS.md` / `DOCS/` / `.github/`
+   (these three are excluded from the deploy tarball by design, and
+   until 2026-08-25 that meant this same rsync silently deleted them
+   from the live checkout on every code deploy -- see ARCHITECTURE.md)
 3. Runs `npm ci` only if `package*.json` changed
 4. Builds with `astro build --outDir <tempdir>` (~80s build time)
 5. Atomic swap: `mv dist dist.prev && mv <tempdir> dist`
