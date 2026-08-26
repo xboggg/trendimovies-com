@@ -1,6 +1,6 @@
-const CACHE_NAME = 'trendimovies-v3';
-const STATIC_CACHE = 'trendimovies-static-v3';
-const DYNAMIC_CACHE = 'trendimovies-dynamic-v3';
+const CACHE_NAME = 'trendimovies-v4';
+const STATIC_CACHE = 'trendimovies-static-v4';
+const DYNAMIC_CACHE = 'trendimovies-dynamic-v4';
 
 // Assets to cache immediately
 const STATIC_ASSETS = [
@@ -16,9 +16,20 @@ const STATIC_ASSETS = [
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(STATIC_CACHE).then((cache) => {
-      return cache.addAll(STATIC_ASSETS).catch((err) => {
-        console.log('Failed to cache some static assets:', err);
-      });
+      // cache.addAll() is all-or-nothing -- one failed request (a transient
+      // blip on a weak connection, most likely exactly on a visitor's very
+      // first load) silently failed the ENTIRE static cache, including
+      // '/offline'. That left the fetch handler's offline fallback below
+      // with nothing to serve, which crashed as "FetchEvent.respondWith
+      // received an error: Returned response is null." Cache each asset on
+      // its own instead, so one miss doesn't take the rest down with it.
+      return Promise.all(
+        STATIC_ASSETS.map((url) =>
+          cache.add(url).catch((err) => {
+            console.log(`Failed to cache ${url}:`, err);
+          })
+        )
+      );
     })
   );
   self.skipWaiting();
@@ -94,9 +105,18 @@ self.addEventListener('fetch', (event) => {
         // Fallback to cache
         return caches.match(request).then((cached) => {
           if (cached) return cached;
-          // If it's a page request, show offline page
+          // If it's a page request, show offline page -- but '/offline'
+          // itself might not be cached (see the install handler above), so
+          // this must never resolve to nothing. respondWith() receiving an
+          // undefined/null response is what crashes the page with
+          // "Returned response is null", not a graceful offline screen.
           if (request.headers.get('accept')?.includes('text/html')) {
-            return caches.match('/offline');
+            return caches.match('/offline').then((offlinePage) => {
+              return offlinePage || new Response(
+                '<html><body style="font-family:sans-serif;text-align:center;padding:60px 20px;"><h1>You\'re offline</h1><p>Check your connection and try again.</p></body></html>',
+                { status: 503, headers: { 'Content-Type': 'text/html' } }
+              );
+            });
           }
           return new Response('Offline', { status: 503 });
         });
