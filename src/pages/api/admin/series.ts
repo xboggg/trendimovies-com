@@ -11,9 +11,10 @@ export const GET: APIRoute = async ({ request, url }) => {
   const limit = Math.min(parseInt(url.searchParams.get('limit') || '50'), 100); // Cap at 100
   const search = url.searchParams.get('search') || '';
   const filter = url.searchParams.get('filter') || 'all';
+  const year = url.searchParams.get('year') || '';
 
   try {
-    const data = await getSeries({ page, limit, search, filter });
+    const data = await getSeries({ page, limit, search, filter, year });
     return new Response(JSON.stringify(data), {
       headers: { 'Content-Type': 'application/json' }
     });

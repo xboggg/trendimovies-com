@@ -10,6 +10,7 @@
   let loading = true;
   let search = '';
   let filter: 'all' | 'with_ddl' | 'without_ddl' = 'all';
+  let yearFilter = '';
 
   // Poster upload state
   let fileInputEl: HTMLInputElement;
@@ -25,6 +26,9 @@
       search,
       filter
     });
+    if (yearFilter.trim()) {
+      params.set('year', yearFilter.trim());
+    }
 
     try {
       const res = await fetch(`/api/admin/${type}?${params}`);
@@ -47,6 +51,11 @@
   }
 
   function handleFilterChange() {
+    page = 1;
+    fetchData();
+  }
+
+  function handleYearChange() {
     page = 1;
     fetchData();
   }
@@ -164,6 +173,16 @@
       <option value="with_ddl">With DDL</option>
       <option value="without_ddl">Without DDL</option>
     </select>
+
+    <input
+      type="number"
+      bind:value={yearFilter}
+      on:keydown={(e) => e.key === 'Enter' && handleYearChange()}
+      on:blur={handleYearChange}
+      placeholder="Year"
+      class="input w-auto"
+      style="width: 100px;"
+    />
 
     <button on:click={handleSearch} class="btn btn-primary">
       Search

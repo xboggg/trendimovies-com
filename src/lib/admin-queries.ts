@@ -201,8 +201,9 @@ export async function getMovies(options: {
   limit?: number;
   search?: string;
   filter?: 'all' | 'with_ddl' | 'without_ddl';
+  year?: string;
 } = {}) {
-  const { page = 1, limit = 50, search = '', filter = 'all' } = options;
+  const { page = 1, limit = 50, search = '', filter = 'all', year = '' } = options;
   const offset = (page - 1) * limit;
 
   // Get movies
@@ -212,6 +213,12 @@ export async function getMovies(options: {
   if (search) {
     queryUrl += `&title=ilike.*${encodeURIComponent(search)}*`;
     countUrl += `&title=ilike.*${encodeURIComponent(search)}*`;
+  }
+
+  const cleanYear = year.trim().match(/^\d{4}$/) ? year.trim() : '';
+  if (cleanYear) {
+    queryUrl += `&year=eq.${cleanYear}`;
+    countUrl += `&year=eq.${cleanYear}`;
   }
 
   // Note: We'll filter by DDL status after fetching since has_downloads may be stale
@@ -265,8 +272,9 @@ export async function getSeries(options: {
   limit?: number;
   search?: string;
   filter?: string;
+  year?: string;
 } = {}) {
-  const { page = 1, limit = 50, search = '', filter = 'all' } = options;
+  const { page = 1, limit = 50, search = '', filter = 'all', year = '' } = options;
   const offset = (page - 1) * limit;
 
   let queryUrl = `${POSTGREST_URL}/series?select=id,tmdb_id,title,year,poster_path,number_of_seasons,number_of_episodes,view_count,slug&order=created_at.desc`;
@@ -276,6 +284,12 @@ export async function getSeries(options: {
     const cleanSearch = search.replace(/[%_]/g, '\\$&').replace(/\s+/g, '*');
     queryUrl += `&title=ilike.*${cleanSearch}*`;
     countUrl += `&title=ilike.*${cleanSearch}*`;
+  }
+
+  const cleanYear = year.trim().match(/^\d{4}$/) ? year.trim() : '';
+  if (cleanYear) {
+    queryUrl += `&year=eq.${cleanYear}`;
+    countUrl += `&year=eq.${cleanYear}`;
   }
 
   queryUrl += `&offset=${offset}&limit=${limit}`;
