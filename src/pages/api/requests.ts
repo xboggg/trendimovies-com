@@ -9,6 +9,7 @@ function _apiAuth(extra?: Record<string, string>): Record<string, string> {
   return h;
 }
 import type { APIRoute } from 'astro';
+import { requireAuth } from '../../lib/admin-auth';
 
 const POSTGREST_URL = import.meta.env.PUBLIC_SUPABASE_URL || 'http://localhost:3001';
 
@@ -123,6 +124,9 @@ export const GET: APIRoute = async ({ url }) => {
 };
 
 export const PATCH: APIRoute = async ({ request }) => {
+  const authError = requireAuth(request);
+  if (authError) return authError;
+
   try {
     const body = await request.json();
     const { id, status } = body;
@@ -169,6 +173,9 @@ export const PATCH: APIRoute = async ({ request }) => {
 };
 
 export const DELETE: APIRoute = async ({ request }) => {
+  const authError = requireAuth(request);
+  if (authError) return authError;
+
   try {
     const body = await request.json();
     const { id } = body;

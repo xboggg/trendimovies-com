@@ -159,6 +159,26 @@
         {/if}
       </button>
 
+      {#if total > limit}
+        <div class="flex items-center gap-2">
+          <button
+            on:click={() => { page = Math.max(1, page - 1); loadRequests(); }}
+            disabled={page === 1 || loading}
+            class="px-3 py-1.5 bg-[#333] rounded-lg text-sm disabled:opacity-50"
+          >
+            Previous
+          </button>
+          <span class="px-2 text-sm text-[#888]">Page {page} of {Math.ceil(total / limit)}</span>
+          <button
+            on:click={() => { page++; loadRequests(); }}
+            disabled={page >= Math.ceil(total / limit) || loading}
+            class="px-3 py-1.5 bg-[#333] rounded-lg text-sm disabled:opacity-50"
+          >
+            Next
+          </button>
+        </div>
+      {/if}
+
       <div class="ml-auto text-sm text-[#888]">
         {total} total requests
       </div>
