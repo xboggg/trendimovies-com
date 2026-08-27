@@ -102,30 +102,32 @@
   async function handlePosterFileChange(e: Event) {
     const input = e.currentTarget as HTMLInputElement;
     const file = input.files?.[0];
-    const movieId = uploadTargetId;
+    const targetId = uploadTargetId;
     input.value = ''; // reset so picking the same file twice still fires change
-    if (!file || movieId === null) return;
+    if (!file || targetId === null) return;
 
-    uploadingId = movieId;
+    uploadingId = targetId;
     uploadMessage = null;
 
     try {
       const dataBase64 = await fileToBase64(file);
-      const res = await fetch('/api/admin/movie-poster', {
+      const endpoint = type === 'movies' ? '/api/admin/movie-poster' : '/api/admin/series-poster';
+      const idField = type === 'movies' ? 'movieId' : 'seriesId';
+      const res = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ movieId, fileName: file.name, contentType: file.type, dataBase64 }),
+        body: JSON.stringify({ [idField]: targetId, fileName: file.name, contentType: file.type, dataBase64 }),
       });
       const data = await res.json();
 
       if (res.ok && data.ok) {
-        items = items.map((it) => it.id === movieId ? { ...it, poster_path: data.poster_path } : it);
-        uploadMessage = { id: movieId, text: 'Poster updated', ok: true };
+        items = items.map((it) => it.id === targetId ? { ...it, poster_path: data.poster_path } : it);
+        uploadMessage = { id: targetId, text: 'Poster updated', ok: true };
       } else {
-        uploadMessage = { id: movieId, text: data.error || 'Upload failed', ok: false };
+        uploadMessage = { id: targetId, text: data.error || 'Upload failed', ok: false };
       }
     } catch (err) {
-      uploadMessage = { id: movieId, text: 'Upload failed', ok: false };
+      uploadMessage = { id: targetId, text: 'Upload failed', ok: false };
     }
 
     uploadingId = null;
@@ -297,20 +299,18 @@
                       >
                         <Download size={15} />
                       </a>
-                      {#if type === 'movies'}
-                        <button
-                          on:click={() => triggerPosterUpload(item)}
-                          disabled={uploadingId === item.id}
-                          class="p-1.5 rounded hover:bg-[#222] text-[#888] hover:text-amber-400 transition-colors disabled:opacity-50"
-                          title="Upload/replace poster"
-                        >
-                          {#if uploadingId === item.id}
-                            <Loader2 size={15} class="animate-spin" />
-                          {:else}
-                            <Image size={15} />
-                          {/if}
-                        </button>
-                      {/if}
+                      <button
+                        on:click={() => triggerPosterUpload(item)}
+                        disabled={uploadingId === item.id}
+                        class="p-1.5 rounded hover:bg-[#222] text-[#888] hover:text-amber-400 transition-colors disabled:opacity-50"
+                        title="Upload/replace poster"
+                      >
+                        {#if uploadingId === item.id}
+                          <Loader2 size={15} class="animate-spin" />
+                        {:else}
+                          <Image size={15} />
+                        {/if}
+                      </button>
                     </div>
                     {#if uploadMessage && uploadMessage.id === item.id}
                       <span class="text-[10px] {uploadMessage.ok ? 'text-green-400' : 'text-red-400'}">

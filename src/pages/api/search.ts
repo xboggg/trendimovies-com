@@ -129,17 +129,23 @@ export const GET: APIRoute = async ({ url }) => {
       total = total + newLocal.length;
     }
 
-    // Override poster_path from DB for movies with custom posters
+    // Override poster_path from DB for movies with custom posters.
+    // Movie and TV tmdb_ids are separate namespaces on TMDB, so a movie
+    // and a series can share the same numeric id by coincidence (e.g.
+    // movie "After Earth" and series "Baby" are both 82700) -- only apply
+    // this to type === 'movie' results, or a series can silently end up
+    // wearing an unrelated movie's poster.
     try {
-      const overrideIds = results.map((r: any) => r.tmdb_id).filter(Boolean);
-      if (overrideIds.length > 0) {
-        const overrideResp = await fetch(`${POSTGREST_URL}/movies?tmdb_id=in.(${overrideIds.join(',')})&select=tmdb_id,poster_path`, {
+      const movieOverrideIds = results.filter((r: any) => r.type === 'movie').map((r: any) => r.tmdb_id).filter(Boolean);
+      if (movieOverrideIds.length > 0) {
+        const overrideResp = await fetch(`${POSTGREST_URL}/movies?tmdb_id=in.(${movieOverrideIds.join(',')})&select=tmdb_id,poster_path`, {
           signal: AbortSignal.timeout(3000),
         });
         if (overrideResp.ok) {
           const dbMovies = await overrideResp.json();
           const dbPosterMap = new Map(dbMovies.map((m: any) => [m.tmdb_id, m.poster_path]));
           results = results.map((r: any) => {
+            if (r.type !== 'movie') return r;
             const dbPoster = dbPosterMap.get(r.tmdb_id);
             if (dbPoster && dbPoster !== r.poster_path) {
               return { ...r, poster_path: dbPoster };
