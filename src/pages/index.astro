@@ -17,17 +17,28 @@ const POSTGREST_URL = import.meta.env.PUBLIC_SUPABASE_URL || 'http://localhost:3
 async function getLatestAdditions() {
   // "Latest Additions" = recently-acquired recent-release content.
   //   - year filter: only current year + previous year (rolls automatically)
-  //   - sort: by movies.updated_at DESC, which a PG trigger bumps whenever a
-  //     download_link is inserted/updated. So a movie that gets new files today
-  //     surfaces today, even if the row itself was created months ago.
+  //   - sort: by rpc/recently_added_movies, which orders on the MAX
+  //     download_links.created_at for each movie (the real moment a file was
+  //     assigned) rather than movies.updated_at. updated_at is bumped by a PG
+  //     trigger on ANY change to a movie's download_links -- including
+  //     admin/backend maintenance like deactivating a duplicate row -- which
+  //     was surfacing weeks-old movies as "just added" whenever such
+  //     maintenance ran (confirmed 2026-08-29). download_links.created_at is
+  //     never touched by that kind of update, only by a genuine new insert.
   const currentYear = new Date().getFullYear();
   const minYear = currentYear - 1;
   try {
     const res = await fetch(
-      `${POSTGREST_URL}/movies?has_downloads=eq.true&year=gte.${minYear}&order=updated_at.desc&limit=30&select=tmdb_id,title,year,poster_path,backdrop_path,vote_average,vote_count,popularity,overview,updated_at`
+      `${POSTGREST_URL}/rpc/recently_added_movies`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ result_limit: 30, min_year: minYear }),
+      }
     );
     if (!res.ok) return [];
-    return await res.json();
+    const rows = await res.json();
+    return rows.map((r: any) => ({ ...r, updated_at: r.last_file_added }));
   } catch (e) {
     console.error('Failed to fetch latest additions:', e);
     return [];
