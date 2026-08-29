@@ -133,8 +133,13 @@ async function scrapeBoxOffice() {
       const rank = parseInt($(cells[0]).text().trim()) || (entries.length + 1);
       const title = $(cells[2]).text().trim().replace(/^["']+|["']+$/g, '');
       const weekendGross = parseCurrency($(cells[3]).text());
-      const totalGross = parseCurrency($(cells[6]).text());
-      const daysText = $(cells[7]).text().trim();
+      // Fixed 2026-08-29: the-numbers.com's table has a "Per-Theater Average"
+      // column between Theaters and Total Gross that this script never
+      // accounted for, shifting every later column by one index. cells[6]
+      // is the per-theater average (a few thousand dollars); the real Total
+      // Gross is cells[7], and Days in Release is cells[8].
+      const totalGross = parseCurrency($(cells[7]).text());
+      const daysText = $(cells[8]).text().trim();
       const days = parseInt(daysText) || 1;
       const weeks = Math.ceil(days / 7);
 
