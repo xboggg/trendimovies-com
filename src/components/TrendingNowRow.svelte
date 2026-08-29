@@ -12,7 +12,7 @@
   }
 
   export let items: TrendingItem[] = [];
-  export let title: string = 'Trending Now';
+  export let title: string = 'Most Watched';
   export let subtitle: string = 'Most watched on TrendiMovies';
   export let seeAllLink: string = '';
 
