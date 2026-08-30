@@ -46,18 +46,20 @@ export interface SearchResult {
   total: number;
 }
 
-// Duplicate = same normalized_title + year appearing on more than one
-// active (non-subtitle) row. Reuses the SAME normalized_title column the
-// assign pipeline itself computes at index time, so "duplicate" here means
-// exactly what the assign engine would also consider the same title --
-// no separate fuzzy-matching logic to keep in sync with it.
+// Duplicate = same normalized_title + year + file_size appearing on more
+// than one active (non-subtitle) row. Title+year alone would also flag
+// legitimately different quality versions of the same movie (a 720p and a
+// 1080p rip aren't duplicates); requiring the same file_size too narrows
+// this to genuinely redundant re-uploads -- same rip indexed twice, or the
+// exact same release re-shared. Reuses the SAME normalized_title column
+// the assign pipeline itself computes at index time.
 function duplicateGroupsWhere(): string {
   return `
-    normalized_title IN (
-      SELECT normalized_title FROM movies
+    (normalized_title, year, file_size) IN (
+      SELECT normalized_title, year, file_size FROM movies
       WHERE normalized_title IS NOT NULL AND normalized_title != ''
         AND file_name NOT LIKE '%.srt' AND file_name NOT LIKE '%.sub'
-      GROUP BY normalized_title, year
+      GROUP BY normalized_title, year, file_size
       HAVING COUNT(*) > 1
     )
   `;
@@ -117,7 +119,7 @@ export function searchCatalog(params: SearchParams): SearchResult {
   const total = countRow.cnt;
 
   const orderBy = duplicatesOnly
-    ? 'normalized_title ASC, year ASC, id DESC'
+    ? 'normalized_title ASC, year ASC, file_size ASC, id DESC'
     : 'added_date DESC';
 
   const rows = conn
@@ -133,15 +135,15 @@ export function searchCatalog(params: SearchParams): SearchResult {
   if (duplicatesOnly && rows.length) {
     const counts = conn
       .prepare(
-        `SELECT normalized_title, year, COUNT(*) as cnt FROM movies
+        `SELECT normalized_title, year, file_size, COUNT(*) as cnt FROM movies
          WHERE normalized_title IS NOT NULL AND normalized_title != ''
            AND file_name NOT LIKE '%.srt' AND file_name NOT LIKE '%.sub'
-         GROUP BY normalized_title, year HAVING COUNT(*) > 1`
+         GROUP BY normalized_title, year, file_size HAVING COUNT(*) > 1`
       )
-      .all() as { normalized_title: string; year: number | null; cnt: number }[];
-    const countMap = new Map(counts.map((c) => [`${c.normalized_title}|${c.year}`, c.cnt]));
+      .all() as { normalized_title: string; year: number | null; file_size: number; cnt: number }[];
+    const countMap = new Map(counts.map((c) => [`${c.normalized_title}|${c.year}|${c.file_size}`, c.cnt]));
     for (const r of rows) {
-      r.dup_count = countMap.get(`${r.normalized_title}|${r.year}`) || 1;
+      r.dup_count = countMap.get(`${r.normalized_title}|${r.year}|${r.file_size}`) || 1;
     }
   }
 
