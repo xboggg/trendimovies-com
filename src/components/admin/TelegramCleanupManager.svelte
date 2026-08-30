@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { Search, ChevronLeft, ChevronRight, Loader2, Trash2, XCircle, AlertTriangle, CheckCircle2 } from 'lucide-svelte';
+  import { Search, ChevronLeft, ChevronRight, Loader2, Trash2, XCircle, AlertTriangle, CheckCircle2, SplitSquareHorizontal } from 'lucide-svelte';
 
   interface CatalogFile {
     id: number;
@@ -15,6 +15,8 @@
     is_deleted: number;
     telegram_deleted_at: string | null;
     dup_count?: number;
+    dup_group_ids?: number[];
+    dup_newest_id?: number;
     assigned: boolean;
     assigned_label: string | null;
   }
@@ -93,6 +95,20 @@
   function toggleSelect(id: number) {
     if (selected.has(id)) selected.delete(id);
     else selected.add(id);
+    selected = selected;
+  }
+
+  // Keeps the most-recently-uploaded copy in a duplicate group, selects
+  // every other member so they're ready for "Flag as Junk" / "Delete from
+  // Telegram" -- avoids manually eyeballing which rows belong together
+  // across a page of duplicates. Only touches ids from that one group, so
+  // clicking it repeatedly across several groups just accumulates the
+  // selection rather than resetting it.
+  function selectOlderDuplicates(f: CatalogFile) {
+    if (!f.dup_group_ids || !f.dup_newest_id) return;
+    for (const id of f.dup_group_ids) {
+      if (id !== f.dup_newest_id) selected.add(id);
+    }
     selected = selected;
   }
 
@@ -289,6 +305,15 @@
                   {f.file_name}
                   {#if f.dup_count && f.dup_count > 1}
                     <span class="ml-2 px-1.5 py-0.5 text-[10px] font-bold rounded bg-amber-500/20 text-amber-400">DUP ×{f.dup_count}</span>
+                    {#if f.id === f.dup_newest_id}
+                      <button
+                        on:click={() => selectOlderDuplicates(f)}
+                        title="Selects every older copy in this group of {f.dup_count}, leaves this newest one unselected"
+                        class="ml-1.5 inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] rounded border border-[#333] text-[#aaa] hover:text-white hover:border-[#555] transition-colors"
+                      >
+                        <SplitSquareHorizontal size={10} /> Keep this, select rest
+                      </button>
+                    {/if}
                   {/if}
                 </td>
                 <td>{f.year || '-'}</td>

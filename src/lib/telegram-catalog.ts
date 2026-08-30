@@ -27,6 +27,8 @@ export interface CatalogFile {
   is_deleted: number;
   telegram_deleted_at: string | null;
   dup_count?: number;
+  dup_group_ids?: number[];
+  dup_newest_id?: number;
 }
 
 export interface SearchParams {
@@ -133,17 +135,31 @@ export function searchCatalog(params: SearchParams): SearchResult {
     .all(...args, limit, offset) as CatalogFile[];
 
   if (duplicatesOnly && rows.length) {
-    const counts = conn
-      .prepare(
-        `SELECT normalized_title, year, file_size, COUNT(*) as cnt FROM movies
-         WHERE normalized_title IS NOT NULL AND normalized_title != ''
-           AND file_name NOT LIKE '%.srt' AND file_name NOT LIKE '%.sub'
-         GROUP BY normalized_title, year, file_size HAVING COUNT(*) > 1`
-      )
-      .all() as { normalized_title: string; year: number | null; file_size: number; cnt: number }[];
-    const countMap = new Map(counts.map((c) => [`${c.normalized_title}|${c.year}|${c.file_size}`, c.cnt]));
+    // For each distinct group represented on this page, fetch its full
+    // sibling list (id + added_date) so the UI can offer a one-click
+    // "keep newest, select the rest" action without a second round-trip.
+    // Scoped to just the groups on the current page (not a global scan) --
+    // the (normalized_title, year, file_size) index makes each lookup cheap.
+    const siblingsStmt = conn.prepare(
+      `SELECT id, added_date FROM movies
+       WHERE normalized_title = ? AND file_size = ? AND (year = ? OR (year IS NULL AND ? IS NULL))
+         AND file_name NOT LIKE '%.srt' AND file_name NOT LIKE '%.sub'
+       ORDER BY added_date DESC, id DESC`
+    );
+    const groupCache = new Map<string, { id: number; added_date: string | null }[]>();
     for (const r of rows) {
-      r.dup_count = countMap.get(`${r.normalized_title}|${r.year}|${r.file_size}`) || 1;
+      const key = `${r.normalized_title}|${r.year}|${r.file_size}`;
+      if (!groupCache.has(key)) {
+        const members = siblingsStmt.all(r.normalized_title, r.file_size, r.year, r.year) as
+          { id: number; added_date: string | null }[];
+        groupCache.set(key, members);
+      }
+      const members = groupCache.get(key)!;
+      if (members.length > 1) {
+        r.dup_count = members.length;
+        r.dup_group_ids = members.map((m) => m.id);
+        r.dup_newest_id = members[0].id; // ORDER BY added_date DESC -> first = newest
+      }
     }
   }
 
