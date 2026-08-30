@@ -1,0 +1,12 @@
+---
+import AdminLayout from '../../layouts/AdminLayout.astro';
+import TelegramCleanupManager from '../../components/admin/TelegramCleanupManager.svelte';
+---
+
+<AdminLayout title="Telegram Cleanup" activeTab="telegram-cleanup">
+  <p class="text-[#888] mb-6">
+    Search and filter your raw Telegram upload catalog, find duplicates, see what's actually
+    assigned to the site, and clean up junk. Flagging is reversible; deleting from Telegram is not.
+  </p>
+  <TelegramCleanupManager client:load />
+</AdminLayout>

@@ -15,6 +15,7 @@
     Newspaper,
     Clapperboard,
     Zap,
+    Trash2,
     X
   } from 'lucide-svelte';
 
@@ -32,6 +33,7 @@
     { id: 'requests', label: 'Requests', href: '/admin/requests', icon: MessageSquare },
     { id: 'crons', label: 'Cron Jobs', href: '/admin/crons', icon: Clock },
     { id: 'assign', label: 'Manual Assign', href: '/admin/manual-assign', icon: Link2 },
+    { id: 'telegram-cleanup', label: 'Telegram Cleanup', href: '/admin/telegram-cleanup', icon: Trash2 },
     { id: 'acquirer', label: 'Acquirer', href: '/admin/acquirer', icon: Zap },
     { id: 'analytics', label: 'Analytics', href: '/admin/analytics', icon: Activity },
   ];
