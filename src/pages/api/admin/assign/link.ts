@@ -24,7 +24,7 @@ const TMDB_BASE_URL = 'https://api.themoviedb.org/3';
 // Allowed values for validation
 const VALID_CONTENT_TYPES = ['movie', 'episode'];
 const VALID_SOURCES = ['telegram', 'cinematika', 'torrent'];
-const VALID_QUALITIES = ['720p', '1080p', '2160p', 'hdrip', '540p'];
+const VALID_QUALITIES = ['720p', '1080p', '2160p', 'hdrip', '540p', '480p'];
 
 // Helper: Generate URL-safe slug from title (includes TMDB ID for uniqueness)
 function generateSlug(title: string, year: number | null, tmdbId: number): string {
@@ -384,7 +384,7 @@ export const POST: APIRoute = async ({ request }) => {
 
     if (!VALID_QUALITIES.includes(quality)) {
       return new Response(JSON.stringify({
-        error: 'quality must be "720p", "1080p", "2160p", "hdrip", or "540p"'
+        error: 'quality must be "720p", "1080p", "2160p", "hdrip", "540p", or "480p"'
       }), {
         status: 400,
         headers: _linkAuthHeaders()
@@ -689,7 +689,7 @@ export const PUT: APIRoute = async ({ request }) => {
     const newQuality = quality || existing.quality;
     if (!VALID_QUALITIES.includes(newQuality)) {
       return new Response(JSON.stringify({
-        error: 'quality must be "720p", "1080p", "2160p", "hdrip", or "540p"'
+        error: 'quality must be "720p", "1080p", "2160p", "hdrip", "540p", or "480p"'
       }), {
         status: 400,
         headers: _linkAuthHeaders()

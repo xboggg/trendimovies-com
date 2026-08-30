@@ -601,6 +601,7 @@
           {/if}
           <option value="hdrip">HDRip</option>
           <option value="540p">540p</option>
+          <option value="480p">480p</option>
         </select>
       </div>
 

@@ -82,7 +82,7 @@ async function searchSQLiteDirect(query: string, year?: string, quality?: string
   // Build quality filter for SQL
   let qualityFilter = '';
   if (quality) {
-    const validQualities = ['720p', '1080p', '2160p', 'hdrip'];
+    const validQualities = ['720p', '1080p', '2160p', 'hdrip', '540p', '480p'];
     const cleanQuality = quality.toLowerCase();
     if (validQualities.includes(cleanQuality)) {
       qualityFilter = ` AND quality = '${cleanQuality}'`;

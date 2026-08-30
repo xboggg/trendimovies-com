@@ -289,7 +289,7 @@
       <div class="mb-4">
         <label class="text-sm text-gray-400 block mb-2">Quality</label>
         <div class="flex gap-2">
-          {#each ['720p', '1080p', '2160p', 'hdrip', '540p'] as q}
+          {#each ['720p', '1080p', '2160p', 'hdrip', '540p', '480p'] as q}
             <button
               on:click={() => selectedQuality = q}
               class="px-3 py-1.5 rounded text-sm font-medium transition-colors {selectedQuality === q ? 'bg-blue-600 text-white' : 'bg-[#2a2a2a] text-gray-400 hover:bg-[#333]'}"
