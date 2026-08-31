@@ -63,9 +63,26 @@ if (tmdbData) {
 // Look up internal DB ID for this movie (cron stores content_id = movies.id, not tmdb_id)
 const { data: dbMovie } = await supabase
   .from('movies')
-  .select('id, poster_path, backdrop_path, year, release_date')
+  .select('id, title, poster_path, backdrop_path, year, release_date')
   .eq('tmdb_id', tmdbId)
   .single();
+
+// TMDB has no English translation for some regional titles (returns the
+// native-script title as-is, e.g. "冒牌监护人之寻宝闹翻天" for "Fake
+// Guardians" 2017) -- no text-matching fix on the assign side can ever
+// find these from an English release filename, since there's no English
+// text to match against. Narrow, deliberate override: only when TMDB's
+// title has ZERO Latin characters (genuinely untranslated) and our DB has
+// an admin-set Latin title, prefer the DB one for display. Doesn't touch
+// the vast majority of titles where DB and TMDB agree or DB is just a
+// stale copy of an older TMDB title -- this only fires for the specific
+// "TMDB never translated it" case. Fixed 2026-08-31.
+const _tmdbTitleHasLatin = /[a-zA-Z]/.test(movie.title || '');
+const _dbTitleHasLatin = /[a-zA-Z]/.test(dbMovie?.title || '');
+if (!_tmdbTitleHasLatin && _dbTitleHasLatin && dbMovie?.title) {
+  movie.original_title = movie.title;
+  movie.title = dbMovie.title;
+}
 
 // Fallback: if TMDB has no poster/backdrop, use DB cached version
 // Use DB poster if manually overridden (different from TMDB)
