@@ -49,10 +49,16 @@ function getEnvVar(key: string): string | undefined {
   // First check process.env
   if (process.env[key]) return process.env[key];
 
-  // Then check import.meta.env (build-time)
-  if ((import.meta.env as any)[key]) return (import.meta.env as any)[key];
+  // NOTE: import.meta.env is intentionally NOT checked here. It is a
+  // build-time snapshot -- Vite's define step bakes whatever value was in
+  // .env at `npm run build` time directly into the compiled bundle, and can
+  // even corrupt values containing "$" (e.g. bcrypt hashes) via unescaped
+  // String.replace() special patterns. That silently made every .env edit
+  // to ADMIN_PASSWORD_HASH a no-op until the next unrelated rebuild.
+  // Always read the live .env file instead so secret rotation takes effect
+  // immediately on restart, with no rebuild required. Fixed 2026-09-01.
 
-  // Finally, load from .env file
+  // Load from .env file
   if (!cachedEnv) {
     cachedEnv = loadEnvFile();
   }
