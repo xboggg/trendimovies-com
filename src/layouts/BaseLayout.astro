@@ -313,8 +313,13 @@ const ogUrl = new URL(Astro.url.pathname + Astro.url.search, Astro.site || 'http
       // browse-heavy site -- and the aborted body was surfacing as
       // "Response body object should not be disturbed or locked" errors
       // server-side. sendBeacon survives page unload. Fixed 2026-09-02.
+      // IMPORTANT: pass the payload as a plain string, not a Blob -- a
+      // Blob body was confirmed (via server-side diagnostic logging) to
+      // arrive as Content-Length: 0 on ordinary desktop Chrome, a known
+      // sendBeacon+Blob reliability quirk. A string payload is the
+      // well-tested reliable form. Fixed 2026-09-02.
       if (navigator.sendBeacon) {
-        navigator.sendBeacon('/api/analytics/track', new Blob([payload], { type: 'application/json' }));
+        navigator.sendBeacon('/api/analytics/track', payload);
       } else {
         fetch('/api/analytics/track', {
           method: 'POST',

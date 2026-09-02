@@ -142,7 +142,16 @@ async function getGeoLocation(ip: string): Promise<{
 
 export const POST: APIRoute = async ({ request }) => {
   try {
-    const body = await request.json();
+    // Read as text first rather than request.json() directly: an empty
+    // body (e.g. a beacon request that lost its payload in transit) should
+    // be skipped quietly, not thrown+caught+logged as an error every time.
+    const rawBody = await request.text();
+    if (!rawBody) {
+      return new Response(JSON.stringify({ ok: true, skipped: true }), {
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+    const body = JSON.parse(rawBody);
     const { page_path, referrer, session_id } = body;
 
     if (!page_path || typeof page_path !== 'string' || page_path.length > 500) {
