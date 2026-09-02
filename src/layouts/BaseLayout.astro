@@ -302,15 +302,27 @@ const ogUrl = new URL(Astro.url.pathname + Astro.url.search, Astro.site || 'http
         return;
       }
 
-      fetch('/api/analytics/track', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          page_path: path,
-          referrer: document.referrer || '',
-          session_id: sessionId
-        })
-      }).catch(function() {});
+      var payload = JSON.stringify({
+        page_path: path,
+        referrer: document.referrer || '',
+        session_id: sessionId
+      });
+
+      // sendBeacon (not fetch): a plain fetch gets aborted mid-request when
+      // the user navigates away right after firing it -- common on a
+      // browse-heavy site -- and the aborted body was surfacing as
+      // "Response body object should not be disturbed or locked" errors
+      // server-side. sendBeacon survives page unload. Fixed 2026-09-02.
+      if (navigator.sendBeacon) {
+        navigator.sendBeacon('/api/analytics/track', new Blob([payload], { type: 'application/json' }));
+      } else {
+        fetch('/api/analytics/track', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: payload,
+          keepalive: true
+        }).catch(function() {});
+      }
     })();
   </script>
 
