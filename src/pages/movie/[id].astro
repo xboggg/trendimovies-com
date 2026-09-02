@@ -11,9 +11,24 @@ import { supabase } from '../../lib/supabase';
 import { Star, Clock, Calendar, Globe, Play } from 'lucide-svelte';
 
 const { id } = Astro.params;
-const tmdbId = parseInt(id || '0');
+let tmdbId = parseInt(id || '0');
 
 if (!tmdbId) {
+  // Not a numeric TMDB id -- likely someone shared/typed the slug URL
+  // (e.g. /movie/savage-house-2026-1245859) instead of the canonical
+  // /movie/{tmdb_id} one. Movie pages are id-only, unlike reviews/blog
+  // which ARE slug-based, so this mix-up is an easy mistake. Resolve the
+  // slug and redirect to the canonical id URL instead of 404ing -- a 404
+  // has no OG tags, which is why WhatsApp/social previews silently failed
+  // for links shared this way. Fixed 2026-09-02.
+  const { data: bySlug } = await supabase
+    .from('movies')
+    .select('tmdb_id')
+    .eq('slug', id)
+    .single();
+  if (bySlug?.tmdb_id) {
+    return Astro.redirect(`/movie/${bySlug.tmdb_id}`, 301);
+  }
   return Astro.redirect('/404');
 }
 
