@@ -5,21 +5,28 @@ import Database from 'better-sqlite3';
 // through the SSH-based admin endpoints, which target the real master.
 const CATALOG_PATH = '/opt/trendimovies/bot/database/movies.db';
 
-let db: Database.Database | null = null;
+// Opens a FRESH connection every call, never cached. sync_sqlite.sh replaces
+// this file every ~10 min via an atomic `mv` -- a cached module-level
+// connection keeps its file descriptor pointed at the old, now-orphaned
+// inode forever (until the whole Node process restarts), silently serving
+// an ever-more-stale snapshot decoupled from what's actually on disk.
+// Confirmed 2026-09-03: a flag-as-junk write showed correctly via `sqlite3`
+// CLI and in the synced file on disk, but this app's own query still
+// returned the pre-sync value hours later. Caller must call conn.close()
+// when done. Opening a local read-only SQLite file is cheap (<1ms); this
+// tool's query volume never makes that a real cost.
 function getDb(): Database.Database {
-  if (!db) {
-    db = new Database(CATALOG_PATH, { readonly: true, fileMustExist: true });
-    // For the movie/series type filter -- is_series is known-unreliable
-    // (~93k mis-flagged, same issue the search bot works around with a
-    // SxxExx regex fallback), so OR it with a filename pattern match here too.
-    db.function('regexp', { deterministic: true }, (pattern: unknown, text: unknown) => {
-      try {
-        return new RegExp(String(pattern), 'i').test(String(text ?? '')) ? 1 : 0;
-      } catch {
-        return 0;
-      }
-    });
-  }
+  const db = new Database(CATALOG_PATH, { readonly: true, fileMustExist: true });
+  // For the movie/series type filter -- is_series is known-unreliable
+  // (~93k mis-flagged, same issue the search bot works around with a
+  // SxxExx regex fallback), so OR it with a filename pattern match here too.
+  db.function('regexp', { deterministic: true }, (pattern: unknown, text: unknown) => {
+    try {
+      return new RegExp(String(pattern), 'i').test(String(text ?? '')) ? 1 : 0;
+    } catch {
+      return 0;
+    }
+  });
   return db;
 }
 
@@ -201,6 +208,7 @@ export function searchCatalog(params: SearchParams): SearchResult {
     }
   }
 
+  conn.close();
   return { files: rows, total };
 }
 
@@ -211,5 +219,6 @@ export function getDistinctValues(column: 'quality' | 'language' | 'source' | 'y
       `SELECT DISTINCT ${column} as v FROM movies WHERE ${column} IS NOT NULL AND ${column} != '' ORDER BY ${column} DESC LIMIT 200`
     )
     .all() as { v: string }[];
+  conn.close();
   return rows.map((r) => String(r.v));
 }
