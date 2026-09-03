@@ -33,6 +33,7 @@
   let quality = '';
   let language = '';
   let source = '';
+  let type = '';
   let duplicatesOnly = false;
   let includeDeleted = false;
 
@@ -69,7 +70,7 @@
     const params = new URLSearchParams({
       page: String(page),
       limit: String(limit),
-      search, year, quality, language, source,
+      search, year, quality, language, source, type,
       duplicates: String(duplicatesOnly),
       includeDeleted: String(includeDeleted),
     });
@@ -205,6 +206,11 @@
         />
       </div>
       <input type="number" bind:value={year} placeholder="Year" class="input w-24" on:change={handleSearch} />
+      <select bind:value={type} on:change={handleSearch} class="select w-auto">
+        <option value="">Movies + Series</option>
+        <option value="movie">Movies only</option>
+        <option value="series">Series only</option>
+      </select>
       <select bind:value={quality} on:change={handleSearch} class="select w-auto">
         <option value="">All qualities</option>
         {#each qualities as q}<option value={q}>{q}</option>{/each}

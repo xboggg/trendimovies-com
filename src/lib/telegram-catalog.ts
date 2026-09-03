@@ -9,6 +9,16 @@ let db: Database.Database | null = null;
 function getDb(): Database.Database {
   if (!db) {
     db = new Database(CATALOG_PATH, { readonly: true, fileMustExist: true });
+    // For the movie/series type filter -- is_series is known-unreliable
+    // (~93k mis-flagged, same issue the search bot works around with a
+    // SxxExx regex fallback), so OR it with a filename pattern match here too.
+    db.function('regexp', { deterministic: true }, (pattern: unknown, text: unknown) => {
+      try {
+        return new RegExp(String(pattern), 'i').test(String(text ?? '')) ? 1 : 0;
+      } catch {
+        return 0;
+      }
+    });
   }
   return db;
 }
@@ -37,11 +47,15 @@ export interface SearchParams {
   quality?: string;
   language?: string;
   source?: string;
+  type?: string; // 'movie' | 'series' | ''
   duplicatesOnly?: boolean;
   includeDeleted?: boolean;
   page?: number;
   limit?: number;
 }
+
+// SxxExx (with tolerant separators/case, e.g. "S01E02", "S1.E2", "s01 e02")
+const EPISODE_PATTERN = 'S[0-9]{1,2}[.\\-_ ]?E[0-9]{1,3}';
 
 export interface SearchResult {
   files: CatalogFile[];
@@ -74,6 +88,7 @@ export function searchCatalog(params: SearchParams): SearchResult {
     quality = '',
     language = '',
     source = '',
+    type = '',
     duplicatesOnly = false,
     includeDeleted = false,
     page = 1,
@@ -87,14 +102,32 @@ export function searchCatalog(params: SearchParams): SearchResult {
   if (!includeDeleted) {
     where.push(`(is_deleted = 0 OR is_deleted IS NULL)`);
   }
+
+  let effectiveYear = year;
   if (search.trim()) {
+    let searchText = search.trim();
+    // Typing "title 2020" together (the natural way to search) previously
+    // matched nothing: filenames use dots/dashes ("The.Gentlemen.2020..."),
+    // never a literal space-separated "title 2020" substring, and the Year
+    // field is a separate column the title text never contains. If the
+    // query ends with a standalone plausible year and the Year field isn't
+    // already set, split it out and apply it as a year filter instead.
+    const trailingYearMatch = searchText.match(/^(.*\S)\s+(19\d{2}|20\d{2})$/);
+    if (trailingYearMatch && !effectiveYear) {
+      searchText = trailingYearMatch[1];
+      effectiveYear = trailingYearMatch[2];
+    }
+    // Real filenames separate words with dots/dashes/underscores, not
+    // spaces. Convert whitespace in the query to a wildcard so "the
+    // gentlemen" matches "The.Gentlemen.2020..." regardless of punctuation.
+    const wildcardSearch = searchText.replace(/[\s.\-_]+/g, '%');
     where.push(`(file_name LIKE ? OR clean_title LIKE ? OR normalized_title LIKE ?)`);
-    const s = `%${search.trim()}%`;
+    const s = `%${wildcardSearch}%`;
     args.push(s, s, s);
   }
-  if (year) {
+  if (effectiveYear) {
     where.push(`year = ?`);
-    args.push(parseInt(year, 10));
+    args.push(parseInt(effectiveYear, 10));
   }
   if (quality) {
     where.push(`quality = ?`);
@@ -107,6 +140,11 @@ export function searchCatalog(params: SearchParams): SearchResult {
   if (source) {
     where.push(`source = ?`);
     args.push(source);
+  }
+  if (type === 'series') {
+    where.push(`(is_series = 1 OR file_name REGEXP '${EPISODE_PATTERN}')`);
+  } else if (type === 'movie') {
+    where.push(`(is_series = 0 OR is_series IS NULL) AND file_name NOT REGEXP '${EPISODE_PATTERN}'`);
   }
   if (duplicatesOnly) {
     where.push(duplicateGroupsWhere());

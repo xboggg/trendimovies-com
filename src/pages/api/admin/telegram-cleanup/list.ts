@@ -68,6 +68,7 @@ export const GET: APIRoute = async ({ request, url }) => {
     const quality = url.searchParams.get('quality') || '';
     const language = url.searchParams.get('language') || '';
     const source = url.searchParams.get('source') || '';
+    const type = url.searchParams.get('type') || '';
     const duplicatesOnly = url.searchParams.get('duplicates') === 'true';
     const includeDeleted = url.searchParams.get('includeDeleted') === 'true';
     const page = Math.max(1, parseInt(url.searchParams.get('page') || '1', 10));
@@ -86,7 +87,7 @@ export const GET: APIRoute = async ({ request, url }) => {
     }
 
     const { files, total } = searchCatalog({
-      search, year, quality, language, source, duplicatesOnly, includeDeleted, page, limit,
+      search, year, quality, language, source, type, duplicatesOnly, includeDeleted, page, limit,
     });
 
     const assignedMap = await enrichAssignedStatus(files.map((f) => f.id));
