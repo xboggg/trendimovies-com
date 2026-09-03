@@ -31,7 +31,9 @@ export const POST: APIRoute = async ({ request }) => {
     const idArg = ids.join(',');
     const { stdout } = await execFileAsync('ssh', [
       'root@38.242.195.0',
-      `cd /opt/trendimovies/bot && source /etc/trendimovies/env 2>/dev/null; python3 delete_telegram_junk.py --run --ids "${idArg}"`,
+      // Must use /opt/trendimovies/venv (not bare python3 / bot's own venv,
+      // neither has python-telegram-bot installed) -- confirmed 2026-09-04.
+      `cd /opt/trendimovies/bot && source /etc/trendimovies/env 2>/dev/null; /opt/trendimovies/venv/bin/python3 delete_telegram_junk.py --run --ids "${idArg}"`,
     ], { timeout: 60000 });
 
     const deletedMatch = stdout.match(/(\d+) deleted, (\d+) failed/);
