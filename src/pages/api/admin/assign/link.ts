@@ -777,9 +777,9 @@ export const PUT: APIRoute = async ({ request }) => {
       }
     }
 
-    // Build the update payload — ONLY the fields being changed. click_count,
-    // created_at, and is_active are deliberately never included here, so an
-    // edit never resets the analytics this feature exists to preserve.
+    // Build the update payload — ONLY the fields being changed. click_count
+    // and created_at are deliberately never included here, so an edit never
+    // resets the analytics this feature exists to preserve.
     const updatePayload: Record<string, any> = {
       content_type: newContentType,
       content_id: dbContentId,
@@ -794,6 +794,18 @@ export const PUT: APIRoute = async ({ request }) => {
           status: 400,
           headers: _linkAuthHeaders()
         });
+      }
+      // Reactivate when the admin actually swaps the source file (added
+      // 2026-09-06). This is the standard fix for a link that went inactive
+      // because its file was deleted from Telegram: pick a new, valid file
+      // and save. Previously is_active was never touched by this endpoint
+      // at all, so a link fixed this way stayed "Inactive" forever no
+      // matter how many times it was re-saved -- only reactivate here, not
+      // on every edit, so a link deactivated for some other reason (e.g. a
+      // content-policy takedown) isn't silently revived by an unrelated
+      // quality/title tweak that happens to resend the same file_id.
+      if (String(telegram_file_id) !== String(existing.telegram_file_id)) {
+        updatePayload.is_active = true;
       }
       updatePayload.telegram_file_id = String(telegram_file_id);
       updatePayload.url = existing.source === 'telegram' ? `${TGSTREAM_BASE}/${telegram_file_id}` : (url || existing.url);
