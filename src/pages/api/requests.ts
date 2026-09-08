@@ -107,6 +107,39 @@ export const GET: APIRoute = async ({ url }) => {
     const countData = await countRes.json();
     const total = countData?.[0]?.count || 0;
 
+    // Resolve the CURRENT real title for any request linked to a matched
+    // movie via tmdb_id (added 2026-09-08). content_requests.title is
+    // whatever the requester originally typed and is never edited after
+    // creation -- so a fulfilled request with e.g. a misspelled title
+    // would otherwise show/notify that original text forever, even though
+    // the real movie was correctly found and added under its real name.
+    // Best-effort: a lookup failure falls back to the stored title rather
+    // than failing the whole request list.
+    if (Array.isArray(requests)) {
+      const tmdbIds = [...new Set(requests.map((r: any) => r.tmdb_id).filter((id: any) => id))];
+      if (tmdbIds.length > 0) {
+        try {
+          const movieRes = await fetch(
+            `${POSTGREST_URL}/movies?tmdb_id=in.(${tmdbIds.join(',')})&select=tmdb_id,title,year`,
+            { headers: { 'Accept-Profile': 'public' } }
+          );
+          if (movieRes.ok) {
+            const movies = await movieRes.json();
+            const byTmdbId = new Map(movies.map((m: any) => [m.tmdb_id, m]));
+            for (const req of requests) {
+              const movie = req.tmdb_id ? byTmdbId.get(req.tmdb_id) : null;
+              if (movie) {
+                req.title = movie.title;
+                if (movie.year) req.year = movie.year;
+              }
+            }
+          }
+        } catch {
+          // Resolution is best-effort; fall back to the stored title.
+        }
+      }
+    }
+
     return new Response(JSON.stringify({
       requests,
       total,
