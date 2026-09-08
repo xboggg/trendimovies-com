@@ -78,7 +78,7 @@ if (tmdbData) {
 // Look up internal DB ID for this movie (cron stores content_id = movies.id, not tmdb_id)
 const { data: dbMovie } = await supabase
   .from('movies')
-  .select('id, title, poster_path, backdrop_path, year, release_date')
+  .select('id, title, original_title, poster_path, backdrop_path, year, release_date')
   .eq('tmdb_id', tmdbId)
   .single();
 
@@ -97,6 +97,17 @@ const _dbTitleHasLatin = /[a-zA-Z]/.test(dbMovie?.title || '');
 if (!_tmdbTitleHasLatin && _dbTitleHasLatin && dbMovie?.title) {
   movie.original_title = movie.title;
   movie.title = dbMovie.title;
+}
+
+// Explicit admin override for the "Original title" display (added
+// 2026-09-08). TMDB's own original_title is sometimes technically correct
+// but awkward to show/search against -- e.g. "Sk+te'kmuje'katik" (special
+// characters TMDB uses for an Indigenous-language title) vs the plainer
+// "Sk.tekmujuekatik" that release filenames actually use. Only fires when
+// an admin has explicitly set movies.original_title in our own DB; every
+// other movie (the vast majority, where this column is null) is unchanged.
+if (dbMovie?.original_title) {
+  movie.original_title = dbMovie.original_title;
 }
 
 // Fallback: if TMDB has no poster/backdrop, use DB cached version
