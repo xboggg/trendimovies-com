@@ -3,15 +3,35 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
 
 const POSTGREST_URL = import.meta.env.PUBLIC_SUPABASE_URL || 'http://localhost:3001';
 
+const PAGE_SIZE = 24;
+const page = Math.max(1, parseInt(Astro.url.searchParams.get('page') || '1') || 1);
+// Page 1 also carries the featured hero, so it holds PAGE_SIZE+1 items total;
+// every later page is grid-only (PAGE_SIZE items), continuing right after that.
+const offset = page === 1 ? 0 : (PAGE_SIZE + 1) + (page - 2) * PAGE_SIZE;
+const limit = page === 1 ? PAGE_SIZE + 1 : PAGE_SIZE;
+
 let reviews: any[] = [];
+let totalCount = 0;
 try {
-  const res = await fetch(`${POSTGREST_URL}/movie_reviews?status=eq.published&select=slug,title,year,headline,deck,poster_path,accent,genre,rt_score,box_office,published_at&order=published_at.desc&limit=60`);
-  if (res.ok) reviews = await res.json();
+  const res = await fetch(
+    `${POSTGREST_URL}/movie_reviews?status=eq.published&select=slug,title,year,headline,deck,poster_path,accent,genre,rt_score,box_office,published_at&order=published_at.desc&limit=${limit}&offset=${offset}`,
+    { headers: { Prefer: 'count=exact' } }
+  );
+  if (res.ok) {
+    reviews = await res.json();
+    const range = res.headers.get('content-range'); // "0-24/52"
+    totalCount = range ? parseInt(range.split('/')[1] || '0') || 0 : reviews.length;
+  }
 } catch (e) { reviews = []; }
 
-const featured = reviews[0];
-const rest = reviews.slice(1);
+const totalPages = totalCount <= PAGE_SIZE + 1 ? 1 : 1 + Math.ceil((totalCount - (PAGE_SIZE + 1)) / PAGE_SIZE);
+
+const featured = page === 1 ? reviews[0] : null;
+const rest = page === 1 ? reviews.slice(1) : reviews;
 const poster = (p: string | null) => p ? `https://image.tmdb.org/t/p/w500${p}` : '/images/no-poster.svg';
+const formatDate = (iso: string | null) => iso
+  ? new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+  : null;
 
 // Unique OG image: a poster collage of the latest reviews (reuses the digital
 // collage template — same pattern as /movies, /guides, etc.).
@@ -60,6 +80,7 @@ const pageDesc = 'Honest, spoiler-free movie reviews from the TrendiMovies desk.
             <div class="rvh-scores">
               {featured.rt_score && <span class="rvh-chip rt">🍅 {featured.rt_score}</span>}
               {featured.box_office && <span class="rvh-chip mo">{featured.box_office}</span>}
+              {formatDate(featured.published_at) && <span class="rvh-chip dt">{formatDate(featured.published_at)}</span>}
               <span class="rvh-read">Read review →</span>
             </div>
           </div>
@@ -76,9 +97,26 @@ const pageDesc = 'Honest, spoiler-free movie reviews from the TrendiMovies desk.
               <div class="rvh-card-body">
                 <div class="rvh-card-movie">{r.title}{r.year ? ` (${r.year})` : ''}</div>
                 <div class="rvh-card-h">{r.headline}</div>
+                <div class="rvh-card-meta">
+                  {formatDate(r.published_at) && <span>{formatDate(r.published_at)}</span>}
+                  {r.genre && <span>{r.genre}</span>}
+                  {r.box_office && <span>{r.box_office}</span>}
+                </div>
               </div>
             </a>
           ))}
+        </div>
+      )}
+
+      {totalPages > 1 && (
+        <div class="rvh-pager">
+          {page > 1 && (
+            <a class="rvh-pg-btn" href={`/reviews${page - 1 > 1 ? `?page=${page - 1}` : ''}`}>← Previous</a>
+          )}
+          <span class="rvh-pg-info">Page {page} of {totalPages}</span>
+          {page < totalPages && (
+            <a class="rvh-pg-btn" href={`/reviews?page=${page + 1}`}>Next →</a>
+          )}
         </div>
       )}
     </div>
@@ -106,7 +144,7 @@ const pageDesc = 'Honest, spoiler-free movie reviews from the TrendiMovies desk.
   .rvh-feature-deck{font-size:17px;line-height:1.55;color:#c3c0cc;margin:0 0 18px;max-width:56ch}
   .rvh-scores{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
   .rvh-chip{font-weight:700;font-size:14px;padding:7px 14px;border-radius:100px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12)}
-  .rvh-chip.rt{color:#22c55e}.rvh-chip.mo{color:#f59e0b}
+  .rvh-chip.rt{color:#22c55e}.rvh-chip.mo{color:#f59e0b}.rvh-chip.dt{color:#b9b6c0}
   .rvh-read{color:var(--a);font-weight:800;font-size:15px}
   /* grid */
   .rvh-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:24px}
@@ -118,6 +156,15 @@ const pageDesc = 'Honest, spoiler-free movie reviews from the TrendiMovies desk.
   .rvh-card-body{padding:14px 15px 18px}
   .rvh-card-movie{font-size:12px;color:#8a8790;margin-bottom:5px;text-transform:uppercase;letter-spacing:.5px}
   .rvh-card-h{font-family:'Fraunces',Georgia,serif;font-weight:900;font-size:17px;line-height:1.2;color:#fff;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+  .rvh-card-meta{display:flex;flex-wrap:wrap;gap:4px 8px;margin-top:10px;font-size:11.5px;color:#8a8790}
+  .rvh-card-meta span{position:relative}
+  .rvh-card-meta span+span::before{content:'·';margin-right:8px;color:#5a5760}
+  /* pagination */
+  .rvh-pager{display:flex;align-items:center;justify-content:center;gap:18px;margin-top:52px}
+  .rvh-pg-btn{text-decoration:none;font-weight:700;font-size:14px;color:#fff;padding:10px 20px;border-radius:100px;
+    background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);transition:border-color .2s,background .2s}
+  .rvh-pg-btn:hover{border-color:#f43f5e;background:rgba(244,63,94,.12)}
+  .rvh-pg-info{font-size:14px;color:#b9b6c0;font-weight:600}
   @media(max-width:640px){
     .rvh-feature{grid-template-columns:1fr;text-align:center;gap:20px}
     .rvh-feature-poster img{width:160px;margin:0 auto}
