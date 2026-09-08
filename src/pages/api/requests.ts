@@ -162,7 +162,7 @@ export const PATCH: APIRoute = async ({ request }) => {
 
   try {
     const body = await request.json();
-    const { id, status } = body;
+    const { id, status, tmdb_id: overrideTmdbId } = body;
 
     if (!id || !status) {
       return new Response(JSON.stringify({ error: 'ID and status required' }), {
@@ -178,13 +178,77 @@ export const PATCH: APIRoute = async ({ request }) => {
       });
     }
 
+    const updatePayload: Record<string, any> = { status, updated_at: new Date().toISOString() };
+
+    // Require a real, matched movie before allowing "completed" (added
+    // 2026-09-08). Previously this just flipped the status with no check
+    // at all -- a request could be marked completed with nothing actually
+    // added to the catalog (found via a real case: "Aloevera" (2020) was
+    // marked completed and its requester notified, but no movie or file
+    // for it existed anywhere). Also fixes the notification-title bug:
+    // linking tmdb_id here is what lets /api/requests GET resolve the
+    // real current title instead of echoing the raw stored request text.
+    if (status === 'completed') {
+      const reqRes = await fetch(
+        `${POSTGREST_URL}/content_requests?id=eq.${id}&select=title,year,content_type`,
+        { headers: { 'Accept-Profile': 'public' } }
+      );
+      const reqData = await reqRes.json();
+      const reqRow = Array.isArray(reqData) ? reqData[0] : null;
+      const table = reqRow?.content_type === 'series' ? 'series' : 'movies';
+
+      let matchedTmdbId: number | null = null;
+
+      if (overrideTmdbId) {
+        // Admin explicitly picked a title -- verify it actually exists in
+        // the catalog for this request's content_type.
+        const checkRes = await fetch(
+          `${POSTGREST_URL}/${table}?tmdb_id=eq.${overrideTmdbId}&select=tmdb_id`,
+          { headers: { 'Accept-Profile': 'public' } }
+        );
+        const checkData = await checkRes.json();
+        if (Array.isArray(checkData) && checkData.length > 0) {
+          matchedTmdbId = overrideTmdbId;
+        } else {
+          return new Response(JSON.stringify({
+            error: `No ${table === 'series' ? 'series' : 'movie'} in the catalog with tmdb_id ${overrideTmdbId}.`
+          }), { status: 404, headers: { 'Content-Type': 'application/json' } });
+        }
+      } else if (reqRow?.title) {
+        // No explicit link given -- try the same title+year match
+        // auto_fulfill_requests() uses, so a title already in the
+        // catalog under a normal spelling still auto-links cleanly.
+        const yearFilter = reqRow.year
+          ? `&year=gte.${reqRow.year - 1}&year=lte.${reqRow.year + 1}`
+          : '';
+        const matchRes = await fetch(
+          `${POSTGREST_URL}/${table}?title=ilike.${encodeURIComponent(reqRow.title)}${yearFilter}&select=tmdb_id&limit=1`,
+          { headers: { 'Accept-Profile': 'public' } }
+        );
+        const matchData = await matchRes.json();
+        if (Array.isArray(matchData) && matchData.length > 0) {
+          matchedTmdbId = matchData[0].tmdb_id;
+        }
+      }
+
+      if (!matchedTmdbId) {
+        return new Response(JSON.stringify({
+          error: `No matching ${table === 'series' ? 'series' : 'movie'} found in the catalog ` +
+                 'for this request. Add it first, or pass tmdb_id to link one manually.'
+        }), { status: 409, headers: { 'Content-Type': 'application/json' } });
+      }
+
+      updatePayload.tmdb_id = matchedTmdbId;
+      updatePayload.fulfilled_at = new Date().toISOString();
+    }
+
     const response = await fetch(`${POSTGREST_URL}/content_requests?id=eq.${id}`, {
       method: 'PATCH',
       headers: {
         'Content-Type': 'application/json',
         'Accept-Profile': 'public'
       },
-      body: JSON.stringify({ status, updated_at: new Date().toISOString() })
+      body: JSON.stringify(updatePayload)
     });
 
     if (!response.ok) {
