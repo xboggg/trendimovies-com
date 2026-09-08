@@ -119,6 +119,14 @@
   $: draftCount = reviews.filter(r => r.status === 'draft').length;
   $: pubCount = reviews.filter(r => r.status === 'published').length;
 
+  // ---- pagination (client-side — the full list is already fetched in one call) ----
+  const PAGE_SIZE = 10;
+  let currentPage = 1;
+  $: totalPages = Math.max(1, Math.ceil(shown.length / PAGE_SIZE));
+  $: if (currentPage > totalPages) currentPage = totalPages;
+  $: paged = shown.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+  function setFilter(key: 'all' | 'draft' | 'published') { filter = key; currentPage = 1; }
+
   // ---- comment moderation ----
   let tab: 'reviews' | 'comments' = 'reviews';
   let comments: any[] = [];
@@ -213,7 +221,7 @@
         class:text-white={filter === key}
         class:bg-[#1a1a1a]={filter !== key}
         class:text-[#a0a0a0]={filter !== key}
-        on:click={() => filter = key as any}>{label}</button>
+        on:click={() => setFilter(key as any)}>{label}</button>
     {/each}
   </div>
   <div class="text-sm text-[#888]">Reviews auto-drafted by the generator appear here for approval.</div>
@@ -227,7 +235,7 @@
   <p class="text-center py-12 text-[#666]">No reviews yet. Generate one with the review generator on the server.</p>
 {:else}
   <div class="space-y-3">
-    {#each shown as r (r.id)}
+    {#each paged as r (r.id)}
       <div class="flex items-center gap-4 p-4 rounded-xl border" style="border-color:#2a2a2a; background:#141414;">
         <img src={poster(r.poster_path)} alt="" class="w-14 h-20 object-cover rounded-lg flex-none" style="box-shadow:0 4px 12px rgba(0,0,0,.4);" />
         <div class="flex-1 min-w-0">
@@ -262,6 +270,15 @@
       </div>
     {/each}
   </div>
+  {#if totalPages > 1}
+    <div class="flex items-center justify-center gap-4 mt-6">
+      <button disabled={currentPage === 1} on:click={() => currentPage -= 1}
+        class="px-4 py-2 text-sm rounded-lg bg-[#1a1a1a] text-white hover:bg-[#242424] disabled:opacity-40 disabled:cursor-not-allowed font-medium">← Previous</button>
+      <span class="text-sm text-[#888]">Page {currentPage} of {totalPages}</span>
+      <button disabled={currentPage === totalPages} on:click={() => currentPage += 1}
+        class="px-4 py-2 text-sm rounded-lg bg-[#1a1a1a] text-white hover:bg-[#242424] disabled:opacity-40 disabled:cursor-not-allowed font-medium">Next →</button>
+    </div>
+  {/if}
 {/if}
 {/if}
 
