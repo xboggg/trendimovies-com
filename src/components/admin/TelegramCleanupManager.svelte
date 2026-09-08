@@ -34,6 +34,8 @@
   let language = '';
   let source = '';
   let type = '';
+  let season = '';
+  let episode = '';
   let duplicatesOnly = false;
   let includeDeleted = false;
 
@@ -70,7 +72,7 @@
     const params = new URLSearchParams({
       page: String(page),
       limit: String(limit),
-      search, year, quality, language, source, type,
+      search, year, quality, language, source, type, season, episode,
       duplicates: String(duplicatesOnly),
       includeDeleted: String(includeDeleted),
     });
@@ -211,6 +213,8 @@
         <option value="movie">Movies only</option>
         <option value="series">Series only</option>
       </select>
+      <input type="number" min="1" bind:value={season} placeholder="Season #" class="input w-28" on:change={handleSearch} />
+      <input type="number" min="1" bind:value={episode} placeholder="Episode #" class="input w-28" on:change={handleSearch} />
       <select bind:value={quality} on:change={handleSearch} class="select w-auto">
         <option value="">All qualities</option>
         {#each qualities as q}<option value={q}>{q}</option>{/each}

@@ -55,6 +55,8 @@ export interface SearchParams {
   language?: string;
   source?: string;
   type?: string; // 'movie' | 'series' | ''
+  season?: string;
+  episode?: string;
   duplicatesOnly?: boolean;
   includeDeleted?: boolean;
   page?: number;
@@ -63,6 +65,19 @@ export interface SearchParams {
 
 // SxxExx (with tolerant separators/case, e.g. "S01E02", "S1.E2", "s01 e02")
 const EPISODE_PATTERN = 'S[0-9]{1,2}[.\\-_ ]?E[0-9]{1,3}';
+
+// Builds a SxxExx regex pinned to a specific season and/or episode number.
+// `(?!\d)` after each number stops "season 1" from matching "S10" and
+// "episode 5" from matching "E050" -- a plain substring match would hit both.
+function seasonEpisodePattern(season?: string, episode?: string): string | null {
+  const s = season?.trim();
+  const e = episode?.trim();
+  if (!s && !e) return null;
+  if ((s && !/^\d{1,2}$/.test(s)) || (e && !/^\d{1,3}$/.test(e))) return null;
+  const seasonPart = s ? `S0*${s}(?!\\d)` : 'S[0-9]{1,2}';
+  const episodePart = e ? `E0*${e}(?!\\d)` : 'E[0-9]{1,3}';
+  return `${seasonPart}[.\\-_ ]?${episodePart}`;
+}
 
 export interface SearchResult {
   files: CatalogFile[];
@@ -96,6 +111,8 @@ export function searchCatalog(params: SearchParams): SearchResult {
     language = '',
     source = '',
     type = '',
+    season = '',
+    episode = '',
     duplicatesOnly = false,
     includeDeleted = false,
     page = 1,
@@ -152,6 +169,10 @@ export function searchCatalog(params: SearchParams): SearchResult {
     where.push(`(is_series = 1 OR file_name REGEXP '${EPISODE_PATTERN}')`);
   } else if (type === 'movie') {
     where.push(`(is_series = 0 OR is_series IS NULL) AND file_name NOT REGEXP '${EPISODE_PATTERN}'`);
+  }
+  const sePattern = seasonEpisodePattern(season, episode);
+  if (sePattern) {
+    where.push(`file_name REGEXP '${sePattern}'`);
   }
   if (duplicatesOnly) {
     where.push(duplicateGroupsWhere());
