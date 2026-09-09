@@ -3,19 +3,36 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
 
 const POSTGREST_URL = import.meta.env.PUBLIC_SUPABASE_URL || 'http://localhost:3001';
 
+const PAGE_SIZE = 24;
+const page = Math.max(1, parseInt(Astro.url.searchParams.get('page') || '1') || 1);
+// Page 1 also carries the "Latest On The Blog" strip (3 extra slots); later
+// pages are the vinyl-shelf grid only, continuing right after those 3.
+const offset = page === 1 ? 0 : (PAGE_SIZE + 3) + (page - 2) * PAGE_SIZE;
+const limit = page === 1 ? PAGE_SIZE + 3 : PAGE_SIZE;
+
 let posts: any[] = [];
+let totalCount = 0;
 try {
-  const res = await fetch(`${POSTGREST_URL}/blog_posts?status=eq.published&select=slug,title,deck,tags,cover_image,accent,angle,published_at&order=published_at.desc&limit=60`);
-  if (res.ok) posts = await res.json();
+  const res = await fetch(
+    `${POSTGREST_URL}/blog_posts?status=eq.published&select=slug,title,deck,tags,cover_image,accent,angle,published_at&order=published_at.desc&limit=${limit}&offset=${offset}`,
+    { headers: { Prefer: 'count=exact' } }
+  );
+  if (res.ok) {
+    posts = await res.json();
+    const range = res.headers.get('content-range');
+    totalCount = range ? parseInt(range.split('/')[1] || '0') || 0 : posts.length;
+  }
 } catch (e) { posts = []; }
+
+const totalPages = totalCount <= PAGE_SIZE + 3 ? 1 : 1 + Math.ceil((totalCount - (PAGE_SIZE + 3)) / PAGE_SIZE);
 
 // "Latest On The Blog" — the 3 most recently published posts, subtitle/timecode
 // treatment. NOT a claim about what's in theaters now -- these are just the
 // newest posts regardless of angle (an on_this_day retrospective can land
-// here as easily as a coming_this_month one).
+// here as easily as a coming_this_month one). Page 1 only.
 // "More From The Blog" — everything else, vinyl sleeve shelf.
-const nowShowing = posts.slice(0, 3);
-const rest = posts.slice(3);
+const nowShowing = page === 1 ? posts.slice(0, 3) : [];
+const rest = page === 1 ? posts.slice(3) : posts;
 
 const cover = (p: string | null) => p ? (p.startsWith('http') ? p : `https://image.tmdb.org/t/p/w780${p}`) : '/images/no-poster.svg';
 const angleLabel = (a: string | null) => a ? a.replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase()) : '';
@@ -89,6 +106,18 @@ const pageDesc = 'Recaps, takes and franchise deep-dives from the TrendiMovies d
           </div>
         </div>
       )}
+
+      {totalPages > 1 && (
+        <div class="blh-pager">
+          {page > 1 && (
+            <a class="blh-pg-btn" href={`/blog${page - 1 > 1 ? `?page=${page - 1}` : ''}`}>← Previous</a>
+          )}
+          <span class="blh-pg-info">Page {page} of {totalPages}</span>
+          {page < totalPages && (
+            <a class="blh-pg-btn" href={`/blog?page=${page + 1}`}>Next →</a>
+          )}
+        </div>
+      )}
     </div>
   </section>
 </BaseLayout>
@@ -146,6 +175,13 @@ const pageDesc = 'Recaps, takes and franchise deep-dives from the TrendiMovies d
   .vs-kicker{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:9px;letter-spacing:.13em;text-transform:uppercase;color:rgba(255,255,255,.82);text-shadow:0 1px 4px rgba(0,0,0,.6)}
   .vs-title{font-family:'Fraunces',Georgia,serif;font-weight:900;font-size:14px;line-height:1.25;color:#fff;max-width:76%;text-shadow:0 2px 8px rgba(0,0,0,.6)}
   .vs-ledge{height:14px;background:linear-gradient(180deg,#3a2450,#150a1f);border-radius:0 0 16px 16px;box-shadow:inset 0 6px 10px rgba(0,0,0,.4)}
+
+  /* pagination */
+  .blh-pager{display:flex;align-items:center;justify-content:center;gap:18px;margin-top:12px}
+  .blh-pg-btn{text-decoration:none;font-weight:700;font-size:14px;color:#fff;padding:10px 20px;border-radius:100px;
+    background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);transition:border-color .2s,background .2s}
+  .blh-pg-btn:hover{border-color:#f59e0b;background:rgba(245,158,11,.12)}
+  .blh-pg-info{font-size:14px;color:#b9b6c0;font-weight:600}
 
   @media(max-width:900px){
     .tc-row{max-width:82%}
