@@ -302,31 +302,32 @@ const ogUrl = new URL(Astro.url.pathname + Astro.url.search, Astro.site || 'http
         return;
       }
 
-      var payload = JSON.stringify({
-        page_path: path,
-        referrer: document.referrer || '',
-        session_id: sessionId
-      });
+      // Payload in URL query string, sent as GET. This form dodges TWO server
+      // issues discovered 2026-09-21:
+      //   1. astro's NodeApp.createRequest -> undici extractBody throws
+      //      "TypeError: Response body object should not be disturbed or
+      //      locked" on aborted sendBeacon POST bodies (~19 errors/day).
+      //   2. astro's built-in CSRF check ("Cross-site POST form submissions
+      //      are forbidden", 403) rejects sendBeacon POSTs because
+      //      sendBeacon does NOT set an Origin header matching Host.
+      // A GET request has no body (no extractBody), and CSRF applies to
+      // POST only. fetch(GET, keepalive:true) is the modern equivalent of
+      // sendBeacon and survives page unload in Chrome/Firefox/Safari 2019+.
+      // Image() beacon is the universal fallback for older browsers.
+      var trackUrl = '/api/analytics/track'
+        + '?page_path=' + encodeURIComponent(path)
+        + '&session_id=' + encodeURIComponent(sessionId)
+        + '&referrer=' + encodeURIComponent(document.referrer || '');
 
-      // sendBeacon (not fetch): a plain fetch gets aborted mid-request when
-      // the user navigates away right after firing it -- common on a
-      // browse-heavy site -- and the aborted body was surfacing as
-      // "Response body object should not be disturbed or locked" errors
-      // server-side. sendBeacon survives page unload. Fixed 2026-09-02.
-      // IMPORTANT: pass the payload as a plain string, not a Blob -- a
-      // Blob body was confirmed (via server-side diagnostic logging) to
-      // arrive as Content-Length: 0 on ordinary desktop Chrome, a known
-      // sendBeacon+Blob reliability quirk. A string payload is the
-      // well-tested reliable form. Fixed 2026-09-02.
-      if (navigator.sendBeacon) {
-        navigator.sendBeacon('/api/analytics/track', payload);
-      } else {
-        fetch('/api/analytics/track', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: payload,
-          keepalive: true
-        }).catch(function() {});
+      try {
+        if (typeof fetch === 'function') {
+          fetch(trackUrl, { method: 'GET', keepalive: true }).catch(function() {});
+        } else {
+          // Very old browsers: fire-and-forget image beacon
+          new Image().src = trackUrl;
+        }
+      } catch (e) {
+        // Analytics must never break the site
       }
     })();
   </script>

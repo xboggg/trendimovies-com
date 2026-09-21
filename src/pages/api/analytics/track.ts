@@ -140,11 +140,93 @@ async function getGeoLocation(ip: string): Promise<{
   return empty;
 }
 
-export const POST: APIRoute = async ({ request }) => {
+async function _writePageview(body: any, request: Request): Promise<void> {
+  const { page_path, referrer, session_id } = body || {};
+
+  if (!page_path || typeof page_path !== 'string' || page_path.length > 500) {
+    return;
+  }
+  if (page_path.startsWith('/admin') || page_path.startsWith('/api/')) {
+    return;
+  }
+
+  const ip = getClientIP(request);
+  const userAgent = request.headers.get('user-agent') || '';
+  const uaInfo = parseUserAgent(userAgent);
+  if (uaInfo.isBot) return;
+
+  const geo = await getGeoLocation(ip);
+
+  const pageviewData = {
+    page_path: page_path.substring(0, 500),
+    ip_address: ip.substring(0, 45),
+    country: geo.countryCode.substring(0, 2),
+    country_name: geo.country.substring(0, 100),
+    city: geo.city.substring(0, 100),
+    region: geo.region.substring(0, 100),
+    timezone: geo.timezone.substring(0, 50),
+    browser: uaInfo.browser.substring(0, 100),
+    browser_version: uaInfo.browserVersion.substring(0, 50),
+    os: uaInfo.os.substring(0, 100),
+    os_version: uaInfo.osVersion.substring(0, 50),
+    device_type: uaInfo.deviceType,
+    is_bot: uaInfo.isBot,
+    referrer: (referrer || '').substring(0, 1000),
+    user_agent: userAgent.substring(0, 2000),
+    session_id: (session_id || '').substring(0, 100)
+  };
+
+  const response = await fetch(POSTGREST_URL + '/page_views', {
+    method: 'POST',
+    headers: _apiAuth(),
+    body: JSON.stringify(pageviewData)
+  });
+
+  if (!response.ok) {
+    const errText = await response.text();
+    console.error('[Track] Insert failed:', errText);
+  }
+}
+
+function _payloadFromQuery(url: URL): { page_path?: string; referrer?: string; session_id?: string } | null {
+  const page_path = url.searchParams.get('page_path');
+  if (!page_path) return null;
+  return {
+    page_path,
+    referrer: url.searchParams.get('referrer') || '',
+    session_id: url.searchParams.get('session_id') || ''
+  };
+}
+
+// GET path: analytics payload in URL query string. This is the preferred
+// beacon form because it never touches request.body -- sidesteps the undici
+// extractBody / astro adapter body-stream-locked bug that was surfacing as
+// "TypeError: Response body object should not be disturbed or locked" on
+// aborted sendBeacon() POSTs (~19 errors/day before 2026-09-21 fix).
+export const GET: APIRoute = async ({ request, url }) => {
   try {
-    // Read as text first rather than request.json() directly: an empty
-    // body (e.g. a beacon request that lost its payload in transit) should
-    // be skipped quietly, not thrown+caught+logged as an error every time.
+    const body = _payloadFromQuery(url);
+    if (body) await _writePageview(body, request);
+  } catch (error: any) {
+    console.error('[Track] Error (GET):', error.message);
+  }
+  return new Response(JSON.stringify({ ok: true }), {
+    headers: { 'Content-Type': 'application/json' }
+  });
+};
+
+export const POST: APIRoute = async ({ request, url }) => {
+  try {
+    // 1) Prefer URL query params (new beacon form -- avoids body extraction entirely).
+    const fromQuery = _payloadFromQuery(url);
+    if (fromQuery) {
+      await _writePageview(fromQuery, request);
+      return new Response(JSON.stringify({ ok: true }), {
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+
+    // 2) Fallback: JSON body (older cached client JS).
     const rawBody = await request.text();
     if (!rawBody) {
       return new Response(JSON.stringify({ ok: true, skipped: true }), {
@@ -152,63 +234,7 @@ export const POST: APIRoute = async ({ request }) => {
       });
     }
     const body = JSON.parse(rawBody);
-    const { page_path, referrer, session_id } = body;
-
-    if (!page_path || typeof page_path !== 'string' || page_path.length > 500) {
-      return new Response(JSON.stringify({ error: 'Invalid page_path' }), {
-        status: 400,
-        headers: { 'Content-Type': 'application/json' }
-      });
-    }
-
-    if (page_path.startsWith('/admin') || page_path.startsWith('/api/')) {
-      return new Response(JSON.stringify({ ok: true, skipped: true }), {
-        headers: { 'Content-Type': 'application/json' }
-      });
-    }
-
-    const ip = getClientIP(request);
-    const userAgent = request.headers.get('user-agent') || '';
-    const uaInfo = parseUserAgent(userAgent);
-
-    if (uaInfo.isBot) {
-      return new Response(JSON.stringify({ ok: true, skipped: true }), {
-        headers: { 'Content-Type': 'application/json' }
-      });
-    }
-
-    const geo = await getGeoLocation(ip);
-
-    const pageviewData = {
-      page_path: page_path.substring(0, 500),
-      ip_address: ip.substring(0, 45),
-      country: geo.countryCode.substring(0, 2),
-      country_name: geo.country.substring(0, 100),
-      city: geo.city.substring(0, 100),
-      region: geo.region.substring(0, 100),
-      timezone: geo.timezone.substring(0, 50),
-      browser: uaInfo.browser.substring(0, 100),
-      browser_version: uaInfo.browserVersion.substring(0, 50),
-      os: uaInfo.os.substring(0, 100),
-      os_version: uaInfo.osVersion.substring(0, 50),
-      device_type: uaInfo.deviceType,
-      is_bot: uaInfo.isBot,
-      referrer: (referrer || '').substring(0, 1000),
-      user_agent: userAgent.substring(0, 2000),
-      session_id: (session_id || '').substring(0, 100)
-    };
-
-
-    const response = await fetch(POSTGREST_URL + '/page_views', {
-      method: 'POST',
-      headers: _apiAuth(),
-      body: JSON.stringify(pageviewData)
-    });
-
-    if (!response.ok) {
-      const errText = await response.text();
-      console.error('[Track] Insert failed:', errText);
-    }
+    await _writePageview(body, request);
 
     return new Response(JSON.stringify({ ok: true }), {
       headers: { 'Content-Type': 'application/json' }
