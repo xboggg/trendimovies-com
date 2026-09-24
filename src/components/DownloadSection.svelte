@@ -115,10 +115,18 @@
   // t.me/<bot>?start=<id> link. Returns null for cinematika / torrent /
   // anything that doesn't route through our own /tgstream/ (the delivery
   // bot can only forward files that live in our Telegram source channel).
+  // Two delivery bots run in parallel for redundancy AND ban tolerance --
+  // if one bot gets suspended, half of users still get through, and we can
+  // temporarily route 100% to the survivor by editing this function.
+  const DELIVERY_BOTS = ['trendimovies_dl_bot', 'trendimovies_dl2_bot'];
   function getTelegramDeliveryUrl(link: DownloadLink): string | null {
     const match = (link.url || '').match(/\/tgstream\/stream\/(\d+)/);
     if (!match) return null;
-    return `https://t.me/trendimovies_dl_bot?start=${match[1]}`;
+    const sqliteId = match[1];
+    // Deterministic split by sqlite id parity -- same link always maps to
+    // the same bot, so a bookmarked t.me/...?start=N URL keeps working.
+    const bot = DELIVERY_BOTS[parseInt(sqliteId, 10) % DELIVERY_BOTS.length];
+    return `https://t.me/${bot}?start=${sqliteId}`;
   }
 
   $: telegramDeliveryLinks = sortedDdlLinks.filter(l => getTelegramDeliveryUrl(l) !== null);
