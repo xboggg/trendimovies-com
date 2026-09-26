@@ -25,7 +25,10 @@ const CACHE_TTL: Record<string, number> = {
   on_the_air: 3600000,      // 1 hour
   discover: 3600000,        // 1 hour
   dvdsrd_scrape: 86400000,  // 24 hours (was 6h; stale-cache fallback covers gaps, fewer live scrapes = fewer 504s) - dvdsreleasedates month scrape (dates rarely change)
-  dvdsrd_lookup: 21600000,  // 6 hours - resolved TMDB id+poster per title (stable)
+  // 7 days. Was 6h, which meant ~800 title lookups expired together 4x a day;
+  // the next visitor then had to re-resolve all of them inside one render and
+  // got a 504 (measured 2026-09-26). A title's TMDB id/poster does not change.
+  dvdsrd_lookup: 604800000,
   digidate: 21600000,       // 6 hours - real digital release date per movie (homepage reel)
 };
 
@@ -90,16 +93,33 @@ export function getCache<T>(endpoint: string, params: Record<string, string> = {
     const now = Date.now();
 
     if (now - cached.timestamp > ttl) {
-      // Cache expired
-      try {
-        unlinkSync(filePath);
-      } catch {}
+      // EXPIRED. Deliberately do NOT unlink: deleting here destroyed the only
+      // copy getCacheStale() could fall back on, which is what let a mass
+      // expiry turn into hundreds of live API calls inside a single page
+      // render. Callers still receive null and refetch exactly as before;
+      // setCache() overwrites this key on success and cleanupCache() prunes.
       return null;
     }
 
     return cached.data as T;
   } catch (error) {
     console.error('Cache read error:', error);
+    return null;
+  }
+}
+
+// Read a cached entry IGNORING its TTL -- i.e. data getCache() would reject as
+// expired. Stale-while-revalidate fallback for callers that cannot afford to
+// refresh live (see digital-releases.astro's enrichment budget).
+export function getCacheStale<T>(endpoint: string, params: Record<string, string> = {}): T | null {
+  try {
+    ensureCacheDir();
+    const key = getCacheKey(endpoint, params);
+    const filePath = join(CACHE_DIR, `${key}.json`);
+    if (!existsSync(filePath)) return null;
+    const cached = JSON.parse(readFileSync(filePath, 'utf-8'));
+    return (cached && 'data' in cached) ? (cached.data as T) : null;
+  } catch {
     return null;
   }
 }

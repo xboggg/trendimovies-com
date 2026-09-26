@@ -1,6 +1,6 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
-import { getCache, setCache } from '../lib/cache';
+import { getCache, getCacheStale, setCache } from '../lib/cache';
 import { fetchFromTMDB } from '../lib/tmdb';
 
 // ============================================================================
@@ -984,10 +984,26 @@ function scoreCandidate(c: any, wantTitle: string, wantYear: number): number {
   return s;
 }
 
+// Wall-clock budget for the TMDB enrichment phase below. Evaluated per render
+// (this page is SSR, not prerendered). nginx gives the app 60s; 25s leaves the
+// rest of the page -- PostgREST lookups, merge, render -- room to finish.
+const ENRICH_DEADLINE = Date.now() + 25000;
+
 async function tmdbLookup(title: string, year: number): Promise<{ poster: string | null; tmdbId: number | null }> {
   const key = `dvdsrd-lk2-${title}-${year}`.toLowerCase();
   const cached = getCache<{ poster: string | null; tmdbId: number | null }>(key, {});
   if (cached) return cached;
+
+  // Past the budget, stop calling TMDB and serve this title's last known value
+  // (or a placeholder). Without this, a herd expiry meant ~800 titles x 2 calls
+  // in one render, which is what produced the 504.
+  // MUST NOT setCache() here: persisting a placeholder would blank a title that
+  // resolves perfectly well on the next, unhurried render.
+  if (Date.now() > ENRICH_DEADLINE) {
+    return getCacheStale<{ poster: string | null; tmdbId: number | null }>(key, {})
+      || { poster: null, tmdbId: null };
+  }
+
   let poster: string | null = null;
   let tmdbId: number | null = null;
   try {
