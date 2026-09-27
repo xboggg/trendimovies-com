@@ -11,7 +11,7 @@
 | Catalog  | TMDB API (cached per request)                  |
 | Streams  | Telegram bot (separate service on port 8765)   |
 | Auth     | Admin-only via password hash + signed cookie   |
-| Hosting  | Contabo 144.91.71.106, behind nginx + Cloudflare|
+| Hosting  | OVH 57.131.157.245 (moved off Contabo 2026-09-27), behind nginx + Cloudflare|
 | Process  | PM2 `trendimovies-astro` on port 3000          |
 | Build    | `astro build` → dist/{client,server}/          |
 

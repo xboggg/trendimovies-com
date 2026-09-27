@@ -177,7 +177,7 @@ connection *timeout* (vs. a 500 / broken page) means the server couldn't
 answer in time. Diagnose in order:
 
 ```bash
-ssh root@144.91.71.106
+ssh root@57.131.157.245
 
 # 1. Is it the CODE or the SERVER? If this is a fast 200, the app is
 #    fine and the problem is server load, NOT the website.

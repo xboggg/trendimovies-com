@@ -51,7 +51,7 @@ the reusable diagnosis runbook.
 
 **To roll back the code fix:**
 ```bash
-ssh root@144.91.71.106
+ssh root@57.131.157.245
 cd /opt/trendimovies/bot
 cp trendimovies_cron.py.bak.20260611-prenegcache trendimovies_cron.py
 cp run_cron.sh.bak.20260611 run_cron.sh
@@ -64,7 +64,7 @@ A failed deploy is the most common "disaster." The install script keeps
 the previous build as `dist.prev/`:
 
 ```bash
-ssh root@144.91.71.106
+ssh root@57.131.157.245
 cd /var/www/trendimovies
 [ -d dist.prev ] || { echo 'no dist.prev — cannot rollback'; exit 1; }
 mv dist dist.failed.$(date +%FT%H%M%S)
