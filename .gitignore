@@ -19,3 +19,4 @@ public/_astro/
 *.bak-*
 nul
 tailwindcss-*.log
+dist.prev/

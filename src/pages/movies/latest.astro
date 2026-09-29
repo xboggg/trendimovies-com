@@ -4,39 +4,124 @@ import MovieCard from '../../components/MovieCard.svelte';
 
 const POSTGREST_URL = import.meta.env.PUBLIC_SUPABASE_URL || 'http://localhost:3001';
 
-// Get pagination
-const page = parseInt(Astro.url.searchParams.get('page') || '1');
+const params = Astro.url.searchParams;
+const page = parseInt(params.get('page') || '1');
 const perPage = 30;
 const offset = (page - 1) * perPage;
 
-// Fetch latest additions from database (movies with downloads, sorted by created_at)
-async function getLatestAdditions(limit: number, offset: number) {
-  try {
-    const res = await fetch(
-      `${POSTGREST_URL}/movies?has_downloads=eq.true&order=created_at.desc&limit=${limit}&offset=${offset}&select=tmdb_id,title,year,poster_path,backdrop_path,vote_average,vote_count,popularity,overview,created_at`,
-      {
-        headers: {
-          'Accept-Profile': 'public',
-          'Prefer': 'count=exact'
-        }
-      }
-    );
-    if (!res.ok) return { movies: [], total: 0 };
+// ---------------------------------------------------------------- filters --
+// Everything here lives on the `movies` table, so the whole page stays a
+// single PostgREST call. Quality is deliberately NOT a filter: it lives in
+// download_links, and per the admin it only matters on Telegram, where you
+// pick a quality at delivery time.
+const GENRES = ['Action','Adventure','Animation','Comedy','Crime','Documentary','Drama',
+                'Family','Fantasy','History','Horror','Music','Mystery','Romance',
+                'Science Fiction','Thriller','War','Western'];
 
-    // Get total count from header
+// Counts are live figures from the catalogue, not guesses. Japanese, Korean
+// and Chinese each stand alone rather than being lumped into one "Asian"
+// bucket -- they are distinct audiences and each has enough titles to earn
+// its own chip.
+//
+// 'cn' sits WITH 'zh': verified against real rows rather than assumed. TMDB
+// uses cn for Cantonese (A Chinese Tall Story 情癲大聖, Enter the Fat Dragon
+// 肥龍過江) and zh for Mandarin (The Storm Riders 風雲) -- both are Chinese
+// to anyone browsing, so splitting them would just hide half the films.
+const LANGS: Record<string, { label: string; codes: string[] }> = {
+  en:      { label: 'English',  codes: ['en'] },                                   // 21,727
+  indian:  { label: 'Indian',   codes: ['hi','ta','ml','te','kn','bn','mr','pa','gu'] }, // 6,867
+  chinese: { label: 'Chinese',  codes: ['zh','cn'] },                              // 1,159
+  japanese:{ label: 'Japanese', codes: ['ja'] },                                   // 1,026
+  french:  { label: 'French',   codes: ['fr'] },                                   //   964
+  korean:  { label: 'Korean',   codes: ['ko'] },                                   //   954
+  spanish: { label: 'Spanish',  codes: ['es'] },                                   //   678
+};
+
+const YEARS: Record<string, { label: string; from: number; to: number }> = {
+  '2026':  { label: '2026',  from: 2026, to: 2026 },
+  '2025':  { label: '2025',  from: 2025, to: 2025 },
+  '2024':  { label: '2024',  from: 2024, to: 2024 },
+  '2020s': { label: '2020–23', from: 2020, to: 2023 },
+  '2010s': { label: '2010s', from: 2010, to: 2019 },
+  'older': { label: 'Before 2010', from: 1900, to: 2009 },
+};
+
+const SORTS: Record<string, { label: string; order: string }> = {
+  newest:   { label: 'Newest added',  order: 'created_at.desc' },
+  rated:    { label: 'Top rated',     order: 'vote_average.desc' },
+  popular:  { label: 'Most popular',  order: 'popularity.desc' },
+  released: { label: 'Release date',  order: 'release_date.desc' },
+};
+
+const fGenre = params.get('genre') || '';
+const fLang = params.get('lang') || '';
+const fYear = params.get('year') || '';
+const fRated = params.get('rating') === '7';
+const fSort = SORTS[params.get('sort') || ''] ? (params.get('sort') as string) : 'newest';
+
+const hasFilters = !!(fGenre || fLang || fYear || fRated) || fSort !== 'newest';
+
+// Build the query -------------------------------------------------------------
+const q: string[] = ['has_downloads=eq.true'];
+
+if (fGenre && GENRES.includes(fGenre)) {
+  // jsonb containment against the array-of-name-strings shape that
+  // trendimovies_cron.py writes, e.g. ["Action","Thriller"].
+  q.push(`genres=cs.${encodeURIComponent(JSON.stringify([fGenre]))}`);
+}
+if (fLang && LANGS[fLang]) {
+  q.push(`original_language=in.(${LANGS[fLang].codes.join(',')})`);
+}
+if (fYear && YEARS[fYear]) {
+  q.push(`year=gte.${YEARS[fYear].from}`, `year=lte.${YEARS[fYear].to}`);
+}
+if (fRated) q.push('vote_average=gte.7');
+
+// A vote floor is REQUIRED on the rating sort. Without it the top of the list
+// is films with vote_count 0 sitting at a meaningless 10.0 ("Srinivasa
+// Mangapuram", "Little Angels"). With it you get The Godfather and Shawshank.
+// 9,025 films clear 200 votes, so the pool stays deep.
+if (fSort === 'rated') q.push('vote_count=gte.200');
+
+const order = SORTS[fSort].order;
+
+async function getMovies(limit: number, off: number) {
+  try {
+    const url = `${POSTGREST_URL}/movies?${q.join('&')}&order=${order}&limit=${limit}&offset=${off}` +
+      `&select=tmdb_id,title,year,poster_path,backdrop_path,vote_average,vote_count,popularity,overview,created_at`;
+    const res = await fetch(url, {
+      headers: { 'Accept-Profile': 'public', 'Prefer': 'count=exact' }
+    });
+    if (!res.ok) return { movies: [], total: 0 };
     const contentRange = res.headers.get('content-range');
     const total = contentRange ? parseInt(contentRange.split('/')[1]) : 0;
-
-    const movies = await res.json();
-    return { movies, total };
+    return { movies: await res.json(), total };
   } catch (e) {
     console.error('Failed to fetch latest additions:', e);
     return { movies: [], total: 0 };
   }
 }
 
-const { movies, total } = await getLatestAdditions(perPage, offset);
+const { movies, total } = await getMovies(perPage, offset);
 const totalPages = Math.ceil(total / perPage);
+
+// Keep every active filter when moving between pages / toggling one chip.
+function link(overrides: Record<string, string | null>) {
+  const p = new URLSearchParams();
+  const cur: Record<string, string> = {
+    genre: fGenre, lang: fLang, year: fYear,
+    rating: fRated ? '7' : '', sort: fSort === 'newest' ? '' : fSort,
+  };
+  Object.assign(cur, overrides as any);
+  for (const [k, v] of Object.entries(cur)) if (v) p.set(k, v as string);
+  const qs = p.toString();
+  return `/movies/latest${qs ? '?' + qs : ''}`;
+}
+
+function pageLink(n: number) {
+  const base = link({});
+  return base.includes('?') ? `${base}&page=${n}` : `${base}?page=${n}`;
+}
 
 function transformToItem(movie: any) {
   return {
@@ -51,20 +136,80 @@ function transformToItem(movie: any) {
     has_downloads: true
   };
 }
+
+const heading = fGenre ? `Latest ${fGenre} Movies` : 'Latest Additions';
 ---
 
 <BaseLayout
   title="Just Added — Latest Movies in HD | TrendiMovies"
   description="Fresh on TrendiMovies — the newest movies just added and ready to stream or download in HD. Updated daily, so you never miss a new drop."
+  noIndex={hasFilters}
   image={`/api/og.png?type=digital&posters=${encodeURIComponent(movies.filter((m: any) => m.poster_path).slice(0, 5).map((m: any) => m.poster_path).join('|'))}&accent=${encodeURIComponent('#f7d000')}&eyebrow=${encodeURIComponent('JUST ADDED')}&eyebrowEmoji=${encodeURIComponent('✨')}&headline=${encodeURIComponent('Just Added to TrendiMovies')}&subtitle=${encodeURIComponent('The newest movies — stream or download in HD, updated daily')}&ogurl=${encodeURIComponent('trendimovies.com/movies/latest')}`}
 >
   <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-    <div class="flex flex-col md:flex-row md:items-center md:justify-between mb-8">
+    <div class="flex flex-col md:flex-row md:items-center md:justify-between mb-6">
       <div>
-        <h1 class="text-3xl font-bold" style="color: var(--text-primary);">Latest Additions</h1>
+        <h1 class="text-3xl font-bold" style="color: var(--text-primary);">{heading}</h1>
         <p class="mt-2 text-sm" style="color: var(--text-secondary);">
           {total.toLocaleString()} movies with downloads
         </p>
+      </div>
+    </div>
+
+    <!-- ============================ FILTER BAR ============================ -->
+    <!-- Plain links, not a JS widget: every combination is a real URL, so the
+         back button works, a filtered view can be shared, and the page still
+         functions with JS blocked. BaseLayout canonicalises on pathname only,
+         so these query strings cannot create duplicate-content URLs; filtered
+         views additionally carry noindex via `noIndex` above. The unfiltered
+         /movies/latest is untouched and stays indexable exactly as before. -->
+    <div class="tm-filters mb-7">
+      <div class="tm-row">
+        <span class="tm-key">Genre</span>
+        <div class="tm-chips">
+          <a href={link({ genre: null, page: null })} class={`tm-chip ${!fGenre ? 'is-on' : ''}`}>All</a>
+          {GENRES.map(g => (
+            <a href={link({ genre: g === fGenre ? null : g, page: null })}
+               class={`tm-chip ${fGenre === g ? 'is-on' : ''}`}>{g}</a>
+          ))}
+        </div>
+      </div>
+
+      <div class="tm-row">
+        <span class="tm-key">Year</span>
+        <div class="tm-chips">
+          <a href={link({ year: null, page: null })} class={`tm-chip ${!fYear ? 'is-on' : ''}`}>Any</a>
+          {Object.entries(YEARS).map(([k, v]) => (
+            <a href={link({ year: k === fYear ? null : k, page: null })}
+               class={`tm-chip ${fYear === k ? 'is-on' : ''}`}>{v.label}</a>
+          ))}
+        </div>
+      </div>
+
+      <div class="tm-row">
+        <span class="tm-key">Language</span>
+        <div class="tm-chips">
+          <a href={link({ lang: null, page: null })} class={`tm-chip ${!fLang ? 'is-on' : ''}`}>Any</a>
+          {Object.entries(LANGS).map(([k, v]) => (
+            <a href={link({ lang: k === fLang ? null : k, page: null })}
+               class={`tm-chip ${fLang === k ? 'is-on' : ''}`}>{v.label}</a>
+          ))}
+        </div>
+      </div>
+
+      <div class="tm-row">
+        <span class="tm-key">Sort</span>
+        <div class="tm-chips">
+          {Object.entries(SORTS).map(([k, v]) => (
+            <a href={link({ sort: k === 'newest' ? null : k, page: null })}
+               class={`tm-chip ${fSort === k ? 'is-on' : ''}`}>{v.label}</a>
+          ))}
+          <a href={link({ rating: fRated ? null : '7', page: null })}
+             class={`tm-chip ${fRated ? 'is-on' : ''}`}>★ 7+ only</a>
+          {hasFilters && (
+            <a href="/movies/latest" class="tm-chip tm-clear">Clear all</a>
+          )}
+        </div>
       </div>
     </div>
 
@@ -77,7 +222,11 @@ function transformToItem(movie: any) {
       </div>
     ) : (
       <div class="text-center py-16">
-        <p style="color: var(--text-secondary);">No movies found</p>
+        <p class="mb-3" style="color: var(--text-primary); font-weight:600;">Nothing matches those filters</p>
+        <p class="text-sm mb-5" style="color: var(--text-secondary);">
+          Try removing one — the combination may be too narrow.
+        </p>
+        <a href="/movies/latest" class="tm-chip is-on" style="display:inline-block;">Clear all filters</a>
       </div>
     )}
 
@@ -85,25 +234,19 @@ function transformToItem(movie: any) {
     {totalPages > 1 && (
       <div class="flex justify-center items-center mt-8 gap-2">
         {page > 1 && (
-          <a
-            href={`/movies/latest?page=${page - 1}`}
-            class="px-4 py-2 rounded-lg transition-colors hover:opacity-80"
-            style="background-color: var(--bg-card); color: var(--text-primary); border: 1px solid var(--border);"
-          >
+          <a href={pageLink(page - 1)}
+             class="px-4 py-2 rounded-lg transition-colors hover:opacity-80"
+             style="background-color: var(--bg-card); color: var(--text-primary); border: 1px solid var(--border);">
             Previous
           </a>
         )}
-
         <span class="px-4 py-2" style="color: var(--text-secondary);">
-          Page {page} of {totalPages}
+          Page {page} of {totalPages.toLocaleString()}
         </span>
-
         {page < totalPages && (
-          <a
-            href={`/movies/latest?page=${page + 1}`}
-            class="px-4 py-2 rounded-lg transition-colors hover:opacity-80"
-            style="background-color: var(--bg-card); color: var(--text-primary); border: 1px solid var(--border);"
-          >
+          <a href={pageLink(page + 1)}
+             class="px-4 py-2 rounded-lg transition-colors hover:opacity-80"
+             style="background-color: var(--bg-card); color: var(--text-primary); border: 1px solid var(--border);">
             Next
           </a>
         )}
@@ -111,3 +254,58 @@ function transformToItem(movie: any) {
     )}
   </div>
 </BaseLayout>
+
+<style>
+  .tm-filters {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 14px 16px;
+    border-radius: 14px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+  }
+  .tm-row { display: flex; gap: 12px; align-items: flex-start; }
+  .tm-key {
+    flex: 0 0 74px;
+    font-size: 11px;
+    letter-spacing: .09em;
+    text-transform: uppercase;
+    color: var(--text-secondary);
+    padding-top: 7px;
+  }
+  /* Scrolls sideways in its OWN container at phone width so the page body
+     never scrolls horizontally. */
+  .tm-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    min-width: 0;
+  }
+  .tm-chip {
+    display: inline-block;
+    padding: 5px 11px;
+    border-radius: 999px;
+    font-size: 13px;
+    line-height: 1.35;
+    white-space: nowrap;
+    color: var(--text-secondary);
+    border: 1px solid var(--border);
+    transition: background-color .15s, color .15s, border-color .15s;
+  }
+  .tm-chip:hover { color: var(--text-primary); border-color: var(--accent); }
+  .tm-chip.is-on {
+    background: var(--accent);
+    color: #111;
+    border-color: var(--accent);
+    font-weight: 600;
+  }
+  .tm-clear { border-style: dashed; }
+
+  @media (max-width: 640px) {
+    .tm-row { flex-direction: column; gap: 5px; }
+    .tm-key { flex: none; padding-top: 0; }
+    .tm-chips { flex-wrap: nowrap; overflow-x: auto; padding-bottom: 4px; }
+    .tm-chips::-webkit-scrollbar { height: 0; }
+  }
+</style>
