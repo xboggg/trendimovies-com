@@ -57,9 +57,10 @@ const fGenre = params.get('genre') || '';
 const fLang = params.get('lang') || '';
 const fYear = params.get('year') || '';
 const fRated = params.get('rating') === '7';
+const fNolly = params.get('from') === 'ng';
 const fSort = SORTS[params.get('sort') || ''] ? (params.get('sort') as string) : 'newest';
 
-const hasFilters = !!(fGenre || fLang || fYear || fRated) || fSort !== 'newest';
+const hasFilters = !!(fGenre || fLang || fYear || fRated || fNolly) || fSort !== 'newest';
 
 // Build the query -------------------------------------------------------------
 const q: string[] = ['has_downloads=eq.true'];
@@ -76,6 +77,14 @@ if (fYear && YEARS[fYear]) {
   q.push(`year=gte.${YEARS[fYear].from}`, `year=lte.${YEARS[fYear].to}`);
 }
 if (fRated) q.push('vote_average=gte.7');
+
+// Nollywood. Nigerian films are tagged original_language = 'en', so language
+// cannot find them -- they sit invisible among 21,727 English titles. This
+// matches on production_countries, NOT origin_country: verified on King of
+// Boys (tmdb 570465), which TMDB reports as origin_country ['US'] but
+// production_countries ['NG']. Trusting the obvious field would have excluded
+// real Nollywood from its own filter.
+if (fNolly) q.push(`production_countries=cs.${encodeURIComponent(JSON.stringify(['NG']))}`);
 
 // A vote floor is REQUIRED on the rating sort. Without it the top of the list
 // is films with vote_count 0 sitting at a meaningless 10.0 ("Srinivasa
@@ -110,7 +119,8 @@ function link(overrides: Record<string, string | null>) {
   const p = new URLSearchParams();
   const cur: Record<string, string> = {
     genre: fGenre, lang: fLang, year: fYear,
-    rating: fRated ? '7' : '', sort: fSort === 'newest' ? '' : fSort,
+    rating: fRated ? '7' : '', from: fNolly ? 'ng' : '',
+    sort: fSort === 'newest' ? '' : fSort,
   };
   Object.assign(cur, overrides as any);
   for (const [k, v] of Object.entries(cur)) if (v) p.set(k, v as string);
@@ -137,7 +147,8 @@ function transformToItem(movie: any) {
   };
 }
 
-const heading = fGenre ? `Latest ${fGenre} Movies` : 'Latest Additions';
+const heading = fNolly ? (fGenre ? `Latest Nollywood ${fGenre} Movies` : 'Latest Nollywood Movies')
+  : fGenre ? `Latest ${fGenre} Movies` : 'Latest Additions';
 ---
 
 <BaseLayout
@@ -163,55 +174,61 @@ const heading = fGenre ? `Latest ${fGenre} Movies` : 'Latest Additions';
          so these query strings cannot create duplicate-content URLs; filtered
          views additionally carry noindex via `noIndex` above. The unfiltered
          /movies/latest is untouched and stays indexable exactly as before. -->
-    <div class="tm-filters mb-7">
-      <div class="tm-row">
-        <span class="tm-key">Genre</span>
-        <div class="tm-chips">
-          <a href={link({ genre: null, page: null })} class={`tm-chip ${!fGenre ? 'is-on' : ''}`}>All</a>
-          {GENRES.map(g => (
-            <a href={link({ genre: g === fGenre ? null : g, page: null })}
-               class={`tm-chip ${fGenre === g ? 'is-on' : ''}`}>{g}</a>
-          ))}
-        </div>
-      </div>
+    <!-- Compact filter bar. Native <select> on purpose: it collapses four
+         choices into one line instead of ~40 wrapped chips, and on a phone it
+         opens the OS picker rather than making people scroll a wall of pills.
+         The chip grid it replaces cost ~250px of height before a single poster
+         was visible. A real <form method="get"> keeps it working with JS off;
+         the script at the end only removes the extra tap. -->
+    <form class="tmf" method="get" action="/movies/latest" id="tmf">
+      <label class="tmf__f">
+        <span>Genre</span>
+        <select name="genre">
+          <option value="">All genres</option>
+          {GENRES.map(g => <option value={g} selected={fGenre === g}>{g}</option>)}
+        </select>
+      </label>
 
-      <div class="tm-row">
-        <span class="tm-key">Year</span>
-        <div class="tm-chips">
-          <a href={link({ year: null, page: null })} class={`tm-chip ${!fYear ? 'is-on' : ''}`}>Any</a>
+      <label class="tmf__f">
+        <span>Year</span>
+        <select name="year">
+          <option value="">Any year</option>
           {Object.entries(YEARS).map(([k, v]) => (
-            <a href={link({ year: k === fYear ? null : k, page: null })}
-               class={`tm-chip ${fYear === k ? 'is-on' : ''}`}>{v.label}</a>
+            <option value={k} selected={fYear === k}>{v.label}</option>
           ))}
-        </div>
-      </div>
+        </select>
+      </label>
 
-      <div class="tm-row">
-        <span class="tm-key">Language</span>
-        <div class="tm-chips">
-          <a href={link({ lang: null, page: null })} class={`tm-chip ${!fLang ? 'is-on' : ''}`}>Any</a>
+      <label class="tmf__f">
+        <span>Language</span>
+        <select name="lang">
+          <option value="">Any language</option>
           {Object.entries(LANGS).map(([k, v]) => (
-            <a href={link({ lang: k === fLang ? null : k, page: null })}
-               class={`tm-chip ${fLang === k ? 'is-on' : ''}`}>{v.label}</a>
+            <option value={k} selected={fLang === k}>{v.label}</option>
           ))}
-        </div>
-      </div>
+        </select>
+      </label>
 
-      <div class="tm-row">
-        <span class="tm-key">Sort</span>
-        <div class="tm-chips">
+      <label class="tmf__f">
+        <span>Sort</span>
+        <select name="sort">
           {Object.entries(SORTS).map(([k, v]) => (
-            <a href={link({ sort: k === 'newest' ? null : k, page: null })}
-               class={`tm-chip ${fSort === k ? 'is-on' : ''}`}>{v.label}</a>
+            <option value={k} selected={fSort === k}>{v.label}</option>
           ))}
-          <a href={link({ rating: fRated ? null : '7', page: null })}
-             class={`tm-chip ${fRated ? 'is-on' : ''}`}>★ 7+ only</a>
-          {hasFilters && (
-            <a href="/movies/latest" class="tm-chip tm-clear">Clear all</a>
-          )}
-        </div>
+        </select>
+      </label>
+
+      <div class="tmf__toggles">
+        <label class={`tmf__t ${fRated ? 'is-on' : ''}`}>
+          <input type="checkbox" name="rating" value="7" checked={fRated} /> ★ 7+
+        </label>
+        <label class={`tmf__t ${fNolly ? 'is-on' : ''}`}>
+          <input type="checkbox" name="from" value="ng" checked={fNolly} /> Nollywood
+        </label>
+        <button type="submit" class="tmf__go">Apply</button>
+        {hasFilters && <a href="/movies/latest" class="tmf__clear">Clear</a>}
       </div>
-    </div>
+    </form>
 
     <!-- Movie Grid -->
     {movies.length > 0 ? (
@@ -226,7 +243,7 @@ const heading = fGenre ? `Latest ${fGenre} Movies` : 'Latest Additions';
         <p class="text-sm mb-5" style="color: var(--text-secondary);">
           Try removing one — the combination may be too narrow.
         </p>
-        <a href="/movies/latest" class="tm-chip is-on" style="display:inline-block;">Clear all filters</a>
+        <a href="/movies/latest" class="tmf__go" style="display:inline-block;text-decoration:none;">Clear all filters</a>
       </div>
     )}
 
@@ -256,56 +273,98 @@ const heading = fGenre ? `Latest ${fGenre} Movies` : 'Latest Additions';
 </BaseLayout>
 
 <style>
-  .tm-filters {
+  .tmf {
     display: flex;
-    flex-direction: column;
-    gap: 10px;
-    padding: 14px 16px;
-    border-radius: 14px;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 10px 14px;
+    padding: 12px 14px;
+    margin-bottom: 22px;
+    border-radius: 12px;
     background: var(--bg-card);
     border: 1px solid var(--border);
   }
-  .tm-row { display: flex; gap: 12px; align-items: flex-start; }
-  .tm-key {
-    flex: 0 0 74px;
-    font-size: 11px;
-    letter-spacing: .09em;
+  .tmf__f { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+  .tmf__f > span {
+    font-size: 10.5px;
+    letter-spacing: .085em;
     text-transform: uppercase;
     color: var(--text-secondary);
-    padding-top: 7px;
   }
-  /* Scrolls sideways in its OWN container at phone width so the page body
-     never scrolls horizontally. */
-  .tm-chips {
-    display: flex;
-    flex-wrap: wrap;
+  .tmf select {
+    appearance: none;
+    -webkit-appearance: none;
+    padding: 7px 30px 7px 11px;
+    min-width: 150px;
+    max-width: 100%;
+    font-size: 13.5px;
+    font-family: inherit;
+    color: var(--text-primary);
+    background-color: transparent;
+    /* Chevron drawn in CSS -- no icon font, no SVG asset, no extra request. */
+    background-image:
+      linear-gradient(45deg, transparent 50%, currentColor 50%),
+      linear-gradient(135deg, currentColor 50%, transparent 50%);
+    background-position: calc(100% - 15px) 52%, calc(100% - 10px) 52%;
+    background-size: 5px 5px, 5px 5px;
+    background-repeat: no-repeat;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    cursor: pointer;
+  }
+  .tmf select option { background: var(--bg-card); color: var(--text-primary); }
+  .tmf select:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+  .tmf__toggles { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-left: auto; }
+  .tmf__t {
+    display: inline-flex;
+    align-items: center;
     gap: 6px;
-    min-width: 0;
-  }
-  .tm-chip {
-    display: inline-block;
-    padding: 5px 11px;
+    padding: 6px 12px;
     border-radius: 999px;
     font-size: 13px;
-    line-height: 1.35;
-    white-space: nowrap;
     color: var(--text-secondary);
     border: 1px solid var(--border);
-    transition: background-color .15s, color .15s, border-color .15s;
+    cursor: pointer;
+    user-select: none;
   }
-  .tm-chip:hover { color: var(--text-primary); border-color: var(--accent); }
-  .tm-chip.is-on {
-    background: var(--accent);
-    color: #111;
-    border-color: var(--accent);
+  .tmf__t input { accent-color: var(--accent); margin: 0; }
+  .tmf__t.is-on { background: var(--accent); color: #111; border-color: var(--accent); font-weight: 600; }
+  .tmf__go {
+    padding: 7px 16px;
+    border-radius: 8px;
+    font-size: 13px;
     font-weight: 600;
+    color: #111;
+    background: var(--accent);
+    border: 0;
+    cursor: pointer;
   }
-  .tm-clear { border-style: dashed; }
+  .tmf__clear {
+    padding: 7px 12px;
+    font-size: 13px;
+    color: var(--text-secondary);
+    border-bottom: 1px dashed var(--border);
+  }
 
   @media (max-width: 640px) {
-    .tm-row { flex-direction: column; gap: 5px; }
-    .tm-key { flex: none; padding-top: 0; }
-    .tm-chips { flex-wrap: nowrap; overflow-x: auto; padding-bottom: 4px; }
-    .tm-chips::-webkit-scrollbar { height: 0; }
+    .tmf { gap: 9px 10px; padding: 11px 12px; }
+    /* Two controls per row rather than one long stack, so the whole bar is
+       about two lines on a phone instead of filling the screen. */
+    .tmf__f { flex: 1 1 calc(50% - 5px); }
+    .tmf select { min-width: 0; width: 100%; }
+    .tmf__toggles { margin-left: 0; width: 100%; }
+    .tmf__go { margin-left: auto; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { transition: none !important; }
   }
 </style>
+
+<script>
+  // Progressive enhancement ONLY. Without JS the Apply button submits the
+  // form normally, so every filter combination stays reachable.
+  const tmf = document.getElementById('tmf');
+  if (tmf) tmf.addEventListener('change', () => tmf.submit());
+</script>
