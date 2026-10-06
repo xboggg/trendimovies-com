@@ -1,0 +1,772 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+
+// Content is transcribed from TrendiMovies_Manual.docx (29 Sep 2026). Keep the
+// wording in step with that document: this page and the .docx are the same
+// manual in two formats, and members are pointed at whichever they open first.
+
+// Private invite links, taken from the bot's own join buttons (handlers.py).
+// These are deliberately NOT the public @handles: joins through an invite link
+// are attributable, which is the whole point of using them.
+const TG = {
+  channel: 'https://t.me/+oAFGVNSusvoyMzI0',
+  group: 'https://t.me/+vtOF1f_KsjY4Yjk0',
+  infohub: 'https://t.me/+kIZn-UymRDE4OTFk',
+};
+
+const quickStart = [
+  { cmd: '/m avengers endgame', desc: 'Search for a movie by name.' },
+  { cmd: '/s blacklist', desc: 'Search for a series by name.' },
+  { cmd: '/request <title>', desc: 'Ask us to add a movie or series we do not have yet.' },
+  { cmd: '/discovery', desc: 'Browse the library when you do not know what you want.' },
+  { cmd: '/commands', desc: 'The full command list, inside the bot.' },
+];
+
+const searchTips = [
+  {
+    h: 'Always start with /m or /s',
+    p: 'Use /m for a movie, or /s for a series, then the name:',
+    ex: ['/m avatar', '/s blacklist'],
+    warn: 'If you send only the name, with no /m or /s in front, the bot will not reply.',
+  },
+  {
+    h: 'Send the name only',
+    p: 'After the command, give the title and nothing else. Do not add words like download, eng sub, kdrama, series, season, anime or drama. Misspellings are fine — the bot will suggest the right one.',
+    label: 'Correct',
+    ex: ['/m avengers endgame   (no colon or punctuation needed)', '/m terminator', '/m the runner'],
+  },
+  {
+    h: 'Narrow a movie by year or quality',
+    p: 'Add the year, the quality, or both — after the name.',
+    label: 'Examples',
+    ex: [
+      '/m avatar   (every version we have)',
+      '/m avatar 2009   (that year only — useful when remakes share a name)',
+      '/m avatar 720p   (that quality only)',
+      '/m avatar 1080p   (higher quality, larger file)',
+      '/m avatar 2009 720p   (year and quality together)',
+    ],
+  },
+  {
+    h: 'Want one season of a series?',
+    p: 'Add S01, S02 and so on. The S stands for Season and the number is the season — and that is a ZERO, not the letter O. Name first or season first both work; if one does not find it, try the other.',
+    label: 'Examples',
+    ex: [
+      '/s game of thrones s01   (season 1)',
+      '/s game of thrones s1   (short form works too)',
+      '/s stranger things S01',
+      '/s S01 stranger things   (season first — try this if the first form misses)',
+    ],
+  },
+  {
+    h: 'Want one specific episode?',
+    p: 'Add S01E01. The E stands for Episode — again a ZERO, not the letter O.',
+    label: 'Examples',
+    ex: [
+      '/s game of thrones s01e02   (season 1, episode 2)',
+      '/s game of thrones s1e2   (short form works too)',
+      '/s stranger things S01E01',
+      '/s S01E01 stranger things   (episode first)',
+    ],
+  },
+  {
+    h: 'Want a specific quality of a series?',
+    p: 'Put the quality on the end — alone, or with a season or episode.',
+    label: 'Examples',
+    ex: [
+      '/s stranger things 720p',
+      '/s stranger things S01 720p   (whole season, that quality)',
+      '/s stranger things S01E03 720p   (one episode, that quality)',
+    ],
+  },
+  {
+    h: 'Anime with no seasons',
+    p: 'Many anime run straight from episode 1 to 1000 with no season numbers. For those, use the name and the episode number on its own.',
+    label: 'Examples',
+    ex: ['/m naruto 071', '/m one piece 1109'],
+  },
+];
+
+const charRows = [
+  { has: 'an apostrophe', bad: "Raven's Home", good: 'Ravens Home' },
+  { has: 'a hyphen', bad: 'Grown-ish', good: 'Grown ish   ·   Grownish' },
+  { has: 'a colon', bad: 'Avengers: Endgame', good: 'Avengers Endgame' },
+  { has: 'an ampersand', bad: 'Tom & Jerry', good: 'Tom and Jerry' },
+];
+
+const tgSteps = [
+  { lead: 'Search.', text: 'Send /m and the movie name, or /s and the series name.' },
+  { lead: 'Pick the title.', text: 'Tap the one you want from the results.' },
+  { lead: 'Pick the quality.', text: 'You will see the sizes and qualities we hold — 480p, 720p, 1080p or 4K. A bigger file means better video quality.' },
+  { lead: 'The file appears in the Request Group.', text: 'No queue, no waiting room, no link to open — it is posted straight into the group you joined.' },
+  { lead: 'Forward it to your DM, then download.', text: 'Forward the file to your Saved Messages — or any chat of your own — and download it from there. Files are cleared from the group after a while to keep it tidy, so forwarding is what keeps your copy.' },
+  { lead: 'Play it with VLC.', text: "Some files use formats a phone's built-in player cannot open. VLC Media Player (videolan.org) is free, plays everything, and is on Android, iPhone, Windows and Mac." },
+];
+
+const webSteps = [
+  { lead: 'Stream it on the site.', text: 'Where a source exists, press Watch and it plays in your browser — nothing to download at all. Not offered on every title.' },
+  { lead: 'Download directly from the website.', text: 'Use the direct download link on the page and the file saves straight to your device, the normal way a browser downloads anything.' },
+  { lead: 'Send it to Telegram.', text: "Use the Telegram download button and our delivery bot sends you the file. Save it with Telegram's download arrow." },
+];
+
+// Sections 03-10 are all command/reference tables, so they share one shape.
+const tableSections = [
+  {
+    n: '03', id: 'dates', title: 'Release dates & schedule', hue: 'gold',
+    sub: 'Knowing when something is due, so you are not searching for a file that does not exist yet.',
+    note: { lead: 'What a digital release date actually means.', text: 'A film opens in cinemas, then later reaches streaming. The digital release date is the day the proper HD copy is DUE — the real quality file, rather than the poor camera recordings that circulate before it. It is a calendar of what is coming, exactly like a cinema release schedule. It does not mean the file is here yet.' },
+    head: ['Command', 'What it does'],
+    rows: [
+      ['/digitalrelease', 'The dates HD copies are DUE. Browse ahead by week and see what quality releases are scheduled — the same idea as a cinema listing, but for files.'],
+      ['/schedule', 'The full release calendar, day by day, covering what is coming across the months ahead.'],
+      ['/upcoming', 'Films not yet released at all. Tap Track on one and you are messaged on the day it becomes available — no need to keep checking back.'],
+      ['/notify <title>', 'Watches one specific title for you and messages you the moment it is added.'],
+    ],
+  },
+  {
+    n: '04', id: 'commands', title: 'Search commands', hue: 'magenta',
+    sub: 'The full set. Every search starts with a command — a title typed on its own does nothing.',
+    head: ['Command', 'What it does'],
+    rows: [
+      ['/m <title>', 'Main search across movies and series. The command you will use most. e.g. /m avengers endgame'],
+      ['/s <title>', 'Series only. Use it when a show shares its name with a film, or to go straight to a season or episode. e.g. /s blacklist'],
+      ['/quality <title>', 'Shows every quality we hold for one title side by side, with file sizes, so you can choose before downloading. e.g. /quality oppenheimer'],
+      ['/similar <title>', 'Give it something you liked and it suggests titles close to it in genre, style and era. e.g. /similar inception'],
+      ['/year <year> <title>', 'Restricts results to one release year — useful when a remake shares a name with the original. e.g. /year 2024 dune'],
+      ['/range <from-to> <title>', 'Restricts results to a span of years. e.g. /range 2020-2023 action'],
+      ['/size <limit> <title>', 'Hides anything above a file size you set — useful on limited data. e.g. /size 1gb inception'],
+      ['/request <title>', 'Asks us to add a movie or series we do not have. It joins a real queue and you are messaged when it lands. e.g. /request the batman'],
+    ],
+  },
+  {
+    n: '05', id: 'discover', title: 'Discover', hue: 'orange',
+    sub: '/discovery opens one visual menu covering the main tiles — or type any command directly.',
+    head: ['Command', 'What it does'],
+    rows: [
+      ['/discovery', 'The Discovery Hub — one tap-through menu with eight ways into the library. Start here when you do not know what you want.'],
+      ['/trending', 'What members are genuinely watching most right now, counted from real downloads — not a chart copied from elsewhere.'],
+      ['/newfiles', 'Everything added most recently, newest first. Check it for things you have not seen listed before.'],
+      ['/topmovies', 'The 100 best-rated films of any single year from 1990 to today. Pick a year and browse it.'],
+      ['/hiddengems', 'Titles with high ratings but little attention — good when the obvious choices are exhausted.'],
+      ['/surpriseme', 'One random title from the whole library. Open Details for the plot and rating first, or re-roll as often as you like.'],
+      ['/genres', 'Browse by genre — Action, Comedy, Drama and the rest — or switch to browsing by mood instead: Happy, Scared, Romantic.'],
+      ['/franchise', 'Whole film universes laid out in the correct watch order, so you know what to see first.'],
+      ['/nollywood', 'Nigerian cinema, filtered by Drama, Comedy, Action, Romance or Thriller.'],
+      ['/director <name>', 'Every film we hold by one director. e.g. /director christopher nolan'],
+      ['/actor <name>', 'Every film we hold starring one actor. e.g. /actor tom cruise'],
+      ['/collections', 'Curated themed sets put together by hand — worth working through end to end.'],
+    ],
+  },
+  {
+    n: '06', id: 'profile', title: 'Your profile', hue: 'teal',
+    sub: '/profile opens one menu covering all of this — or type each command directly.',
+    head: ['Command', 'What it does'],
+    rows: [
+      ['/profile', 'Your Profile Hub — everything in this section in one place.'],
+      ['/stats', 'How many searches and downloads you have made, and the date you joined.'],
+      ['/history', 'Your recent searches, so you can return to something without retyping it.'],
+      ['/diary', 'A running log of every title you have downloaded — useful for remembering what you already have.'],
+      ['/points', 'Your points balance and level. Points come from searching, downloading, checking in and inviting friends.'],
+      ['/badges', 'Badges you have earned and the ones still to unlock, with what each one needs.'],
+      ['/streak', 'Your current and longest run of consecutive days. Search on any day to keep it alive.'],
+      ['/checkin', "Claim today's reward. Checking in on consecutive days pays more each time."],
+      ['/leaderboard', 'The members with the most points this week.'],
+      ['/invite', 'Your personal invite link. You earn points for every friend who joins through it.'],
+      ['/share <title>', 'Builds a shareable card for any title — poster, rating and plot — ready to forward to a friend.'],
+    ],
+  },
+  {
+    n: '07', id: 'fun', title: 'Fun', hue: 'purple',
+    sub: 'A little extra for the regulars. Both reset every day.',
+    head: ['Command', 'What it does'],
+    rows: [
+      ['/quotes', 'The daily quote challenge — a line from a film, and you name it.'],
+      ['/trivia', 'The daily trivia challenge — one question, multiple choice.'],
+    ],
+  },
+  {
+    n: '08', id: 'settings', title: 'Settings & help', hue: 'slate',
+    sub: 'Housekeeping, and where to find help without leaving the bot.',
+    head: ['Command', 'What it does'],
+    rows: [
+      ['/settings', 'Your preferences, including whether you receive the weekly digest.'],
+      ['/help', 'Short help panels for the main features.'],
+      ['/guide', 'The full feature manual inside the bot — the same ground this page covers.'],
+      ['/commands', 'This entire command list, on your phone, always current.'],
+      ['/about', 'Live numbers — how many titles we hold, searches made today, members active.'],
+      ['/start', 'Starts or re-initialises the bot. Also what opens when someone uses your invite link.'],
+    ],
+  },
+  {
+    n: '09', id: 'channel', title: 'In the Channel', hue: 'pink',
+    sub: 'You do not have to ask for any of this. Join the Channel and it arrives on its own.',
+    head: ['When', 'What arrives'],
+    rows: [
+      ['Every morning', 'Movie News — what is happening in film today. Then Daily Picks, a short shortlist worth your evening.'],
+      ['Every midday', 'Actor Birthday — who was born today, and which of their films we hold.'],
+      ['Every afternoon', 'Trending Now — the titles members are actually watching most this week.'],
+      ['Every evening', 'This Day in Cinema, then Trailer of the Day.'],
+      ['Mon · Wed · Fri', 'Movie Trivia in the Channel.'],
+      ['Wednesday', 'New Episodes — every series that gained episodes this week. Plus the Anime Spotlight.'],
+      ['Thursday', 'Before They Were Famous — early roles of people you know now.'],
+      ['Friday', 'New Releases, then the Weekend Watchlist to plan your two days.'],
+      ['Saturday', 'Weekend Binge in the morning, Family Movie Night in the afternoon.'],
+      ['Sunday', 'Box Office results, Top 10 by Genre, and a Director Spotlight.'],
+      ['Weekly', 'Your personal digest — switch it on or off in /settings.'],
+    ],
+  },
+  {
+    n: '10', id: 'website', title: 'On the website', hue: 'cyan',
+    sub: 'trendimovies.com — the same library, with covers, cast and plot.',
+    head: ['Where', 'What you get'],
+    rows: [
+      ['Movies & Series', 'The full catalogue with posters, cast, ratings and plot, and every quality we hold listed with its file size.'],
+      ['Watch', 'Play a title in your browser where a source exists, instead of downloading it. Not available on every title.'],
+      ['Discovery', 'Genres, franchises, curated universes and themed collections, browsed visually rather than by typing.'],
+      ['Digital Releases', 'The calendar of dates HD copies are due, so you know when a proper quality file is expected.'],
+      ['Blog & Reviews', 'Written pieces and full reviews, updated regularly.'],
+      ['Guides', 'Watch orders and explainers — where to start with a franchise and what to see first.'],
+      ['Request', 'The same request queue as the bot, from a web form, if you would rather not use Telegram.'],
+      ['Subtitles', 'Where subtitles exist for a title, they are offered next to the download.'],
+    ],
+  },
+];
+
+const navItems = [
+  { id: 'search', n: '01', label: 'How to search' },
+  { id: 'download', n: '02', label: 'How to download' },
+  ...tableSections.map((s) => ({ id: s.id, n: s.n, label: s.title })),
+];
+
+const pageTitle = 'TrendiMovies Bot Guide';
+const pageDesc = 'How to search, download and get the most out of the TrendiMovies Telegram bot — every command explained, with examples.';
+---
+
+<BaseLayout title={pageTitle} description={pageDesc} image="/images/og-default.jpg">
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;800;900&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
+
+  <div class="bg-scroll-progress"><i id="bgProgress"></i></div>
+
+  <div class="bg-page">
+    <!-- animated background -->
+    <div class="bg-aurora" aria-hidden="true">
+      <span class="orb o1"></span>
+      <span class="orb o2"></span>
+      <span class="orb o3"></span>
+      <span class="orb o4"></span>
+      <span class="bg-grid"></span>
+    </div>
+
+    <!-- hero -->
+    <header class="bg-hero">
+      <div class="bg-wrap">
+        <p class="bg-eyebrow reveal">Telegram Bot · Member Guide</p>
+        <h1 class="bg-h1">
+          <span class="w reveal" style="--d:0">TrendiMovies</span>
+          <span class="w reveal grad" style="--d:1">Bot Guide</span>
+        </h1>
+        <p class="bg-lede reveal" style="--d:2">
+          Thousands of movies and series, delivered inside Telegram. No waiting rooms, no link
+          shorteners, no countdowns — search, tap your quality, and the file is yours. Can't find a
+          movie or series? Request it, and we will message you the moment it lands.
+        </p>
+
+        <div class="bg-startcard reveal" style="--d:3">
+          <div class="bg-starthead"><span class="spark">★</span> Start here — these cover almost everything</div>
+          <ul class="bg-startlist">
+            {quickStart.map((q, i) => (
+              <li class="reveal" style={`--d:${i}`}>
+                <code class="cmd">{q.cmd}</code>
+                <span>{q.desc}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      </div>
+    </header>
+
+    <!-- sticky section nav -->
+    <nav class="bg-nav" id="bgNav" aria-label="Sections">
+      <div class="bg-navinner">
+        {navItems.map((it) => (
+          <a href={`#${it.id}`} data-navlink={it.id}><b>{it.n}</b>{it.label}</a>
+        ))}
+      </div>
+    </nav>
+
+    <main class="bg-wrap bg-main">
+
+      <!-- 01 how to search -->
+      <section class="bg-sec hue-rose" id="search">
+        <div class="bg-sechead reveal">
+          <span class="bg-num">01</span>
+          <div>
+            <h2>How to search</h2>
+            <p>Get this right and you will find almost anything on the first try.</p>
+          </div>
+        </div>
+
+        {searchTips.map((t, i) => (
+          <article class="bg-tip reveal" style={`--d:${i % 3}`}>
+            <h3><span class="bg-tick">▸</span>{t.h}</h3>
+            <p>{t.p}</p>
+            {t.label && <span class="bg-label">{t.label}</span>}
+            <div class="bg-chips">
+              {t.ex.map((e) => <code class="cmd good">{e}</code>)}
+            </div>
+            {t.warn && <p class="bg-warn">{t.warn}</p>}
+          </article>
+        ))}
+
+        <article class="bg-tip reveal">
+          <h3><span class="bg-tick">▸</span>Leave out special characters</h3>
+          <p>
+            Symbols confuse the search — apostrophes, hyphens, colons and ampersands. Either delete
+            the symbol and close the gap, or replace it with a space. Both work.
+          </p>
+          <div class="bg-tablewrap">
+            <table class="bg-chartable">
+              <thead>
+                <tr><th>Title contains</th><th>Do NOT type</th><th>Type instead</th></tr>
+              </thead>
+              <tbody>
+                {charRows.map((r, i) => (
+                  <tr class="reveal" style={`--d:${i}`}>
+                    <td class="muted">{r.has}</td>
+                    <td class="bad">{r.bad}</td>
+                    <td class="good">{r.good}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </article>
+
+        <div class="bg-note reveal">
+          <b>Dots are the exception — they are fine.</b> Release files are normally named with dots
+          between the words, the year and the quality, so a search like
+          <code class="cmd inline">avengers.endgame.2019.1080p</code> still works. It is the other
+          symbols that cause misses.
+        </div>
+        <div class="bg-note reveal">
+          <b>Still nothing?</b> Try fewer words. Then try the other word order. Then check the
+          spelling of the name only — not the year. If it still does not appear we probably do not
+          have it yet: send <code class="cmd inline">/request</code> and the title, and you will be
+          messaged when it lands.
+        </div>
+      </section>
+
+      <!-- 02 how to download -->
+      <section class="bg-sec hue-amber" id="download">
+        <div class="bg-sechead reveal">
+          <span class="bg-num">02</span>
+          <div>
+            <h2>How to download</h2>
+            <p>Two places to start — inside Telegram, or on the website.</p>
+          </div>
+        </div>
+
+        <div class="bg-note alert reveal">
+          <b>Before you search in Telegram: join the Request Group.</b> Searches and files happen in
+          the group, so you must be a member before you can download there —
+          <a href={TG.group} target="_blank" rel="noopener">join the Request Group</a>.
+          Join once and you are set.
+        </div>
+
+        <h3 class="bg-sub reveal"><span class="bg-tick">▸</span>Downloading from Telegram</h3>
+        <p class="bg-subp reveal">The quickest route. You never leave the app.</p>
+        <ol class="bg-steps">
+          {tgSteps.map((s, i) => (
+            <li class="reveal" style={`--d:${i % 3}`}>
+              <span class="bg-stepn">{i + 1}</span>
+              <div><b>{s.lead}</b> {s.text}</div>
+            </li>
+          ))}
+        </ol>
+
+        <h3 class="bg-sub reveal"><span class="bg-tick">▸</span>Downloading from the website</h3>
+        <p class="bg-subp reveal">
+          Better when you want to browse with posters, cast and plot before deciding. Open the title
+          on trendimovies.com and you have three ways to watch it:
+        </p>
+        <ol class="bg-steps">
+          {webSteps.map((s, i) => (
+            <li class="reveal" style={`--d:${i}`}>
+              <span class="bg-stepn">{i + 1}</span>
+              <div><b>{s.lead}</b> {s.text}</div>
+            </li>
+          ))}
+        </ol>
+
+        <div class="bg-note reveal">
+          <b>Which should I use?</b> Streaming is fastest if you only want to watch once. The direct
+          download suits a laptop. The Telegram route suits a phone, and keeps the file in an app you
+          already have. The website route is the shortest — the file comes straight to you.
+        </div>
+        <div class="bg-note tip reveal">
+          <b>Two free tools that make this much better.</b> For streaming, use
+          <a href="https://brave.com" target="_blank" rel="noopener">Brave browser</a> — it blocks the
+          pop-ups and redirect ads that ruin playback elsewhere. For anything you download, use
+          <a href="https://videolan.org" target="_blank" rel="noopener">VLC Media Player</a> — it opens
+          formats the default phone player often refuses. Both are free and take a minute to install.
+        </div>
+      </section>
+
+      <!-- 03 - 10 : reference tables -->
+      {tableSections.map((s) => (
+        <section class={`bg-sec hue-${s.hue}`} id={s.id}>
+          <div class="bg-sechead reveal">
+            <span class="bg-num">{s.n}</span>
+            <div>
+              <h2>{s.title}</h2>
+              <p>{s.sub}</p>
+            </div>
+          </div>
+
+          {s.note && (
+            <div class="bg-note reveal"><b>{s.note.lead}</b> {s.note.text}</div>
+          )}
+
+          <div class="bg-tablewrap reveal">
+            <table class="bg-cmdtable">
+              <thead><tr><th>{s.head[0]}</th><th>{s.head[1]}</th></tr></thead>
+              <tbody>
+                {s.rows.map((r, i) => (
+                  <tr class="reveal" style={`--d:${i % 4}`}>
+                    <td><code class="cmd">{r[0]}</code></td>
+                    <td>{r[1]}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      ))}
+
+      <div class="bg-note alert reveal">
+        <b>If we do not have it yet.</b> Send <code class="cmd inline">/request</code> and the title
+        in the bot, or use the Request page on the site. It joins a real queue that people work
+        through, and you are messaged the moment it is added — you do not have to keep checking.
+      </div>
+
+      <footer class="bg-foot reveal">
+        <div class="bg-footlinks">
+          <a href={TG.channel} target="_blank" rel="noopener">
+            <b>Channel</b><span>News, picks &amp; trailers</span>
+          </a>
+          <a href={TG.group} target="_blank" rel="noopener">
+            <b>Request Group</b><span>Search &amp; download here</span>
+          </a>
+          <a href={TG.infohub} target="_blank" rel="noopener">
+            <b>Info Hub</b><span>Announcements &amp; help</span>
+          </a>
+        </div>
+        <a class="bg-footsite" href="/">trendimovies.com</a>
+      </footer>
+    </main>
+  </div>
+</BaseLayout>
+
+<style>
+  /* ---- palette ------------------------------------------------------- */
+  .bg-page{
+    --ink:#f2eef7; --dim:#a9a2b8; --faint:#6f6880;
+    --panel:#15121c; --panel2:#1b1724; --line:rgba(255,255,255,.085);
+    --rose:#ff4d6d; --amber:#ff9f1c; --gold:#ffd166; --magenta:#f72585;
+    --orange:#ff8800; --teal:#2ec4b6; --purple:#b16cff; --slate:#8fa3c0;
+    --pink:#ff5fa8; --cyan:#4cc9f0;
+    --a:var(--rose);
+    position:relative; isolation:isolate; overflow-x:clip;
+    background:#0a0810; color:var(--ink);
+    font-family:'Outfit',system-ui,-apple-system,"Segoe UI",sans-serif;
+  }
+  .hue-rose{--a:var(--rose)} .hue-amber{--a:var(--amber)} .hue-gold{--a:var(--gold)}
+  .hue-magenta{--a:var(--magenta)} .hue-orange{--a:var(--orange)} .hue-teal{--a:var(--teal)}
+  .hue-purple{--a:var(--purple)} .hue-slate{--a:var(--slate)} .hue-pink{--a:var(--pink)}
+  .hue-cyan{--a:var(--cyan)}
+
+  .bg-wrap{max-width:1020px;margin:0 auto;padding-inline:18px}
+
+  /* ---- scroll progress ----------------------------------------------- */
+  .bg-scroll-progress{position:fixed;top:0;left:0;right:0;height:3px;z-index:60;background:transparent;pointer-events:none}
+  .bg-scroll-progress i{display:block;height:100%;width:0;
+    background:linear-gradient(90deg,#ff4d6d,#ff9f1c,#ffd166,#2ec4b6,#4cc9f0,#b16cff);
+    box-shadow:0 0 14px rgba(255,120,180,.6)}
+
+  /* ---- animated background ------------------------------------------- */
+  .bg-aurora{position:absolute;inset:0;z-index:-1;overflow:hidden;pointer-events:none}
+  .orb{position:absolute;border-radius:50%;filter:blur(70px);opacity:.5;will-change:transform}
+  .o1{width:46vmax;height:46vmax;left:-14vmax;top:-10vmax;background:radial-gradient(circle,#ff4d6d,transparent 68%);animation:drift1 26s ease-in-out infinite}
+  .o2{width:40vmax;height:40vmax;right:-12vmax;top:14vmax;background:radial-gradient(circle,#b16cff,transparent 68%);animation:drift2 32s ease-in-out infinite}
+  .o3{width:38vmax;height:38vmax;left:8vmax;top:92vmax;background:radial-gradient(circle,#2ec4b6,transparent 68%);animation:drift3 30s ease-in-out infinite}
+  .o4{width:42vmax;height:42vmax;right:-8vmax;top:170vmax;background:radial-gradient(circle,#4cc9f0,transparent 68%);animation:drift1 36s ease-in-out infinite reverse}
+  .bg-grid{position:absolute;inset:0;opacity:.3;
+    background-image:linear-gradient(rgba(255,255,255,.045) 1px,transparent 1px),
+                     linear-gradient(90deg,rgba(255,255,255,.045) 1px,transparent 1px);
+    background-size:64px 64px;
+    mask-image:radial-gradient(ellipse 80% 55% at 50% 0%,#000 35%,transparent 78%);
+    -webkit-mask-image:radial-gradient(ellipse 80% 55% at 50% 0%,#000 35%,transparent 78%)}
+  @keyframes drift1{0%,100%{transform:translate(0,0) scale(1)}50%{transform:translate(7vmax,5vmax) scale(1.14)}}
+  @keyframes drift2{0%,100%{transform:translate(0,0) scale(1.08)}50%{transform:translate(-8vmax,7vmax) scale(.92)}}
+  @keyframes drift3{0%,100%{transform:translate(0,0)}50%{transform:translate(6vmax,-6vmax) scale(1.1)}}
+
+  /* ---- hero ----------------------------------------------------------- */
+  .bg-hero{padding:clamp(54px,11vw,110px) 0 36px;text-align:center}
+  .bg-eyebrow{font-size:.74rem;letter-spacing:.22em;text-transform:uppercase;color:var(--rose);font-weight:700;margin:0 0 14px}
+  .bg-h1{font-size:clamp(2.5rem,8.5vw,5rem);line-height:.97;margin:0 0 20px;font-weight:900;letter-spacing:-.03em;text-wrap:balance}
+  .bg-h1 .w{display:block}
+  .bg-h1 .grad{background:linear-gradient(100deg,#ff4d6d,#ff9f1c 28%,#ffd166 46%,#2ec4b6 68%,#4cc9f0 86%,#b16cff);
+    -webkit-background-clip:text;background-clip:text;color:transparent;background-size:260% auto;animation:shimmer 7s linear infinite}
+  @keyframes shimmer{to{background-position:260% center}}
+  .bg-lede{max-width:62ch;margin:0 auto 34px;color:var(--dim);font-size:clamp(1rem,2.4vw,1.16rem);line-height:1.72}
+
+  .bg-startcard{max-width:720px;margin:0 auto;text-align:left;border-radius:20px;padding:4px;
+    background:linear-gradient(135deg,#ff4d6d,#ff9f1c,#2ec4b6,#4cc9f0,#b16cff);background-size:300% 300%;
+    animation:borderflow 9s ease infinite;box-shadow:0 26px 70px rgba(0,0,0,.6)}
+  @keyframes borderflow{0%,100%{background-position:0% 50%}50%{background-position:100% 50%}}
+  .bg-starthead{padding:16px 20px 13px;font-weight:800;font-size:.95rem;letter-spacing:.01em;
+    background:var(--panel);border-radius:17px 17px 0 0;display:flex;align-items:center;gap:9px}
+  .spark{color:#ffd166;animation:spin 5s linear infinite;display:inline-block}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .bg-startlist{list-style:none;margin:0;padding:0 20px 18px;background:var(--panel);border-radius:0 0 17px 17px}
+  .bg-startlist li{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 12px;padding:11px 0;border-top:1px solid var(--line)}
+  .bg-startlist li span{color:var(--dim);font-size:.93rem}
+
+  /* ---- command chips --------------------------------------------------- */
+  .cmd{font-family:'JetBrains Mono',ui-monospace,Menlo,Consolas,monospace;font-size:.84rem;font-weight:600;
+    background:rgba(255,255,255,.07);border:1px solid var(--line);color:#ffd9e2;
+    padding:.3em .6em;border-radius:7px;white-space:nowrap;display:inline-block;transition:transform .18s,box-shadow .18s,border-color .18s}
+  .cmd.good{color:#8ef0c8;border-color:rgba(46,196,182,.3);background:rgba(46,196,182,.09);white-space:normal}
+  .cmd.inline{white-space:normal}
+  .cmd:hover{transform:translateY(-2px);border-color:var(--a);box-shadow:0 6px 18px rgba(0,0,0,.45)}
+
+  /* ---- sticky nav ------------------------------------------------------ */
+  /* The site header is position:fixed at top:0, so this bar has to sit below
+     it or it is hidden underneath. --hdr is measured at runtime (the header
+     is 81px wide-screen, 65px on a phone, and transitions on scroll); the
+     fallback here keeps it correct before the script runs. */
+  .bg-nav{position:sticky;top:var(--hdr,81px);z-index:40;backdrop-filter:blur(14px);
+    background:rgba(10,8,16,.82);border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+  .bg-navinner{max-width:1020px;margin:0 auto;display:flex;gap:7px;overflow-x:auto;padding:11px 18px;
+    scrollbar-width:none}
+  .bg-navinner::-webkit-scrollbar{display:none}
+  .bg-navinner a{flex:0 0 auto;display:flex;align-items:center;gap:7px;padding:8px 14px;border-radius:999px;
+    font-size:.84rem;font-weight:600;color:var(--dim);text-decoration:none;border:1px solid var(--line);
+    background:rgba(255,255,255,.03);transition:color .2s,border-color .2s,background .2s,transform .2s;white-space:nowrap}
+  .bg-navinner a b{font-size:.72rem;opacity:.65;font-weight:800}
+  .bg-navinner a:hover{color:var(--ink);transform:translateY(-2px);border-color:rgba(255,255,255,.22)}
+  .bg-navinner a.on{color:#0a0810;background:linear-gradient(100deg,#ff9f1c,#ffd166);border-color:transparent}
+  .bg-navinner a.on b{opacity:.75}
+
+  /* ---- sections -------------------------------------------------------- */
+  .bg-main{padding-block:46px 72px}
+  /* Clear the fixed site header AND this page's own sticky nav when an anchor
+     is followed, so a section never lands hidden behind both bars. */
+  .bg-sec{scroll-margin-top:calc(var(--hdr,81px) + 74px);margin-bottom:62px}
+  .bg-sechead{display:flex;gap:18px;align-items:flex-start;margin-bottom:26px;
+    padding-bottom:20px;border-bottom:1px solid var(--line)}
+  .bg-num{flex:0 0 auto;font-weight:900;font-size:1.15rem;width:56px;height:56px;border-radius:16px;
+    display:grid;place-items:center;color:#0a0810;background:var(--a);
+    box-shadow:0 10px 30px color-mix(in srgb,var(--a) 45%,transparent);transition:transform .5s}
+  .bg-sec:hover .bg-num{transform:rotate(-8deg) scale(1.07)}
+  .bg-sechead h2{margin:4px 0 5px;font-size:clamp(1.5rem,4.2vw,2.1rem);font-weight:800;letter-spacing:-.02em;
+    color:var(--a);text-wrap:balance}
+  .bg-sechead p{margin:0;color:var(--dim);font-size:.98rem;line-height:1.6}
+
+  .bg-tip{background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--a);
+    border-radius:14px;padding:18px 20px;margin-bottom:14px;transition:transform .25s,box-shadow .25s,border-color .25s}
+  .bg-tip:hover{transform:translateY(-3px);box-shadow:0 18px 44px rgba(0,0,0,.5);border-color:rgba(255,255,255,.16)}
+  .bg-tip h3{margin:0 0 8px;font-size:1.06rem;font-weight:700;display:flex;gap:9px;align-items:baseline}
+  .bg-tick{color:var(--a);font-size:.8em}
+  .bg-tip p{margin:0 0 12px;color:var(--dim);line-height:1.72;font-size:.97rem}
+  .bg-label{display:inline-block;font-size:.66rem;letter-spacing:.17em;text-transform:uppercase;
+    font-weight:800;color:var(--a);margin-bottom:9px}
+  .bg-chips{display:flex;flex-direction:column;gap:7px;align-items:flex-start}
+  .bg-warn{margin:12px 0 0 !important;padding:9px 13px;border-radius:9px;font-size:.9rem !important;
+    background:rgba(255,77,109,.1);border:1px solid rgba(255,77,109,.25);color:#ffc2cd !important}
+
+  .bg-sub{margin:30px 0 6px;font-size:1.14rem;font-weight:800;display:flex;gap:9px;align-items:baseline}
+  .bg-subp{margin:0 0 16px;color:var(--dim);line-height:1.7}
+
+  .bg-steps{list-style:none;margin:0 0 8px;padding:0;counter-reset:s}
+  .bg-steps li{display:flex;gap:14px;padding:13px 16px;margin-bottom:9px;border-radius:12px;
+    background:var(--panel);border:1px solid var(--line);line-height:1.7;color:var(--dim);font-size:.97rem;
+    transition:transform .22s,border-color .22s}
+  .bg-steps li:hover{transform:translateX(4px);border-color:var(--a)}
+  .bg-steps li b{color:var(--ink)}
+  .bg-stepn{flex:0 0 auto;width:28px;height:28px;border-radius:9px;display:grid;place-items:center;
+    font-weight:800;font-size:.84rem;color:#0a0810;background:var(--a)}
+
+  .bg-note{background:var(--panel2);border:1px solid var(--line);border-radius:13px;
+    padding:15px 18px;margin:14px 0;color:var(--dim);line-height:1.74;font-size:.96rem}
+  .bg-note b{color:var(--ink)}
+  .bg-note a{color:var(--a);text-underline-offset:3px}
+  .bg-note.alert{border-color:rgba(255,159,28,.34);background:rgba(255,159,28,.07)}
+  .bg-note.tip{border-color:rgba(76,201,240,.3);background:rgba(76,201,240,.06)}
+
+  /* ---- tables ----------------------------------------------------------- */
+  .bg-tablewrap{overflow-x:auto;border:1px solid var(--line);border-radius:14px;background:var(--panel);
+    margin:6px 0 2px}
+  table{border-collapse:collapse;width:100%;min-width:34rem;font-size:.94rem}
+  th{text-align:left;font-size:.68rem;letter-spacing:.15em;text-transform:uppercase;font-weight:800;
+    padding:13px 16px;color:#0a0810;background:var(--a);white-space:nowrap}
+  td{padding:12px 16px;border-top:1px solid var(--line);color:var(--dim);line-height:1.65;vertical-align:top}
+  tbody tr{transition:background .2s}
+  tbody tr:hover{background:rgba(255,255,255,.035)}
+  .bg-cmdtable td:first-child{white-space:nowrap}
+  .bg-chartable td.muted{color:var(--faint)}
+  .bg-chartable td.bad{color:#ff8098;font-weight:600}
+  .bg-chartable td.good{color:#6ee7b7;font-weight:600}
+
+  /* ---- footer ------------------------------------------------------------ */
+  .bg-foot{margin-top:54px;padding-top:30px;border-top:1px solid var(--line);text-align:center}
+  .bg-footlinks{display:flex;flex-wrap:wrap;gap:12px;justify-content:center;margin-bottom:26px}
+  .bg-footlinks a{display:flex;flex-direction:column;gap:3px;padding:14px 22px;border-radius:14px;
+    text-decoration:none;background:var(--panel);border:1px solid var(--line);min-width:180px;
+    transition:transform .22s,border-color .22s,box-shadow .22s}
+  .bg-footlinks a:hover{transform:translateY(-4px);border-color:var(--rose);box-shadow:0 16px 40px rgba(0,0,0,.5)}
+  .bg-footlinks b{color:var(--ink);font-size:.95rem}
+  .bg-footlinks span{color:var(--faint);font-size:.82rem;font-family:'JetBrains Mono',monospace}
+  .bg-footsite{display:inline-block;font-size:clamp(1.3rem,4.5vw,1.9rem);font-weight:900;letter-spacing:-.02em;
+    text-decoration:none;background:linear-gradient(100deg,#ff4d6d,#ff9f1c,#2ec4b6,#4cc9f0);
+    background-size:220% auto;-webkit-background-clip:text;background-clip:text;color:transparent;
+    animation:shimmer 6s linear infinite}
+
+  /* ---- reveal animation --------------------------------------------------- */
+  .reveal{opacity:0;transform:translateY(26px);
+    transition:opacity .7s cubic-bezier(.2,.7,.3,1),transform .7s cubic-bezier(.2,.7,.3,1);
+    transition-delay:calc(var(--d,0) * 85ms)}
+  .reveal.in{opacity:1;transform:none}
+
+  @media (max-width:640px){
+    .bg-sechead{gap:13px}
+    .bg-num{width:46px;height:46px;font-size:1rem;border-radius:13px}
+    .bg-steps li{padding:12px 13px;gap:11px}
+    .bg-footlinks a{min-width:0;flex:1 1 140px}
+    .bg-tip{padding:16px 15px}
+
+    /* A two-column command table forces sideways scrolling on a phone, which
+       is where most members will read this. Stack each row into a card so the
+       description sits under its command and the page reads straight down. */
+    .bg-cmdtable{min-width:0;display:block}
+    .bg-cmdtable thead{display:none}
+    .bg-cmdtable tbody,.bg-cmdtable tr,.bg-cmdtable td{display:block;width:100%}
+    .bg-cmdtable tr{padding:13px 15px;border-top:1px solid var(--line)}
+    .bg-cmdtable tbody tr:first-child{border-top:0}
+    .bg-cmdtable td{border:0;padding:0}
+    .bg-cmdtable td:first-child{white-space:normal;margin-bottom:7px}
+    .bg-cmdtable td:last-child{font-size:.92rem}
+
+    /* The do/don't table stays a real table — the comparison is the point —
+       but it no longer needs to be as wide. */
+    .bg-chartable{min-width:22rem;font-size:.86rem}
+    .bg-chartable th,.bg-chartable td{padding:10px 12px}
+  }
+
+  /* People who ask for less motion get a static page: every drifting orb,
+     shimmer and reveal is switched off rather than merely shortened. */
+  @media (prefers-reduced-motion:reduce){
+    .orb,.spark,.bg-h1 .grad,.bg-startcard,.bg-footsite{animation:none !important}
+    .reveal{opacity:1 !important;transform:none !important;transition:none !important}
+    *{transition-duration:.01ms !important}
+  }
+</style>
+
+<script is:inline>
+  (function () {
+    var reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    var page = document.querySelector('.bg-page');
+
+    // The site header is fixed at top:0 and changes height between breakpoints
+    // (and while scrolling). Measure it instead of hardcoding, so the sticky
+    // section nav always parks directly beneath it rather than under it.
+    var siteHeader = null;
+    document.querySelectorAll('header, nav, [class*="header"]').forEach(function (el) {
+      if (siteHeader || page.contains(el)) return;
+      if (getComputedStyle(el).position === 'fixed') siteHeader = el;
+    });
+    function syncHeader() {
+      var h = siteHeader ? Math.round(siteHeader.getBoundingClientRect().height) : 81;
+      if (h > 0 && h < 200) page.style.setProperty('--hdr', h + 'px');
+    }
+    syncHeader();
+    window.addEventListener('resize', syncHeader, { passive: true });
+    if (siteHeader && 'ResizeObserver' in window) {
+      new ResizeObserver(syncHeader).observe(siteHeader);
+    }
+
+    // Reveal on scroll. Without IntersectionObserver everything is shown at once
+    // rather than left invisible.
+    var items = document.querySelectorAll('.reveal');
+    if (reduce || !('IntersectionObserver' in window)) {
+      items.forEach(function (el) { el.classList.add('in'); });
+    } else {
+      var io = new IntersectionObserver(function (entries) {
+        entries.forEach(function (e) {
+          if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); }
+        });
+      }, { rootMargin: '0px 0px -8% 0px', threshold: 0.06 });
+      items.forEach(function (el) { io.observe(el); });
+    }
+
+    // Sticky-nav state. Declared here because the scroll handler below clears
+    // the active pill once the reader scrolls back above the first section.
+    var links = {};
+    document.querySelectorAll('[data-navlink]').forEach(function (a) {
+      links[a.getAttribute('data-navlink')] = a;
+    });
+    var secs = document.querySelectorAll('.bg-sec[id]');
+    var firstSec = secs[0] || null;
+    var current = null;
+    function clearNav() {
+      if (current === null) return;
+      current = null;
+      for (var k in links) links[k].classList.remove('on');
+    }
+
+    // Scroll progress bar.
+    var bar = document.getElementById('bgProgress');
+    var ticking = false;
+    function onScroll() {
+      if (ticking) return;
+      ticking = true;
+      requestAnimationFrame(function () {
+        var h = document.documentElement.scrollHeight - window.innerHeight;
+        bar.style.width = (h > 0 ? (window.scrollY / h) * 100 : 0) + '%';
+        // Above the first section nothing should read as current.
+        if (firstSec && firstSec.getBoundingClientRect().top > 140) clearNav();
+        ticking = false;
+      });
+    }
+    window.addEventListener('scroll', onScroll, { passive: true });
+    onScroll();
+
+    // Highlight the section currently in view in the sticky nav, and keep that
+    // pill scrolled into view on narrow screens.
+    if ('IntersectionObserver' in window && secs.length) {
+      var navIo = new IntersectionObserver(function (entries) {
+        entries.forEach(function (e) {
+          if (!e.isIntersecting) return;
+          var id = e.target.id;
+          if (id === current) return;
+          current = id;
+          for (var k in links) links[k].classList.toggle('on', k === id);
+          var a = links[id];
+          if (a && a.parentNode.scrollWidth > a.parentNode.clientWidth) {
+            a.parentNode.scrollTo({
+              left: a.offsetLeft - a.parentNode.clientWidth / 2 + a.clientWidth / 2,
+              behavior: reduce ? 'auto' : 'smooth',
+            });
+          }
+        });
+      }, {
+        // Start the band below the fixed site header plus this page's own nav,
+        // so a section counts as current only once it is actually readable.
+        rootMargin: '-' + ((siteHeader ? siteHeader.offsetHeight : 81) + 70) + 'px 0px -58% 0px',
+        threshold: 0,
+      });
+      secs.forEach(function (s) { navIo.observe(s); });
+    }
+  })();
+</script>
