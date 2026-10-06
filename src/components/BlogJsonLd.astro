@@ -1,0 +1,62 @@
+---
+interface Props {
+  post: {
+    slug: string;
+    title: string;
+    deck?: string;
+    tags?: string[];
+    published_at?: string;
+    updated_at?: string;
+    created_at?: string;
+  };
+  coverUrl?: string;
+  readMinutes?: number;
+}
+
+const { post, coverUrl, readMinutes } = Astro.props;
+
+// The cover is already resolved to an absolute URL by the page; fall back to
+// the site default so the Article always carries an image.
+const image = coverUrl && coverUrl.startsWith('http')
+  ? coverUrl
+  : 'https://trendimovies.com/images/og-default.jpg';
+
+const url = `https://trendimovies.com/blog/${post.slug}`;
+const published = post.published_at || post.created_at || undefined;
+
+const jsonLd = {
+  "@context": "https://schema.org",
+  "@type": "Article",
+  "headline": post.title,
+  "description": post.deck || undefined,
+  "image": image,
+  "datePublished": published,
+  "dateModified": post.updated_at || published,
+  "author": {
+    "@type": "Organization",
+    "name": "The TrendiMovies Desk",
+    "url": "https://trendimovies.com"
+  },
+  "publisher": {
+    "@type": "Organization",
+    "name": "TrendiMovies",
+    "url": "https://trendimovies.com",
+    "logo": {
+      "@type": "ImageObject",
+      "url": "https://trendimovies.com/images/logo.png"
+    }
+  },
+  "keywords": (post.tags || []).join(', ') || undefined,
+  "articleSection": post.tags?.[0] || undefined,
+  "timeRequired": readMinutes ? `PT${readMinutes}M` : undefined,
+  "inLanguage": "en",
+  "isAccessibleForFree": true,
+  "mainEntityOfPage": { "@type": "WebPage", "@id": url },
+  "url": url
+};
+
+// Remove undefined values
+const cleanJsonLd = JSON.parse(JSON.stringify(jsonLd));
+---
+
+<script type="application/ld+json" set:html={JSON.stringify(cleanJsonLd)} />

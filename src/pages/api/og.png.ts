@@ -498,8 +498,12 @@ export const GET: APIRoute = async ({ url }) => {
         const r = await fetch(`${PGRST}/blog_posts?slug=eq.${encodeURIComponent(bslug)}&limit=1`);
         if (r.ok) { const rows = await r.json(); bp = Array.isArray(rows) && rows.length ? rows[0] : null; }
       } catch { bp = null; }
-      const bCoverPath = bp?.cover_image && !String(bp.cover_image).startsWith('http') ? bp.cover_image : null;
-      const bCover = bCoverPath ? await toDataUri(`${TMDB_IMG}/w500${bCoverPath}`) : null;
+      // A cover may be a bare TMDB path (/abc.jpg) or a full URL on our own
+      // domain. Both are fetched identically; only the prefix differs.
+      const bCoverRaw = bp?.cover_image ? String(bp.cover_image) : null;
+      const bCover = bCoverRaw
+        ? await toDataUri(bCoverRaw.startsWith('http') ? bCoverRaw : `${TMDB_IMG}/w500${bCoverRaw}`)
+        : null;
       const clip = (s: string, max: number) => s && s.length > max ? s.slice(0, max - 1).trimEnd() + '\u2026' : (s || '');
       node = reviewTemplate({
         headline: clip(bp?.title || 'TrendiMovies Blog', 70),
