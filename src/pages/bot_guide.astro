@@ -31,7 +31,13 @@ const searchTips = [
   },
   {
     h: 'Send the name only',
-    p: 'After the command, give the title and nothing else. Do not add words like download, eng sub, kdrama, series, season, anime or drama. Misspellings are fine — the bot will suggest the right one.',
+    // The .docx says "misspellings are fine — the bot will suggest the right
+    // one". Verified 2026-10-07 and that overpromises: spell correction runs
+    // against get_all_clean_titles(limit=10000), ordered newest-first, so it
+    // only covers the 10,000 most recent of 701,287 distinct titles — nothing
+    // before 2017. Misspelling Inception or Shawshank gets no correction even
+    // though both are in the catalogue.
+    p: 'After the command, give the title and nothing else. Do not add words like download, eng sub, kdrama, series, season, anime or drama. A small misspelling usually still works on recent films — the bot either shows results for the title it thinks you meant, or offers the closest matches as buttons. On older titles it is worth checking the spelling yourself.',
     label: 'Correct',
     ex: ['/m avengers endgame   (no colon or punctuation needed)', '/m terminator', '/m the runner'],
   },
