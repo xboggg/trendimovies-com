@@ -37,7 +37,7 @@ const searchTips = [
     // only covers the 10,000 most recent of 701,287 distinct titles — nothing
     // before 2017. Misspelling Inception or Shawshank gets no correction even
     // though both are in the catalogue.
-    p: 'After the command, give the title and nothing else. Do not add words like download, eng sub, kdrama, series, season, anime or drama. A small misspelling usually still works on recent films — the bot either shows results for the title it thinks you meant, or offers the closest matches as buttons. On older titles it is worth checking the spelling yourself.',
+    p: 'After the command, give the title and nothing else. Do not add words like download, eng sub, kdrama, series, season, anime or drama. Small misspellings are fine — the bot works out what you meant and either shows those results straight away, or offers the closest titles as buttons to tap.',
     label: 'Correct',
     ex: ['/m avengers endgame   (no colon or punctuation needed)', '/m terminator', '/m the runner'],
   },
@@ -142,6 +142,7 @@ const tableSections = [
       ['/range <from-to> <title>', 'Restricts results to a span of years. e.g. /range 2020-2023 action'],
       ['/size <limit> <title>', 'Hides anything above a file size you set — useful on limited data. e.g. /size 1gb inception'],
       ['/request <title>', 'Asks us to add a movie or series we do not have. It joins a real queue and you are messaged when it lands. e.g. /request the batman'],
+      ['/compare <a> vs <b>', 'Puts two titles side by side. e.g. /compare avatar vs inception'],
     ],
   },
   {
@@ -149,7 +150,7 @@ const tableSections = [
     sub: '/discovery opens one visual menu covering the main tiles — or type any command directly.',
     head: ['Command', 'What it does'],
     rows: [
-      ['/discovery', 'The Discovery Hub — one tap-through menu with eight ways into the library. Start here when you do not know what you want.'],
+      ['/discovery', 'The Discovery Hub — one tap-through menu covering New Files, Trending, Upcoming, Top 100, Digital Releases, the Schedule, Surprise Me, Hidden Gems, Nollywood and Franchises. Start here when you do not know what you want.'],
       ['/trending', 'What members are genuinely watching most right now, counted from real downloads — not a chart copied from elsewhere.'],
       ['/newfiles', 'Everything added most recently, newest first. Check it for things you have not seen listed before.'],
       ['/topmovies', 'The 100 best-rated films of any single year from 1990 to today. Pick a year and browse it.'],
@@ -176,7 +177,7 @@ const tableSections = [
       ['/badges', 'Badges you have earned and the ones still to unlock, with what each one needs.'],
       ['/streak', 'Your current and longest run of consecutive days. Search on any day to keep it alive.'],
       ['/checkin', "Claim today's reward. Checking in on consecutive days pays more each time."],
-      ['/leaderboard', 'The members with the most points this week.'],
+      ['/leaderboard', 'The top 20 members by points, counted all-time rather than reset weekly.'],
       ['/invite', 'Your personal invite link. You earn points for every friend who joins through it.'],
       ['/share <title>', 'Builds a shareable card for any title — poster, rating and plot — ready to forward to a friend.'],
     ],
@@ -207,16 +208,16 @@ const tableSections = [
     n: '09', id: 'channel', title: 'In the Channel', hue: 'pink',
     sub: 'You do not have to ask for any of this. Join the Channel and it arrives on its own.',
     head: ['When', 'What arrives'],
+    // Only rows backed by an ACTIVE cron on srv 38. Daily Picks, Trending Now,
+    // This Day in Cinema, Trailer of the Day, New Releases, Weekend Watchlist,
+    // Weekend Binge and Family Movie Night were all disabled on 2026-09-30 and
+    // must not be promised here until their cron lines are re-enabled.
     rows: [
-      ['Every morning', 'Movie News — what is happening in film today. Then Daily Picks, a short shortlist worth your evening.'],
+      ['Every morning', 'Movie News — what is happening in film today.'],
       ['Every midday', 'Actor Birthday — who was born today, and which of their films we hold.'],
-      ['Every afternoon', 'Trending Now — the titles members are actually watching most this week.'],
-      ['Every evening', 'This Day in Cinema, then Trailer of the Day.'],
       ['Mon · Wed · Fri', 'Movie Trivia in the Channel.'],
       ['Wednesday', 'New Episodes — every series that gained episodes this week. Plus the Anime Spotlight.'],
       ['Thursday', 'Before They Were Famous — early roles of people you know now.'],
-      ['Friday', 'New Releases, then the Weekend Watchlist to plan your two days.'],
-      ['Saturday', 'Weekend Binge in the morning, Family Movie Night in the afternoon.'],
       ['Sunday', 'Box Office results, Top 10 by Genre, and a Director Spotlight.'],
       ['Weekly', 'Your personal digest — switch it on or off in /settings.'],
     ],
