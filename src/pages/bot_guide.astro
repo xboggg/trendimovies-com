@@ -123,7 +123,7 @@ const tableSections = [
     note: { lead: 'What a digital release date actually means.', text: 'A film opens in cinemas, then later reaches streaming. The digital release date is the day the proper HD copy is DUE — the real quality file, rather than the poor camera recordings that circulate before it. It is a calendar of what is coming, exactly like a cinema release schedule. It does not mean the file is here yet.' },
     head: ['Command', 'What it does'],
     rows: [
-      ['/digitalrelease', 'The dates HD copies are DUE. Browse ahead by week and see what quality releases are scheduled — the same idea as a cinema listing, but for files.'],
+      ['/digitalrelease', 'Films whose digital release has been announced for the next 90 days — the day a proper HD copy is DUE, not the day it arrives. Seven at a time; tap one to Track it.'],
       ['/schedule', 'The full release calendar, day by day, covering what is coming across the months ahead.'],
       ['/upcoming', 'Films not yet released at all. Tap Track on one and you are messaged on the day it becomes available — no need to keep checking back.'],
       ['/notify <title>', 'Watches one specific title for you and messages you the moment it is added.'],
@@ -136,9 +136,9 @@ const tableSections = [
     rows: [
       ['/m <title>', 'Main search across movies and series. The command you will use most. e.g. /m avengers endgame'],
       ['/s <title>', 'Series only. Use it when a show shares its name with a film, or to go straight to a season or episode. e.g. /s blacklist'],
-      ['/quality <title>', 'Shows every quality we hold for one title side by side, with file sizes, so you can choose before downloading. e.g. /quality oppenheimer'],
-      ['/similar <title>', 'Give it something you liked and it suggests titles close to it in genre, style and era. e.g. /similar inception'],
-      ['/year <year> <title>', 'Restricts results to one release year — useful when a remake shares a name with the original. e.g. /year 2024 dune'],
+      ['/quality <title>', 'Every quality we hold for one title side by side with file sizes, so you can choose before downloading. For a series it lists each episode’s qualities. e.g. /quality oppenheimer'],
+      ['/similar <title>', 'Give it something you liked and it suggests what people who watched it went on to watch — then shows only the ones we actually hold. e.g. /similar inception'],
+      ['/year <year> [title]', 'Browse a single year three ways: /year 2024 for that year’s top picks, /year 2024 action for one genre, or /year 2024 dune to search a title inside it — useful when a remake shares a name.'],
       ['/range <from-to> <title>', 'Restricts results to a span of years. e.g. /range 2020-2023 action'],
       ['/size <limit> <title>', 'Hides anything above a file size you set — useful on limited data. e.g. /size 1gb inception'],
       ['/request <title>', 'Asks us to add a movie or series we do not have. It joins a real queue and you are messaged when it lands. e.g. /request the batman'],
@@ -151,8 +151,8 @@ const tableSections = [
     head: ['Command', 'What it does'],
     rows: [
       ['/discovery', 'The Discovery Hub — one tap-through menu covering New Files, Trending, Upcoming, Top 100, Digital Releases, the Schedule, Surprise Me, Hidden Gems, Nollywood and Franchises. Start here when you do not know what you want.'],
-      ['/trending', 'What members are genuinely watching most right now, counted from real downloads — not a chart copied from elsewhere.'],
-      ['/newfiles', 'Everything added most recently, newest first. Check it for things you have not seen listed before.'],
+      ['/trending', 'The most-viewed titles on the website right now, counted from real visits rather than a chart copied from elsewhere. Anything we cannot actually deliver is left out.'],
+      ['/newfiles', 'The most recent additions, newest first. Asks whether you want Movies, Series or Everything, then lists them.'],
       ['/topmovies', 'The 100 best-rated films of any single year from 1990 to today. Pick a year and browse it.'],
       ['/hiddengems', 'Titles with high ratings but little attention — good when the obvious choices are exhausted.'],
       ['/surpriseme', 'One random title from the whole library. Open Details for the plot and rating first, or re-roll as often as you like.'],
@@ -161,7 +161,7 @@ const tableSections = [
       ['/nollywood', 'Nigerian cinema, filtered by Drama, Comedy, Action, Romance or Thriller.'],
       ['/director <name>', 'Every film we hold by one director. e.g. /director christopher nolan'],
       ['/actor <name>', 'Every film we hold starring one actor. e.g. /actor tom cruise'],
-      ['/collections', 'Curated themed sets put together by hand — worth working through end to end.'],
+      ['/collections', 'Themed challenges — Action, Classic, DC, Horror, Marvel and Sci-Fi. Work through a set to fill it in and earn its badge; shows how far along you are on each.'],
     ],
   },
   {
@@ -171,7 +171,8 @@ const tableSections = [
     rows: [
       ['/profile', 'Your Profile Hub — everything in this section in one place.'],
       ['/stats', 'How many searches and downloads you have made, and the date you joined.'],
-      ['/history', 'Your recent searches, so you can return to something without retyping it.'],
+      ['/history <title>', 'Full details for one film from TMDB — cast, crew and ratings. Needs a title: /history inception'],
+      ['/myhistory', 'Your own recent searches, so you can return to something without retyping it.'],
       ['/diary', 'A running log of every title you have downloaded — useful for remembering what you already have.'],
       ['/points', 'Your points balance and level. Points come from searching, downloading, checking in and inviting friends.'],
       ['/badges', 'Badges you have earned and the ones still to unlock, with what each one needs.'],
