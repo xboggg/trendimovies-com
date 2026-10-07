@@ -198,7 +198,7 @@ const tableSections = [
     rows: [
       ['/settings', 'Your preferences, including whether you receive the weekly digest.'],
       ['/help', 'Short help panels for the main features.'],
-      ['/guide', 'The full feature manual inside the bot — the same ground this page covers.'],
+      ['/guide', 'The same manual as this page, but inside Telegram. Not to be confused with Guides on the website, which are watch orders.'],
       ['/commands', 'This entire command list, on your phone, always current.'],
       ['/about', 'Live numbers — how many titles we hold, searches made today, members active.'],
       ['/start', 'Starts or re-initialises the bot. Also what opens when someone uses your invite link.'],
@@ -226,14 +226,24 @@ const tableSections = [
     n: '10', id: 'website', title: 'On the website', hue: 'cyan',
     sub: 'trendimovies.com — the same library, with covers, cast and plot.',
     head: ['Where', 'What you get'],
+    // Third element, where present, turns the first cell into real links.
+    // Watch and Subtitles have none on purpose: both are controls on an
+    // individual title's page, not destinations of their own (/watch and
+    // /subtitles both 404).
     rows: [
-      ['Movies & Series', 'The full catalogue with posters, cast, ratings and plot, and every quality we hold listed with its file size.'],
+      ['Movies & Series', 'The full catalogue with posters, cast, ratings and plot, and every quality we hold listed with its file size.',
+        [['Movies', '/movies'], ['Series', '/series']]],
       ['Watch', 'Play a title in your browser where a source exists, instead of downloading it. Not available on every title.'],
-      ['Discovery', 'Genres, franchises, curated universes and themed collections, browsed visually rather than by typing.'],
-      ['Digital Releases', 'The calendar of dates HD copies are due, so you know when a proper quality file is expected.'],
-      ['Blog & Reviews', 'Written pieces and full reviews, updated regularly.'],
-      ['Guides', 'Watch orders and explainers — where to start with a franchise and what to see first.'],
-      ['Request', 'The same request queue as the bot, from a web form, if you would rather not use Telegram.'],
+      ['Discovery', 'Genres, franchises, curated universes and themed collections, browsed visually rather than by typing.',
+        [['Franchises', '/franchises'], ['Universes', '/universe']]],
+      ['Digital Releases', 'The calendar of dates HD copies are due, so you know when a proper quality file is expected.',
+        [['Digital Releases', '/digital-releases']]],
+      ['Blog & Reviews', 'Written pieces and full reviews, updated regularly.',
+        [['Blog', '/blog'], ['Reviews', '/reviews']]],
+      ['Guides', 'Watch orders and explainers — where to start with a franchise and what to see first. Different from this page: these are about what to watch, not how to use the bot.',
+        [['Guides', '/guides']]],
+      ['Request', 'The same request queue as the bot, from a web form, if you would rather not use Telegram.',
+        [['Request', '/request']]],
       ['Subtitles', 'Where subtitles exist for a title, they are offered next to the download.'],
     ],
   },
@@ -441,7 +451,13 @@ const pageDesc = 'How to search, download and get the most out of the TrendiMovi
               <tbody>
                 {s.rows.map((r, i) => (
                   <tr class="reveal" style={`--d:${i % 4}`}>
-                    <td><code class="cmd">{r[0]}</code></td>
+                    <td>
+                      {r[2]
+                        ? <span class="bg-lnks">{r[2].map(([lbl, href]) => (
+                            <a class="cmd lnk" href={href}>{lbl}</a>
+                          ))}</span>
+                        : <code class="cmd">{r[0]}</code>}
+                    </td>
                     <td>{r[1]}</td>
                   </tr>
                 ))}
@@ -622,6 +638,12 @@ const pageDesc = 'How to search, download and get the most out of the TrendiMovi
   tbody tr{transition:background .2s}
   tbody tr:hover{background:rgba(255,255,255,.035)}
   .bg-cmdtable td:first-child{white-space:nowrap}
+  /* A linked cell holds one chip per destination; they wrap on a phone. */
+  .bg-lnks{display:flex;flex-wrap:wrap;gap:6px}
+  a.cmd.lnk{text-decoration:none;color:var(--a);border-color:color-mix(in srgb,var(--a) 34%,transparent);
+    background:color-mix(in srgb,var(--a) 10%,transparent);white-space:nowrap}
+  a.cmd.lnk::after{content:' \2192';opacity:.6}
+  a.cmd.lnk:hover{background:color-mix(in srgb,var(--a) 20%,transparent);border-color:var(--a)}
   .bg-chartable td.muted{color:var(--faint)}
   .bg-chartable td.bad{color:#ff8098;font-weight:600}
   .bg-chartable td.good{color:#6ee7b7;font-weight:600}
