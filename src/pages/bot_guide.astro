@@ -55,13 +55,12 @@ const searchTips = [
   },
   {
     h: 'Want one season of a series?',
-    p: 'Add S01, S02 and so on. The S stands for Season and the number is the season — and that is a ZERO, not the letter O. Name first or season first both work; if one does not find it, try the other.',
+    p: 'Add S01, S02 and so on. The S stands for Season and the number is the season — and that is a ZERO, not the letter O. Put the name first: starting with the season number tends to pull up other shows.',
     label: 'Examples',
     ex: [
       '/s game of thrones s01   (season 1)',
       '/s game of thrones s1   (short form works too)',
       '/s stranger things S01',
-      '/s S01 stranger things   (season first — try this if the first form misses)',
     ],
   },
   {
@@ -87,17 +86,20 @@ const searchTips = [
   },
   {
     h: 'Anime with no seasons',
-    p: 'Many anime run straight from episode 1 to 1000 with no season numbers. For those, use the name and the episode number on its own.',
+    p: 'Many anime run straight from episode 1 to 1000 with no season numbers. Try the name and the episode number on its own — it works when the file was named that way. If nothing comes back, the file is probably filed under a season, so try the S01E form with the same number.',
     label: 'Examples',
-    ex: ['/m naruto 071', '/m one piece 1109'],
+    ex: ['/m naruto 071', '/s one piece s01e1109   (when the bare number finds nothing)'],
   },
 ];
 
+// Tested against the live search: punctuation is stripped before the query
+// reaches the index, so typing it changes nothing. What DOES break a search is
+// closing a hyphen up into one word, or spelling an ampersand out as "and".
 const charRows = [
-  { has: 'an apostrophe', bad: "Raven's Home", good: 'Ravens Home' },
-  { has: 'a hyphen', bad: 'Grown-ish', good: 'Grown ish   ·   Grownish' },
-  { has: 'a colon', bad: 'Avengers: Endgame', good: 'Avengers Endgame' },
-  { has: 'an ampersand', bad: 'Tom & Jerry', good: 'Tom and Jerry' },
+  { has: 'an apostrophe', works: "Raven's Home   ·   Ravens Home", avoid: '—' },
+  { has: 'a hyphen', works: 'Grown-ish   ·   Grown ish', avoid: 'Grownish' },
+  { has: 'a colon', works: 'Avengers: Endgame   ·   Avengers Endgame', avoid: '—' },
+  { has: 'an ampersand', works: 'Tom & Jerry   ·   Tom Jerry', avoid: 'Tom and Jerry' },
 ];
 
 const tgSteps = [
@@ -339,22 +341,24 @@ const pageDesc = 'How to search, download and get the most out of the TrendiMovi
         ))}
 
         <article class="bg-tip reveal">
-          <h3><span class="bg-tick">▸</span>Leave out special characters</h3>
+          <h3><span class="bg-tick">▸</span>Punctuation takes care of itself</h3>
           <p>
-            Symbols confuse the search — apostrophes, hyphens, colons and ampersands. Either delete
-            the symbol and close the gap, or replace it with a space. Both work.
+            Type the title as it is written. Apostrophes, colons, hyphens and ampersands are
+            stripped out before the search runs, so leaving them in or out makes no difference.
+            Two things do break a search: squashing a hyphenated name into one word, and
+            spelling an ampersand out as <em>and</em>.
           </p>
           <div class="bg-tablewrap">
             <table class="bg-chartable">
               <thead>
-                <tr><th>Title contains</th><th>Do NOT type</th><th>Type instead</th></tr>
+                <tr><th>Title contains</th><th>Both of these work</th><th>This finds nothing</th></tr>
               </thead>
               <tbody>
                 {charRows.map((r, i) => (
                   <tr class="reveal" style={`--d:${i}`}>
                     <td class="muted">{r.has}</td>
-                    <td class="bad">{r.bad}</td>
-                    <td class="good">{r.good}</td>
+                    <td class="good">{r.works}</td>
+                    <td class="bad">{r.avoid}</td>
                   </tr>
                 ))}
               </tbody>
