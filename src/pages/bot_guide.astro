@@ -95,13 +95,6 @@ const searchTips = [
 // Tested against the live search: punctuation is stripped before the query
 // reaches the index, so typing it changes nothing. What DOES break a search is
 // closing a hyphen up into one word, or spelling an ampersand out as "and".
-const charRows = [
-  { has: 'an apostrophe', works: "Raven's Home   ·   Ravens Home", avoid: '—' },
-  { has: 'a hyphen', works: 'Grown-ish   ·   Grown ish', avoid: 'Grownish' },
-  { has: 'a colon', works: 'Avengers: Endgame   ·   Avengers Endgame', avoid: '—' },
-  { has: 'an ampersand', works: 'Tom & Jerry   ·   Tom Jerry', avoid: 'Tom and Jerry' },
-];
-
 const tgSteps = [
   { lead: 'Search.', text: 'Send /m and the movie name, or /s and the series name.' },
   { lead: 'Pick the title.', text: 'Tap the one you want from the results.' },
@@ -295,6 +288,11 @@ const pageDesc = 'How to search, download and get the most out of the TrendiMovi
 
         <div class="bg-startcard reveal" style="--d:3">
           <div class="bg-starthead"><span class="spark">★</span> Start here — these cover almost everything</div>
+          <p class="bg-startfirst">
+            <b>First, join the Request Group.</b> That is where you search and where your file
+            arrives, so everything below happens there.
+            <a href={TG.group} target="_blank" rel="noopener">Join the Request Group →</a>
+          </p>
           <ul class="bg-startlist">
             {quickStart.map((q, i) => (
               <li class="reveal" style={`--d:${i}`}>
@@ -343,27 +341,24 @@ const pageDesc = 'How to search, download and get the most out of the TrendiMovi
         <article class="bg-tip reveal">
           <h3><span class="bg-tick">▸</span>Punctuation takes care of itself</h3>
           <p>
-            Type the title as it is written. Apostrophes, colons, hyphens and ampersands are
-            stripped out before the search runs, so leaving them in or out makes no difference.
-            Two things do break a search: squashing a hyphenated name into one word, and
-            spelling an ampersand out as <em>and</em>.
+            Type the title exactly as it is written. Apostrophes, colons, hyphens and
+            ampersands are all ignored by the search, so putting them in or leaving them out
+            makes no difference — <code class="cmd inline">Raven's Home</code> and
+            <code class="cmd inline">Ravens Home</code> find the same thing.
           </p>
-          <div class="bg-tablewrap">
-            <table class="bg-chartable">
-              <thead>
-                <tr><th>Title contains</th><th>Both of these work</th><th>This finds nothing</th></tr>
-              </thead>
-              <tbody>
-                {charRows.map((r, i) => (
-                  <tr class="reveal" style={`--d:${i}`}>
-                    <td class="muted">{r.has}</td>
-                    <td class="good">{r.works}</td>
-                    <td class="bad">{r.avoid}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <p>Only two things trip it up:</p>
+          <ul class="bg-rules">
+            <li>
+              <b>Do not join a hyphenated name into one word.</b>
+              <span class="ok">Grown-ish</span> and <span class="ok">Grown ish</span> both work
+              — <span class="no">Grownish</span> finds nothing.
+            </li>
+            <li>
+              <b>Do not spell an ampersand out as “and”.</b>
+              <span class="ok">Tom &amp; Jerry</span> finds the film —
+              <span class="no">Tom and Jerry</span> brings back the wrong one.
+            </li>
+          </ul>
         </article>
 
         <div class="bg-note reveal">
@@ -480,15 +475,24 @@ const pageDesc = 'How to search, download and get the most out of the TrendiMovi
       </div>
 
       <footer class="bg-foot reveal">
+        <h3 class="bg-wheretitle">Where to find us</h3>
         <div class="bg-footlinks">
-          <a href={TG.channel} target="_blank" rel="noopener">
-            <b>Channel</b><span>News, picks &amp; trailers</span>
-          </a>
           <a href={TG.group} target="_blank" rel="noopener">
-            <b>Request Group</b><span>Search &amp; download here</span>
+            <b>Request Group</b>
+            <span>Where you search. Send /m or /s here and your file arrives here. Free.</span>
+          </a>
+          <a href={TG.channel} target="_blank" rel="noopener">
+            <b>Channel</b>
+            <span>Movie and series news, daily picks and trailers. React and comment on posts.</span>
           </a>
           <a href={TG.infohub} target="_blank" rel="noopener">
-            <b>Info Hub</b><span>Announcements &amp; help</span>
+            <b>Info Hub</b>
+            <span>Announcements only — bot updates, maintenance, and where the new link goes if
+            Telegram ever blocks a group. Join this one so you do not lose us.</span>
+          </a>
+          <a href="/">
+            <b>trendimovies.com</b>
+            <span>Browse with posters, cast and plot. Stream in your browser, or download.</span>
           </a>
         </div>
         <a class="bg-footsite" href="/">trendimovies.com</a>
@@ -558,6 +562,11 @@ const pageDesc = 'How to search, download and get the most out of the TrendiMovi
     background:var(--panel);border-radius:17px 17px 0 0;display:flex;align-items:center;gap:9px}
   .spark{color:#ffd166;animation:spin 5s linear infinite;display:inline-block}
   @keyframes spin{to{transform:rotate(360deg)}}
+  .bg-startfirst{margin:0;padding:13px 20px 14px;background:var(--panel);color:var(--dim);
+    font-size:.95rem;line-height:1.6;border-top:1px solid var(--line)}
+  .bg-startfirst b{color:var(--ink)}
+  .bg-startfirst a{display:inline-block;margin-top:6px;color:var(--amber);text-decoration:none;font-weight:600}
+  .bg-startfirst a:hover{text-decoration:underline}
   .bg-startlist{list-style:none;margin:0;padding:0 20px 18px;background:var(--panel);border-radius:0 0 17px 17px}
   .bg-startlist li{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 12px;padding:11px 0;border-top:1px solid var(--line)}
   .bg-startlist li span{color:var(--dim);font-size:.93rem}
@@ -612,6 +621,16 @@ const pageDesc = 'How to search, download and get the most out of the TrendiMovi
   .bg-label{display:inline-block;font-size:.66rem;letter-spacing:.17em;text-transform:uppercase;
     font-weight:800;color:var(--a);margin-bottom:9px}
   .bg-chips{display:flex;flex-direction:column;gap:7px;align-items:flex-start}
+  /* Two plain rules in place of a four-row table whose other two rows had
+     nothing to warn about. */
+  .bg-rules{list-style:none;margin:0 0 4px;padding:0;display:flex;flex-direction:column;gap:10px}
+  .bg-rules li{padding:12px 15px;border-radius:11px;background:var(--panel2);
+    border:1px solid var(--line);border-left:3px solid var(--a);color:var(--dim);line-height:1.7;font-size:.96rem}
+  .bg-rules b{color:var(--ink);display:block;margin-bottom:3px}
+  .bg-rules .ok,.bg-rules .no{font-family:'JetBrains Mono',monospace;font-size:.86em;
+    padding:.12em .45em;border-radius:5px;white-space:nowrap}
+  .bg-rules .ok{color:#8ef0c8;background:rgba(46,196,182,.12)}
+  .bg-rules .no{color:#ff8098;background:rgba(255,77,109,.12)}
   .bg-warn{margin:12px 0 0 !important;padding:9px 13px;border-radius:9px;font-size:.9rem !important;
     background:rgba(255,77,109,.1);border:1px solid rgba(255,77,109,.25);color:#ffc2cd !important}
 
@@ -656,13 +675,15 @@ const pageDesc = 'How to search, download and get the most out of the TrendiMovi
 
   /* ---- footer ------------------------------------------------------------ */
   .bg-foot{margin-top:54px;padding-top:30px;border-top:1px solid var(--line);text-align:center}
-  .bg-footlinks{display:flex;flex-wrap:wrap;gap:12px;justify-content:center;margin-bottom:26px}
-  .bg-footlinks a{display:flex;flex-direction:column;gap:3px;padding:14px 22px;border-radius:14px;
-    text-decoration:none;background:var(--panel);border:1px solid var(--line);min-width:180px;
+  .bg-wheretitle{margin:0 0 16px;font-size:1.1rem;font-weight:800;color:var(--ink)}
+  .bg-footlinks{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px;
+    margin-bottom:26px;text-align:left}
+  .bg-footlinks a{display:flex;flex-direction:column;gap:5px;padding:15px 18px;border-radius:14px;
+    text-decoration:none;background:var(--panel);border:1px solid var(--line);
     transition:transform .22s,border-color .22s,box-shadow .22s}
   .bg-footlinks a:hover{transform:translateY(-4px);border-color:var(--rose);box-shadow:0 16px 40px rgba(0,0,0,.5)}
   .bg-footlinks b{color:var(--ink);font-size:.95rem}
-  .bg-footlinks span{color:var(--faint);font-size:.82rem;font-family:'JetBrains Mono',monospace}
+  .bg-footlinks span{color:var(--dim);font-size:.86rem;line-height:1.6}
   .bg-footsite{display:inline-block;font-size:clamp(1.3rem,4.5vw,1.9rem);font-weight:900;letter-spacing:-.02em;
     text-decoration:none;background:linear-gradient(100deg,#ff4d6d,#ff9f1c,#2ec4b6,#4cc9f0);
     background-size:220% auto;-webkit-background-clip:text;background-clip:text;color:transparent;
