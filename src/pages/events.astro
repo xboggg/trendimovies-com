@@ -35,6 +35,11 @@ const daysToNext = nextEvent ? getDaysUntil(nextEvent.startDate) : 0;
 
   image="https://trendimovies.com/images/og-cannes-2026.png"
 >
+  <!-- force-dark: this page is dark-designed throughout -- white and
+       light-grey text on translucent-white surfaces -- so in light mode
+       the event names, dates and the next-event card all went
+       white-on-white. -->
+  <div class="force-dark">
 
   <!-- ── HERO ───────────────────────────────────────────────────────────────── -->
   <section class="relative overflow-hidden pt-8 pb-12 sm:pt-12 sm:pb-20" style="background: linear-gradient(135deg, #0a0a0a 0%, #0f0a1a 50%, #0a0a0f 100%);">
@@ -332,5 +337,6 @@ const daysToNext = nextEvent ? getDaysUntil(nextEvent.startDate) : 0;
       </div>
     </div>
   </section>
+  </div>
 
 </BaseLayout>

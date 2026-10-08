@@ -428,18 +428,41 @@ export const filmEvents: FilmEvent[] = [
   },
 ];
 
+/**
+ * Where an event sits relative to today, derived from its dates.
+ *
+ * The `status` field on each event is maintained BY HAND and goes stale: Venice
+ * 2026 finished on 5 September 2026 and was still marked 'upcoming', so the
+ * site kept advertising it as the next event at "-43 days to go". Classifying
+ * by date means an event moves upcoming -> live -> past on its own, and every
+ * page agrees because they all call this.
+ *
+ * `status` is deliberately ignored here. It stays in the data as an editorial
+ * note, but it is no longer trusted to decide what visitors see.
+ */
+export function getEventPhase(e: FilmEvent): 'upcoming' | 'live' | 'past' {
+  const now = new Date();
+  const start = new Date(e.startDate);
+  start.setHours(0, 0, 0, 0);
+  const end = new Date(e.endDate || e.startDate);
+  end.setHours(23, 59, 59, 999);
+  if (now > end) return 'past';
+  if (now >= start) return 'live';
+  return 'upcoming';
+}
+
 export function getUpcomingEvents(): FilmEvent[] {
-  return filmEvents.filter(e => e.status === 'upcoming').sort((a, b) =>
+  return filmEvents.filter(e => getEventPhase(e) === 'upcoming').sort((a, b) =>
     new Date(a.startDate).getTime() - new Date(b.startDate).getTime()
   );
 }
 
 export function getLiveEvents(): FilmEvent[] {
-  return filmEvents.filter(e => e.status === 'live');
+  return filmEvents.filter(e => getEventPhase(e) === 'live');
 }
 
 export function getPastEvents(): FilmEvent[] {
-  return filmEvents.filter(e => e.status === 'past').sort((a, b) =>
+  return filmEvents.filter(e => getEventPhase(e) === 'past').sort((a, b) =>
     new Date(b.startDate).getTime() - new Date(a.startDate).getTime()
   );
 }

@@ -55,6 +55,9 @@ const pageDesc = 'Honest, spoiler-free movie reviews from the TrendiMovies desk.
 ---
 
 <BaseLayout title={pageTitle} description={pageDesc} image={ogImage}>
+  <!-- force-dark: like the blog, every colour in this template is written
+       for a dark page (#fff headings, #b9b6c0 body, #141216 cards). -->
+  <div class="force-dark">
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,900&display=swap" rel="stylesheet" />
 
@@ -121,6 +124,7 @@ const pageDesc = 'Honest, spoiler-free movie reviews from the TrendiMovies desk.
       )}
     </div>
   </section>
+  </div>
 </BaseLayout>
 
 <style>

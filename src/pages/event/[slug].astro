@@ -1,6 +1,6 @@
 ---
 import BaseLayout from '../../layouts/BaseLayout.astro';
-import { filmEvents, getDaysUntil, type FilmEvent } from '../../lib/events';
+import { filmEvents, getDaysUntil, getEventPhase, type FilmEvent } from '../../lib/events';
 
 // Slugs that already have their own bespoke, hand-crafted pages — redirect
 // those to the richer dedicated pages instead of rendering the generic template.
@@ -22,16 +22,12 @@ if (!event) {
 }
 
 const days = getDaysUntil(event.startDate);
-// The `status` field in events.ts is maintained by hand and goes stale --
-// Venice 2026 finished on 5 September yet was still marked 'upcoming', so the
-// page advertised "-43 days to go". The dates are the source of truth here;
-// status is only consulted for a live day, and never to resurrect a finished
-// event. The markup already has a "Past" branch for the result.
-const eventEndsOn = new Date(event.endDate ?? event.startDate);
-eventEndsOn.setHours(23, 59, 59, 999);
-const hasEnded = new Date() > eventEndsOn;
-const isUpcoming = !hasEnded && days > 0;
-const isLive = !hasEnded && (event.status === 'live' || days <= 0);
+// Phase comes from the shared date-derived helper so this page and /events can
+// never disagree. (It replaces a copy of this logic that lived here, and the
+// hand-maintained `status` field it used to trust, which goes stale.)
+const phase = getEventPhase(event);
+const isUpcoming = phase === 'upcoming';
+const isLive = phase === 'live';
 
 function fmt(dateStr: string): string {
   return new Date(dateStr).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });

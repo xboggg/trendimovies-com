@@ -42,6 +42,9 @@ const pageDesc = review.deck || `Our spoiler-free review of ${review.title}. Wat
 ---
 
 <BaseLayout title={pageTitle} description={pageDesc} image={ogImage}>
+  <!-- force-dark: the article is written for a dark page throughout
+       (#fff headings, #e9e7ee body, translucent-white pull quotes). -->
+  <div class="force-dark">
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,900&display=swap" rel="stylesheet" />
 
@@ -106,6 +109,7 @@ const pageDesc = review.deck || `Our spoiler-free review of ${review.title}. Wat
     </div>
   </article>
   <Comments client:visible reviewId={review.id} accent={accent} />
+  </div>
 </BaseLayout>
 
 <style>
