@@ -231,7 +231,10 @@
   :global(html:not(.dark)) .cmts-text{color:#14121a}
   :global(html:not(.dark)) .cmt-body{color:#2b2833}
   :global(html:not(.dark)) .cmts-count,
-  :global(html:not(.dark)) .cmts-sort button,
+  /* :not(.on) matters -- this selector outranks `.cmts-sort button.on`,
+     so without it the ACTIVE pill lost its white text and ended up
+     unreadable on its solid accent fill. */
+  :global(html:not(.dark)) .cmts-sort button:not(.on),
   :global(html:not(.dark)) .cmts-spoiler,
   :global(html:not(.dark)) .cmt-time,
   :global(html:not(.dark)) .cmts-empty,
