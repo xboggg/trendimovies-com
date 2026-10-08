@@ -120,10 +120,15 @@ const pageDesc = post.deck || `${post.title} — from the TrendiMovies desk.`;
 </BaseLayout>
 
 <style>
-  .bl-page{position:relative;overflow:hidden;--bl-a2:#f59e0b}
+  /* The article's tint layer below is only 35% opaque at the top and fades
+     to solid further down, which relied on the page behind it always being
+     dark. With a white page in light mode the white bled through the top of
+     every article. Its own dark ground makes it independent of the theme --
+     every colour in this template is written for a dark page. */
+  .bl-page{position:relative;overflow:hidden;--bl-a2:#f59e0b;background:#0a0a0c}
   .bl-ambient{position:absolute;inset:0;z-index:0;pointer-events:none}
   .bl-ambient .bl-b{position:absolute;inset:-10% -10% auto -10%;height:560px;background-position:center;background-size:cover;filter:blur(64px) saturate(1.4) brightness(.5);opacity:.4}
-  .bl-ambient:after{content:'';position:absolute;inset:0;background:radial-gradient(1200px 560px at 70% -8%,color-mix(in srgb,var(--bl-accent) 20%,transparent),transparent 60%),linear-gradient(180deg,rgba(10,10,12,.35),var(--bg,#0a0a0c) 72%)}
+  .bl-ambient:after{content:'';position:absolute;inset:0;background:radial-gradient(1200px 560px at 70% -8%,color-mix(in srgb,var(--bl-accent) 20%,transparent),transparent 60%),linear-gradient(180deg,rgba(10,10,12,.35),#0a0a0c 72%)}
   .bl-wrap{position:relative;z-index:1;max-width:820px;margin:0 auto;padding:56px 34px 90px}
   .bl-kicker{display:inline-flex;align-items:center;gap:9px;font-weight:800;letter-spacing:3px;font-size:12px;color:var(--bl-a2);text-transform:uppercase;margin-bottom:22px;text-decoration:none}
   .bl-dot{width:7px;height:7px;border-radius:50%;background:var(--bl-a2);box-shadow:0 0 12px var(--bl-a2)}

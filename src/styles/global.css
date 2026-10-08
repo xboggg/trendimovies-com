@@ -37,6 +37,32 @@
   --rank-stroke: #2a2a2a;
 }
 
+/* Opt-in dark island.
+   Several templates (the movie and TV backdrop banners, event pages, blog
+   articles) were written when the site was permanently dark: they colour
+   text with the theme tokens, or with plain white, while sitting on cover
+   art or a hardcoded dark gradient. In light mode those tokens flip and the
+   text turns dark-on-dark or white-on-white. This re-declares the dark
+   palette for one subtree and gives it a dark ground, so the template keeps
+   working unchanged. In dark mode every value here already applies, so it
+   is a no-op. Values are kept in step with :root.dark above. */
+.force-dark {
+  --bg-primary: #0a0a0a;
+  --bg-secondary: #141414;
+  --bg-card: #1a1a1a;
+  --bg-hover: #252525;
+  --text-primary: #ffffff;
+  --text-secondary: #a0a0a0;
+  --text-muted: #666666;
+  --accent: #e50914;
+  --accent-hover: #f40612;
+  --border: #2a2a2a;
+  --shadow: rgba(0, 0, 0, 0.5);
+  --rank-stroke: #2a2a2a;
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+}
+
 * {
   box-sizing: border-box;
 }

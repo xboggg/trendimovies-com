@@ -411,7 +411,10 @@ const ogTitle = `TV Series: ${series.title} ${ogYear}`.trim();
 >
   <TVJsonLd series={series} tmdbId={tmdbId} episodes={allEpisodes} />
   <!-- Backdrop Header -->
-  <section class="relative">
+  <!-- force-dark: this banner hardcodes from-black and text-white, so the
+       gradient itself was fine, but the content runs past the 500px photo
+       onto the page, where white text met a white page in light mode. -->
+  <section class="relative force-dark">
     <div class="absolute inset-0 h-[500px]">
       <img
         src={getBackdropUrl(series.backdrop_path)}

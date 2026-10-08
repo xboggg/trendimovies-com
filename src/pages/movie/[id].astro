@@ -265,7 +265,12 @@ const ogTitle = `${movie.title} ${ogYear}`.trim();
 >
   <MovieJsonLd movie={movie} tmdbId={tmdbId} />
   <!-- Backdrop Header -->
-  <section class="relative">
+  <!-- force-dark: the title and details use var(--text-*) and sit on the
+       backdrop photo, and the content runs past the bottom of that photo
+       onto the page itself. In light mode they were dark-on-photo and the
+       gradient faded to white. The banner keeps the dark palette; the page
+       below it stays light. -->
+  <section class="relative force-dark">
     <div class="absolute inset-0 h-[300px] md:h-[500px]">
       <img
         src={getBackdropUrl(movie.backdrop_path)}

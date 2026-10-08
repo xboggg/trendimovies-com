@@ -46,6 +46,10 @@ const accent = event.accentColor === '#FFFFFF' ? '#F7D000' : event.accentColor;
   title={`${event.name} — Winners, Dates & Awards | TrendiMovies`}
   description={event.description}
 >
+  <!-- force-dark: the hero is a hardcoded dark gradient while the cards
+       below use text-white on var(--bg-card). In light mode the hero text
+       went dark-on-dark and the cards went white-on-white. -->
+  <div class="force-dark">
   <!-- HERO -->
   <section class="relative overflow-hidden flex items-end" style="min-height: 52vh;">
     <!-- color gradient backdrop -->
@@ -210,4 +214,5 @@ const accent = event.accentColor === '#FFFFFF' ? '#F7D000' : event.accentColor;
       </div>
     </div>
   </section>
+  </div>
 </BaseLayout>
