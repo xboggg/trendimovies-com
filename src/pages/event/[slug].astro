@@ -50,16 +50,13 @@ const accent = event.accentColor === '#FFFFFF' ? '#F7D000' : event.accentColor;
   title={`${event.name} — Winners, Dates & Awards | TrendiMovies`}
   description={event.description}
 >
-  <!-- force-dark: the hero is a hardcoded dark gradient while the cards
-       below use text-white on var(--bg-card). In light mode the hero text
-       went dark-on-dark and the cards went white-on-white. -->
-  <div class="force-dark">
+  <div class="evd">
   <!-- HERO -->
   <section class="relative overflow-hidden flex items-end" style="min-height: 52vh;">
     <!-- color gradient backdrop -->
-    <div class="absolute inset-0" style={`background: linear-gradient(135deg, #0a0a0a 0%, ${event.color}33 45%, #0a0a0a 100%);`}></div>
+    <div class="absolute inset-0 evd-herobase" style={`--ev-tint:${event.color}; background: linear-gradient(135deg, #0a0a0a 0%, ${event.color}33 45%, #0a0a0a 100%);`}></div>
     <div class="absolute inset-0 opacity-20 pointer-events-none" style={`background: radial-gradient(ellipse at 20% 40%, ${event.color}, transparent 60%), radial-gradient(ellipse at 85% 30%, ${accent}, transparent 55%);`}></div>
-    <div class="absolute inset-0" style="background: linear-gradient(to top, #000 0%, rgba(0,0,0,0.7) 45%, transparent 100%);"></div>
+    <div class="absolute inset-0 evd-heroscrim" style="background: linear-gradient(to top, #000 0%, rgba(0,0,0,0.7) 45%, transparent 100%);"></div>
     <!-- top accent line -->
     <div class="absolute top-0 left-0 right-0 h-1" style={`background: linear-gradient(90deg, transparent, ${event.color} 30%, ${accent} 70%, transparent);`}></div>
 
@@ -220,3 +217,30 @@ const accent = event.accentColor === '#FFFFFF' ? '#F7D000' : event.accentColor;
   </section>
   </div>
 </BaseLayout>
+
+<style>
+  /* This page was built for a permanently dark site. Keeping it black while
+     the rest of the site turns white is not light mode, so every layer gets
+     a real light value instead.
+
+     Only h1/h2 are re-coloured, never every .text-white: the winner banner
+     and the countdown strip are white on a SOLID event colour, where white
+     is correct in both themes. */
+  :global(html:not(.dark)) .evd .evd-herobase{
+    background:linear-gradient(135deg,#ffffff 0%,
+      color-mix(in srgb,var(--ev-tint) 16%,#ffffff) 45%,#ffffff 100%)!important}
+  :global(html:not(.dark)) .evd .evd-heroscrim{
+    background:linear-gradient(to top,#ffffff 0%,rgba(255,255,255,.72) 45%,transparent 100%)!important}
+  :global(html:not(.dark)) .evd h1.text-white,
+  :global(html:not(.dark)) .evd h2.text-white,
+  :global(html:not(.dark)) .evd a.text-white{color:var(--text-primary)}
+  :global(html:not(.dark)) .evd .text-gray-300,
+  :global(html:not(.dark)) .evd .text-gray-400{color:var(--text-secondary)}
+  /* Translucent-white pills and buttons vanish on a white ground. */
+  :global(html:not(.dark)) .evd [style*="rgba(255,255,255,0.07)"],
+  :global(html:not(.dark)) .evd [style*="rgba(255,255,255,0.06)"],
+  :global(html:not(.dark)) .evd [style*="rgba(255,255,255,0.05)"],
+  :global(html:not(.dark)) .evd [style*="rgba(255,255,255,0.1)"]{
+    background:rgba(20,15,30,.05)!important;
+    border-color:rgba(20,15,30,.12)!important}
+</style>
