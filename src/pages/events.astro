@@ -38,7 +38,7 @@ const daysToNext = nextEvent ? getDaysUntil(nextEvent.startDate) : 0;
   <div class="evp">
 
   <!-- ── HERO ───────────────────────────────────────────────────────────────── -->
-  <section class="relative overflow-hidden pt-8 pb-12 sm:pt-12 sm:pb-20" style="background: linear-gradient(135deg, #0a0a0a 0%, #0f0a1a 50%, #0a0a0f 100%);">
+  <section class="relative overflow-hidden pt-8 pb-12 sm:pt-12 sm:pb-20 ev-hero" style="background: linear-gradient(135deg, #0a0a0a 0%, #0f0a1a 50%, #0a0a0f 100%);">
     <!-- Decorative blobs -->
     <div class="absolute top-0 left-0 w-96 h-96 rounded-full opacity-10 pointer-events-none" style="background: radial-gradient(circle, #B50C1B, transparent 70%); transform: translate(-30%, -30%);"></div>
     <div class="absolute bottom-0 right-0 w-96 h-96 rounded-full opacity-10 pointer-events-none" style="background: radial-gradient(circle, #F7D000, transparent 70%); transform: translate(30%, 30%);"></div>
@@ -346,6 +346,12 @@ const daysToNext = nextEvent ? getDaysUntil(nextEvent.startDate) : 0;
      Only headings are re-coloured, never every .text-white: the status
      pills and the day-count badges are white on a SOLID event colour,
      where white is correct in both themes. */
+  /* The hero band hardcodes a near-black gradient. Left alone it stayed a
+     dark slab under a white header AND, once the heading rule below turned
+     the h1 dark, "Film & Awards" went dark-on-dark. The band itself has to
+     flip with the theme. */
+  :global(html:not(.dark)) .evp .ev-hero{
+    background:linear-gradient(135deg,#ffffff 0%,#f7f4fb 50%,#ffffff 100%)!important}
   :global(html:not(.dark)) .evp h1.text-white,
   :global(html:not(.dark)) .evp h2.text-white,
   :global(html:not(.dark)) .evp h3.text-white{color:var(--text-primary)}
