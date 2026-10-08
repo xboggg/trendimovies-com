@@ -42,9 +42,7 @@ const pageDesc = review.deck || `Our spoiler-free review of ${review.title}. Wat
 ---
 
 <BaseLayout title={pageTitle} description={pageDesc} image={ogImage}>
-  <!-- force-dark: the article is written for a dark page throughout
-       (#fff headings, #e9e7ee body, translucent-white pull quotes). -->
-  <div class="force-dark">
+  <div class="rv-theme">
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,900&display=swap" rel="stylesheet" />
 
@@ -150,6 +148,43 @@ const pageDesc = review.deck || `Our spoiler-free review of ${review.title}. Wat
   .rv-cta{margin-top:44px;display:flex;flex-wrap:wrap;align-items:center;gap:18px;padding:24px 26px;border-radius:20px;background:linear-gradient(135deg,color-mix(in srgb,var(--rv-accent) 14%,transparent),color-mix(in srgb,var(--rv-a2) 6%,transparent));border:1px solid color-mix(in srgb,var(--rv-a2) 22%,transparent)}
   .rv-vd{font-family:'Fraunces',serif;font-style:italic;font-size:20px;color:#fff;flex:1;min-width:200px}
   .rv-vd b{color:var(--gold);font-style:normal}
+  /* ---- LIGHT MODE --------------------------------------------------
+     The whole article was written for a dark page. These re-point it at
+     a light one rather than keeping it black while the site is white.
+     The ambient blur behind the header is brightened instead of being
+     removed, so the page keeps its cover-art wash in both themes. */
+  :global(html:not(.dark)) .rv-theme .rv-ambient .rv-b{
+    filter:blur(64px) saturate(1.15) brightness(1.35);opacity:.33}
+  :global(html:not(.dark)) .rv-theme .rv-ambient:after{
+    background:radial-gradient(1200px 560px at 70% -8%,
+      color-mix(in srgb,var(--rv-accent) 13%,transparent),transparent 60%),
+      linear-gradient(180deg,rgba(255,255,255,.55),#ffffff 72%)}
+  :global(html:not(.dark)) .rv-theme .rv-h1,
+  :global(html:not(.dark)) .rv-theme .rv-pullquote,
+  :global(html:not(.dark)) .rv-theme .rv-vd,
+  :global(html:not(.dark)) .rv-theme .rv-article :global(em){color:#14121a}
+  :global(html:not(.dark)) .rv-theme .rv-deck{color:#43404e}
+  :global(html:not(.dark)) .rv-theme .rv-article p{color:#2b2833}
+  :global(html:not(.dark)) .rv-theme .rv-byline{
+    color:#5f5b6b;border-top-color:rgba(20,15,30,.12);
+    border-bottom-color:rgba(20,15,30,.12)}
+  :global(html:not(.dark)) .rv-theme .rv-byline b,
+  :global(html:not(.dark)) .rv-theme .rv-row .val{color:#14121a}
+  :global(html:not(.dark)) .rv-theme .rv-score .l,
+  :global(html:not(.dark)) .rv-theme .rv-row .k{color:#5f5b6b}
+  :global(html:not(.dark)) .rv-theme .rv-pullquote{
+    background:linear-gradient(135deg,rgba(20,15,30,.045),rgba(20,15,30,.015));
+    border-color:rgba(20,15,30,.12);box-shadow:0 14px 34px rgba(20,15,30,.09)}
+  :global(html:not(.dark)) .rv-theme .rv-card{
+    background:#ffffff;border-color:rgba(20,15,30,.12);
+    box-shadow:0 18px 44px rgba(20,15,30,.12)}
+  :global(html:not(.dark)) .rv-theme .rv-score{
+    background:rgba(20,15,30,.04);border-color:rgba(20,15,30,.1)}
+  :global(html:not(.dark)) .rv-theme .rv-facts{border-top-color:rgba(20,15,30,.1)}
+  :global(html:not(.dark)) .rv-theme .rv-glow{
+    box-shadow:inset 0 0 0 1px rgba(20,15,30,.12)}
+  :global(html:not(.dark)) .rv-theme .rv-poster{box-shadow:0 14px 30px rgba(20,15,30,.2)}
+
   @media(max-width:820px){
     .rv-wrap{padding:34px 20px 70px}
     .rv-grid{grid-template-columns:1fr;gap:30px}
