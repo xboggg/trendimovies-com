@@ -681,6 +681,11 @@ const pageDesc = 'How to search, download and get the most out of the TrendiMovi
      Only TEXT is darkened -- the translucent pill backgrounds behind .ok/.no
      and the gold button (dark text on amber) are untouched. --a is mixed
      toward black so every section keeps its own hue. */
+  /* Code chips: a near-transparent white fill and pale pink text, both of
+     which disappear on a white ground. */
+  :global(html:not(.dark)) .cmd{background:rgba(20,15,30,.05);color:#9c1239;
+    border-color:rgba(20,15,30,.16)}
+  :global(html:not(.dark)) .cmd.good{color:#0b7a5e}
   :global(html:not(.dark)) .bg-rules .ok{color:#0b7a5e}
   :global(html:not(.dark)) .bg-rules .no{color:#c2173c}
   :global(html:not(.dark)) .bg-warn{color:#9c1733}
