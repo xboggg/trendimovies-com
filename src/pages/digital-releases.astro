@@ -1174,13 +1174,17 @@ const ogImage = _ogPosters.length
   </section>
 
   <!-- Month selector -->
-  <section class="sticky top-16 z-30 border-b backdrop-blur" style="border-color: var(--border); background: rgba(10,10,12,0.85);">
+  <!-- The bar and its chips take their colours from tokens defined on this
+       element (see the style block at the end of the file), so the strip is
+       a dark band on a dark page and a light band on a light one, instead
+       of a near-black slab wedged between two white sections. -->
+  <section class="sticky top-16 z-30 border-b backdrop-blur dr-monthbar" style="border-color: var(--border); background: var(--mt-bar);">
     <div class="max-w-7xl mx-auto px-2 sm:px-6 lg:px-8 py-3">
       <div class="flex gap-1.5 overflow-x-auto hide-scrollbar" id="monthTabs">
         {months.map((mo) => (
           <button class="month-tab flex-shrink-0 px-3.5 py-1.5 rounded-lg text-sm font-bold transition-all"
                   data-month={mo.num} data-count={mo.count}
-                  style="background: rgba(255,255,255,0.05); color: var(--text-secondary);">
+                  style="background: var(--mt-bg); color: var(--mt-fg);">
             {mo.label} {mo.count > 0 && (<span class="opacity-60 text-xs">· {mo.count}</span>)}
           </button>
         ))}
@@ -1240,8 +1244,8 @@ const ogImage = _ogPosters.length
         });
         document.querySelectorAll('.month-tab').forEach(function (t) {
           var on = t.getAttribute('data-month') === String(idx);
-          t.style.background = on ? 'linear-gradient(135deg,#f7d000,#f59e0b)' : 'rgba(255,255,255,0.05)';
-          t.style.color = on ? '#000' : 'var(--text-secondary)';
+          t.style.background = on ? 'linear-gradient(135deg,#f7d000,#f59e0b)' : 'var(--mt-bg)';
+          t.style.color = on ? '#000' : 'var(--mt-fg)';
         });
       }
       document.querySelectorAll('.month-tab').forEach(function (t) {
@@ -1265,6 +1269,23 @@ const ogImage = _ogPosters.length
 </BaseLayout>
 
 <style>
+  /* The month strip is sticky and sits between the hero and the listings.
+     It hardcoded a near-black bar, and its chips used var(--text-secondary)
+     -- which is #666 in light mode, so the month names were dim grey on
+     black AND the whole band looked like a slab dropped into a white page.
+     Both the bar and the chips now read from tokens, so the JS that toggles
+     the active month needs no theme knowledge. The active chip keeps its
+     gold gradient with black text, which works on either theme. */
+  .dr-monthbar{
+    --mt-bar:rgba(10,10,12,.85);
+    --mt-bg:rgba(255,255,255,.05);
+    --mt-fg:var(--text-secondary);
+  }
+  :global(html:not(.dark)) .dr-monthbar{
+    --mt-bar:rgba(255,255,255,.92);
+    --mt-bg:rgba(20,15,30,.06);
+    --mt-fg:#4a4654;
+  }
   /* Light mode: this page's gold #f7d000 measures about 1.5:1 on white.
      Only the chips and the year in the title are darkened -- the NOTIFY
      badge keeps its gold because it sits on a near-black fill, where the
