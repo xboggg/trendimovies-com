@@ -220,6 +220,40 @@
   .cmt-like.liked{color:var(--a)}
   .cmt-reply:hover,.cmt-like:hover{color:#fff}
   .cmt-replybox{margin-top:12px;padding:12px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:12px}
+
+  /* ---- LIGHT MODE ------------------------------------------------
+     This component is dark-designed, so on a light review or blog page
+     its heading, author names and comment bodies were white on white,
+     and the inputs were invisible. */
+  :global(html:not(.dark)) .cmts-title,
+  :global(html:not(.dark)) .cmt-author,
+  :global(html:not(.dark)) .cmts-name,
+  :global(html:not(.dark)) .cmts-text{color:#14121a}
+  :global(html:not(.dark)) .cmt-body{color:#2b2833}
+  :global(html:not(.dark)) .cmts-count,
+  :global(html:not(.dark)) .cmts-sort button,
+  :global(html:not(.dark)) .cmts-spoiler,
+  :global(html:not(.dark)) .cmt-time,
+  :global(html:not(.dark)) .cmts-empty,
+  :global(html:not(.dark)) .cmt-like,
+  :global(html:not(.dark)) .cmt-reply{color:#5f5b6b}
+  :global(html:not(.dark)) .cmt-reply:hover,
+  :global(html:not(.dark)) .cmt-like:hover{color:#14121a}
+  :global(html:not(.dark)) .cmt-spoiler{
+    background:rgba(20,15,30,.05);border-color:rgba(20,15,30,.25);color:#43404e}
+  :global(html:not(.dark)) .cmts-box{
+    background:#ffffff;border-color:rgba(20,15,30,.12);
+    box-shadow:0 6px 20px rgba(20,15,30,.07)}
+  :global(html:not(.dark)) .cmts-name,
+  :global(html:not(.dark)) .cmts-text,
+  :global(html:not(.dark)) .cmts-count,
+  :global(html:not(.dark)) .cmts-sort,
+  :global(html:not(.dark)) .cmts-notice,
+  :global(html:not(.dark)) .cmt-replybox{
+    background:rgba(20,15,30,.04);border-color:rgba(20,15,30,.12)}
+  /* The staff badge gold is tuned for a dark card. */
+  :global(html:not(.dark)) .cmt-author.staff-name,
+  :global(html:not(.dark)) .cmt-badge{color:#8a6100}
   .cmt-replies{margin-top:16px;padding-left:16px;border-left:2px solid rgba(255,255,255,.08);display:flex;flex-direction:column;gap:16px}
   @media(max-width:640px){.cmts{margin-top:40px}.cmt-avatar{width:36px;height:36px;font-size:15px}}
 </style>

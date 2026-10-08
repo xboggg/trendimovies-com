@@ -213,6 +213,12 @@ const pageDesc = post.deck || `${post.title} — from the TrendiMovies desk.`;
     border-bottom-color:rgba(20,15,30,.09)}
   :global(html:not(.dark)) .bl-page .bl-article :global(.bl-callout){
     background:rgba(20,15,30,.04)}
+  /* --bl-accent is per-post data and the ambers land near 2.1:1 on
+     white, so accent TEXT is darkened while accent FILLS keep their
+     colour (they carry dark text of their own). */
+  :global(html:not(.dark)) .bl-page .bl-article :global(a),
+  :global(html:not(.dark)) .bl-page .bl-article :global(th){
+    filter:brightness(.62) saturate(1.5)}
   :global(html:not(.dark)) .bl-page .bl-card{
     background:#ffffff;border-color:rgba(20,15,30,.12);
     box-shadow:0 18px 44px rgba(20,15,30,.1)}

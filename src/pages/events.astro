@@ -89,7 +89,7 @@ const daysToNext = nextEvent ? getDaysUntil(nextEvent.startDate) : 0;
                 <div class="text-5xl sm:text-6xl leading-none flex-shrink-0">{nextEvent.emoji}</div>
                 <div>
                   <div class="flex flex-wrap items-center gap-2 mb-2">
-                    <span class="px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider" style={`background: ${nextEvent.color}30; color: ${nextEvent.color === '#B50C1B' ? '#ff6b7a' : nextEvent.accentColor}; border: 1px solid ${nextEvent.color}40;`}>
+                    <span class="px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider ev-accent" style={`background: ${nextEvent.color}30; color: ${nextEvent.color === '#B50C1B' ? '#ff6b7a' : nextEvent.accentColor}; border: 1px solid ${nextEvent.color}40;`}>
                       Next Event
                     </span>
                     {nextEvent.edition && (
@@ -110,7 +110,7 @@ const daysToNext = nextEvent ? getDaysUntil(nextEvent.startDate) : 0;
 
               <!-- Right countdown -->
               <div class="flex sm:flex-col items-center gap-3 sm:gap-1 sm:text-right">
-                <div class="text-4xl sm:text-5xl font-black" style={`color: ${nextEvent.accentColor};`}>{daysToNext}</div>
+                <div class="text-4xl sm:text-5xl font-black ev-accent" style={`color: ${nextEvent.accentColor};`}>{daysToNext}</div>
                 <div class="text-sm sm:text-base text-gray-400 font-medium">days to go</div>
                 <div class="ml-auto sm:ml-0 mt-2 px-4 py-2 rounded-lg text-sm font-semibold text-white group-hover:scale-105 transition-transform" style={`background: ${nextEvent.color};`}>
                   View Event →
@@ -193,7 +193,7 @@ const daysToNext = nextEvent ? getDaysUntil(nextEvent.startDate) : 0;
                 </div>
                 <!-- Days badge -->
                 <div class="flex-shrink-0 text-center rounded-xl px-3 py-2" style={`background: ${event.color}20; border: 1px solid ${event.color}40;`}>
-                  <div class="text-xl font-black" style={`color: ${event.accentColor === '#FFFFFF' ? event.color : event.accentColor};`}>{days}</div>
+                  <div class="text-xl font-black ev-accent" style={`color: ${event.accentColor === '#FFFFFF' ? event.color : event.accentColor};`}>{days}</div>
                   <div class="text-[10px] uppercase tracking-wider text-gray-500">days</div>
                 </div>
               </div>
@@ -211,7 +211,7 @@ const daysToNext = nextEvent ? getDaysUntil(nextEvent.startDate) : 0;
                 {event.topAward && (
                   <div class="flex items-center gap-2 text-sm" style="color: var(--text-secondary);">
                     <span class="text-base">🏆</span>
-                    <span>Top prize: <strong style={`color: ${event.accentColor === '#FFFFFF' ? '#ddd' : event.accentColor};`}>{event.topAward}</strong></span>
+                    <span>Top prize: <strong class="ev-accent" style={`color: ${event.accentColor === '#FFFFFF' ? '#ddd' : event.accentColor};`}>{event.topAward}</strong></span>
                   </div>
                 )}
               </div>
@@ -234,7 +234,7 @@ const daysToNext = nextEvent ? getDaysUntil(nextEvent.startDate) : 0;
               <div class="flex items-center justify-between">
                 <span class="text-xs" style="color: var(--text-muted);">{event.venue}</span>
                 {event.pageUrl !== '/events' ? (
-                  <span class="text-xs font-semibold flex items-center gap-1 group-hover:gap-2 transition-all" style={`color: ${event.accentColor === '#FFFFFF' ? '#ddd' : event.accentColor};`}>
+                  <span class="text-xs font-semibold flex items-center gap-1 group-hover:gap-2 transition-all ev-accent" style={`color: ${event.accentColor === '#FFFFFF' ? '#ddd' : event.accentColor};`}>
                     View Page <span>→</span>
                   </span>
                 ) : (
@@ -350,6 +350,10 @@ const daysToNext = nextEvent ? getDaysUntil(nextEvent.startDate) : 0;
      dark slab under a white header AND, once the heading rule below turned
      the h1 dark, "Film & Awards" went dark-on-dark. The band itself has to
      flip with the theme. */
+  /* Event accents come from data (event.accentColor), and the bright
+     golds measure about 1.4:1 on white. Darkened with a filter so each
+     event keeps its own colour and a new one needs no extra CSS. */
+  :global(html:not(.dark)) .evp .ev-accent{filter:brightness(.62) saturate(1.5)}
   :global(html:not(.dark)) .evp .ev-hero{
     background:linear-gradient(135deg,#ffffff 0%,#f7f4fb 50%,#ffffff 100%)!important}
   :global(html:not(.dark)) .evp h1.text-white,
