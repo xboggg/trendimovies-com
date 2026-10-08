@@ -677,6 +677,15 @@ const pageDesc = 'How to search, download and get the most out of the TrendiMovi
     padding:.12em .45em;border-radius:5px;white-space:nowrap}
   .bg-rules .ok{color:#8ef0c8;background:rgba(46,196,182,.12)}
   .bg-rules .no{color:#ff8098;background:rgba(255,77,109,.12)}
+  /* Light mode: accents tuned for a dark panel are far too pale on white.
+     Only TEXT is darkened -- the translucent pill backgrounds behind .ok/.no
+     and the gold button (dark text on amber) are untouched. --a is mixed
+     toward black so every section keeps its own hue. */
+  :global(html:not(.dark)) .bg-rules .ok{color:#0b7a5e}
+  :global(html:not(.dark)) .bg-rules .no{color:#c2173c}
+  :global(html:not(.dark)) .bg-warn{color:#9c1733}
+  :global(html:not(.dark)) .bg-note a{color:color-mix(in srgb,var(--a) 68%,#140a00)}
+  :global(html:not(.dark)) a.cmd.lnk{color:color-mix(in srgb,var(--a) 68%,#04121a)}
   .bg-warn{margin:12px 0 0 !important;padding:9px 13px;border-radius:9px;font-size:.9rem !important;
     background:rgba(255,77,109,.1);border:1px solid rgba(255,77,109,.25);color:#ffc2cd !important}
 
