@@ -1162,11 +1162,11 @@ const ogImage = _ogPosters.length
   <section class="relative overflow-hidden border-b" style="border-color: var(--border);">
     <div class="absolute inset-0" style="background: radial-gradient(ellipse at 25% 0%, rgba(247,208,0,0.10), transparent 55%), radial-gradient(ellipse at 85% 100%, rgba(220,38,38,0.10), transparent 55%);"></div>
     <div class="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-28 pb-8">
-      <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full mb-4 text-xs font-bold uppercase tracking-widest"
+      <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full mb-4 text-xs font-bold uppercase tracking-widest dr-gold-chip"
            style="background: rgba(247,208,0,0.12); color:#f7d000; border:1px solid rgba(247,208,0,0.3);">📀 Home Release Calendar</div>
       <!-- The hero behind this is only a faint radial tint, so a hardcoded
            white title disappeared against a white page. -->
-      <h1 class="text-3xl sm:text-4xl lg:text-5xl font-black leading-tight" style="color: var(--text-primary);">Digital &amp; HD Release Dates <span style="color:#f7d000;">2026</span></h1>
+      <h1 class="text-3xl sm:text-4xl lg:text-5xl font-black leading-tight" style="color: var(--text-primary);">Digital &amp; HD Release Dates <span class="dr-gold-text" style="color:#f7d000;">2026</span></h1>
       <p class="mt-3 max-w-2xl text-sm sm:text-base" style="color: var(--text-secondary);">
         Exactly when every movie hits Digital &amp; HD — month by month. Pick a month below. Titles already on TrendiMovies show a ▶ Watch button.
       </p>
@@ -1206,7 +1206,7 @@ const ogImage = _ogPosters.length
                   <h2 class="text-lg sm:text-xl font-black" style="color: var(--text-primary);">{g.date}</h2>
                   {g.past
                     ? <span class="text-[11px] font-bold px-2 py-0.5 rounded-full" style="background:rgba(63,185,80,0.15);color:#3fb950;">released</span>
-                    : <span class="countdown text-[11px] font-bold px-2 py-0.5 rounded-full" data-date={g.iso} style="background:rgba(247,208,0,0.12);color:#f7d000;border:1px solid rgba(247,208,0,0.3);">…</span>}
+                    : <span class="countdown dr-gold-chip text-[11px] font-bold px-2 py-0.5 rounded-full" data-date={g.iso} style="background:rgba(247,208,0,0.12);color:#f7d000;border:1px solid rgba(247,208,0,0.3);">…</span>}
                 </div>
                 <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
                   {g.items.map((mv) => (
@@ -1263,3 +1263,16 @@ const ogImage = _ogPosters.length
     })();
   </script>
 </BaseLayout>
+
+<style>
+  /* Light mode: this page's gold #f7d000 measures about 1.5:1 on white.
+     Only the chips and the year in the title are darkened -- the NOTIFY
+     badge keeps its gold because it sits on a near-black fill, where the
+     original colour is correct. The colours are set inline, so these rules
+     need !important. */
+  :global(html:not(.dark)) .dr-gold-text{color:#8a6d00!important}
+  :global(html:not(.dark)) .dr-gold-chip{
+    background:rgba(247,208,0,.18)!important;
+    color:#6f5800!important;
+    border-color:rgba(247,208,0,.55)!important}
+</style>
