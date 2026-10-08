@@ -182,6 +182,14 @@ const pageDesc = 'Recaps, takes and franchise deep-dives from the TrendiMovies d
     background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);transition:border-color .2s,background .2s}
   .blh-pg-btn:hover{border-color:#f59e0b;background:rgba(245,158,11,.12)}
   .blh-pg-info{font-size:14px;color:#b9b6c0;font-weight:600}
+  /* Light mode: these hardcode light text from when every page was dark.
+     .vs-title and .tc-sub are NOT included -- they sit on card artwork,
+     where white with a shadow is right in either theme. */
+  :global(html:not(.dark)) .blh-title,
+  :global(html:not(.dark)) .blh-section-head h2{color:#14121a}
+  :global(html:not(.dark)) .blh-sub,
+  :global(html:not(.dark)) .blh-pg-info{color:#56525f}
+  :global(html:not(.dark)) .blh-pg-btn{color:#14121a}
 
   @media(max-width:900px){
     .tc-row{max-width:82%}

@@ -13,6 +13,10 @@
   // first paint (no flash). Updated client-side on mount for SPA-style nav.
   export let pathname = '';
   let currentPath = pathname;
+  // True only while the header floats over the homepage hero image. Derived
+  // from the server-passed pathname so the server-rendered markup already
+  // carries the class and the menu never flashes the wrong colour.
+  $: isOverHero = currentPath === '/';
 
   // Live search autocomplete
   let suggestions: any[] = [];
@@ -146,6 +150,7 @@
 <header
   class="fixed top-0 left-0 right-0 z-50 transition-all duration-500 header-bg"
   class:scrolled={isScrolled}
+  class:over-hero={isOverHero}
 >
   <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
     <div class="flex items-center justify-between h-16 lg:h-20">
@@ -524,15 +529,20 @@
     box-shadow: 0 1px 10px var(--shadow);
   }
 
-  /* While transparent (over the dark hero image), force light text in BOTH
-     themes and add a soft shadow so it stays crisp over any backdrop.
-     Reverts to theme colors once scrolled. */
-  .header-bg:not(.scrolled) .nav-link,
-  .header-bg:not(.scrolled) .logo-text-dark {
+  /* While transparent the header forces light text, which only reads when
+     something dark is behind it. That is true in dark mode (the whole page
+     is dark) and, in light mode, only over the homepage hero. On any other
+     page in light mode the ground behind the header is the white page, so
+     the links keep their normal theme colours instead of vanishing. */
+  :global(html.dark) .header-bg:not(.scrolled) .nav-link,
+  :global(html.dark) .header-bg:not(.scrolled) .logo-text-dark,
+  .header-bg.over-hero:not(.scrolled) .nav-link,
+  .header-bg.over-hero:not(.scrolled) .logo-text-dark {
     color: #ffffff;
     text-shadow: 0 1px 3px rgba(0,0,0,0.6);
   }
-  .header-bg:not(.scrolled) .nav-link:hover {
+  :global(html.dark) .header-bg:not(.scrolled) .nav-link:hover,
+  .header-bg.over-hero:not(.scrolled) .nav-link:hover {
     color: #ffffff;
     background: rgba(255,255,255,0.15);
   }

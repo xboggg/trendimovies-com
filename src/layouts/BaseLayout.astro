@@ -78,19 +78,24 @@ const ogUrl = new URL(Astro.url.pathname + Astro.url.search, Astro.site || 'http
   <script is:inline>
     (function() {
       const theme = localStorage.getItem('theme');
+      // Only an explicit stored 'light' gives the light theme. With nothing
+      // stored we default to dark, which is the site's designed look. (The
+      // old form tested `!theme` on the dark branch, which made the
+      // prefers-color-scheme branch after it unreachable dead code.)
       if (theme === 'light') {
         document.documentElement.classList.remove('dark');
-      } else if (theme === 'dark' || !theme) {
+      } else {
         document.documentElement.classList.add('dark');
-      } else if (window.matchMedia('(prefers-color-scheme: light)').matches) {
-        document.documentElement.classList.remove('dark');
       }
     })();
   </script>
 
   <style is:inline>
-    /* Background image with dark overlay */
-    body::before {
+    /* Background image with dark overlay -- DARK MODE ONLY.
+       These two layers are position:fixed and full-screen, so when they
+       applied in both themes they covered the body's white background and
+       light mode stayed black. Keep them scoped to html.dark. */
+    html.dark body::before {
       content: '';
       position: fixed;
       top: 0;
@@ -103,7 +108,7 @@ const ogUrl = new URL(Astro.url.pathname + Astro.url.search, Astro.site || 'http
       background-attachment: fixed;
       z-index: -2;
     }
-    body::after {
+    html.dark body::after {
       content: '';
       position: fixed;
       top: 0;

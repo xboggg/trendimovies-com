@@ -142,7 +142,7 @@
     font-weight: 900;
     line-height: 0.8;
     color: transparent;
-    -webkit-text-stroke: 2px var(--border);
+    -webkit-text-stroke: 2px var(--rank-stroke, var(--border));
     z-index: 0;
     pointer-events: none;
     font-family: system-ui, sans-serif;

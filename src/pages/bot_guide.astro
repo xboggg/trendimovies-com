@@ -521,6 +521,18 @@ const pageDesc = 'How to search, download and get the most out of the TrendiMovi
 
 <style>
   /* ---- palette ------------------------------------------------------- */
+  /* This page was designed as translucent DARK panels floating on the
+     site's cinematic backdrop. In light mode that backdrop is gone and the
+     ground is white, so the same tokens are re-pointed at a light surface.
+     The accent hues are left alone on purpose -- they carry the page's
+     character and read fine on white, as the orange "Bot Guide" wordmark
+     already shows. */
+  :global(html:not(.dark)) .bg-page{
+    --ink:#171320; --dim:#555065; --faint:#7d7690;
+    --panel:rgba(255,255,255,.80); --panel2:rgba(250,248,252,.74);
+    --line:rgba(20,15,30,.14);
+    --solid:#ffffff;
+  }
   .bg-page{
     --ink:#f2eef7; --dim:#a9a2b8; --faint:#6f6880;
     --panel:rgba(22,18,30,.72); --panel2:rgba(27,23,36,.66); --line:rgba(255,255,255,.1);
