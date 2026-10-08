@@ -22,8 +22,16 @@ if (!event) {
 }
 
 const days = getDaysUntil(event.startDate);
-const isUpcoming = event.status === 'upcoming' || days > 0;
-const isLive = event.status === 'live';
+// The `status` field in events.ts is maintained by hand and goes stale --
+// Venice 2026 finished on 5 September yet was still marked 'upcoming', so the
+// page advertised "-43 days to go". The dates are the source of truth here;
+// status is only consulted for a live day, and never to resurrect a finished
+// event. The markup already has a "Past" branch for the result.
+const eventEndsOn = new Date(event.endDate ?? event.startDate);
+eventEndsOn.setHours(23, 59, 59, 999);
+const hasEnded = new Date() > eventEndsOn;
+const isUpcoming = !hasEnded && days > 0;
+const isLive = !hasEnded && (event.status === 'live' || days <= 0);
 
 function fmt(dateStr: string): string {
   return new Date(dateStr).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });

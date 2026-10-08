@@ -174,10 +174,12 @@ const winners2026: Record<string, { film: string; director: string; recipient?: 
       </div>
 
       <p class="text-gray-300 text-base sm:text-lg max-w-2xl mb-8">
-        May 13–24, 2026 &bull; Palais des Festivals, Cannes, France &bull; The Palme d'Or awaits
+        May 13–24, 2026 &bull; Palais des Festivals, Cannes, France &bull; {isOver ? "The Palme d'Or has been awarded" : "The Palme d'Or awaits"}
       </p>
 
-      <!-- Countdown -->
+      <!-- Countdown. Once the festival is over this sits at 00:00:00
+           forever, so it is dropped rather than shown stuck at zero. -->
+      {!isOver && (
       <div class="flex flex-wrap gap-3 sm:gap-4">
         {[
           { value: daysLeft, label: 'Days' },
@@ -190,6 +192,7 @@ const winners2026: Record<string, { film: string; director: string; recipient?: 
           </div>
         ))}
       </div>
+      )}
     </div>
   </section>
 
@@ -222,7 +225,7 @@ const winners2026: Record<string, { film: string; director: string; recipient?: 
         </h2>
         <p class="text-sm mt-1" style="color: var(--text-secondary);">Palme d'Or contenders — 79th Festival de Cannes</p>
       </div>
-      <span class="hidden sm:block px-4 py-2 rounded-full text-sm font-semibold" style="background: rgba(181,12,27,0.15); border: 1px solid rgba(181,12,27,0.3); color: #ff6b7a;">
+      <span class="hidden sm:block px-4 py-2 rounded-full text-sm font-semibold cn-rose-chip" style="background: rgba(181,12,27,0.15); border: 1px solid rgba(181,12,27,0.3); color: #ff6b7a;">
         {competitionFilms.length} films
       </span>
     </div>
@@ -298,7 +301,7 @@ const winners2026: Record<string, { film: string; director: string; recipient?: 
               <span class="text-2xl">{cat.emoji}</span>
               <h3 class="font-bold text-base" style="color: var(--text-primary);">{cat.name}</h3>
               {i === 0 && (
-                <span class="ml-auto px-2 py-0.5 rounded text-[10px] font-bold" style="background: rgba(247,208,0,0.2); color: #F7D000;">TOP PRIZE</span>
+                <span class="ml-auto px-2 py-0.5 rounded text-[10px] font-bold cn-gold-chip" style="background: rgba(247,208,0,0.2); color: #F7D000;">TOP PRIZE</span>
               )}
             </div>
             <p class="text-sm" style="color: var(--text-secondary);">{cat.description}</p>
@@ -339,7 +342,7 @@ const winners2026: Record<string, { film: string; director: string; recipient?: 
               <p class="text-sm" style="color: var(--text-secondary);">{entry.director}</p>
             </div>
             {i === 0 && (
-              <span class="px-3 py-1 rounded-full text-xs font-bold" style="background: rgba(247,208,0,0.15); color: #F7D000; border: 1px solid rgba(247,208,0,0.3);">
+              <span class="px-3 py-1 rounded-full text-xs font-bold cn-gold-chip" style="background: rgba(247,208,0,0.15); color: #F7D000; border: 1px solid rgba(247,208,0,0.3);">
                 Current champion
               </span>
             )}
@@ -397,8 +400,8 @@ const winners2026: Record<string, { film: string; director: string; recipient?: 
       <div class="absolute inset-0 opacity-20" style="background: radial-gradient(ellipse at center, #B50C1B 0%, transparent 70%);"></div>
       <div class="relative">
         <span class="text-5xl block mb-4">🌴</span>
-        <h3 class="text-2xl sm:text-3xl font-black text-white mb-2">Get Ready for Cannes 2026</h3>
-        <p class="text-gray-400 mb-6 max-w-lg mx-auto">Watch all the competition films you can before May 13. The Palme d'Or is coming.</p>
+        <h3 class="text-2xl sm:text-3xl font-black text-white mb-2">{isOver ? 'Catch Up on Cannes 2026' : 'Get Ready for Cannes 2026'}</h3>
+        <p class="text-gray-400 mb-6 max-w-lg mx-auto">{isOver ? "Watch this year’s competition films and the award winners." : "Watch all the competition films you can before May 13. The Palme d'Or is coming."}</p>
         <div class="flex flex-wrap items-center justify-center gap-4">
           <a href="/movies" class="px-6 py-3 rounded-xl font-bold text-black transition-all hover:scale-105 hover:shadow-lg" style="background: linear-gradient(135deg, #F7D000, #D4AF37);">
             Browse Films →
@@ -438,7 +441,7 @@ const winners2026: Record<string, { film: string; director: string; recipient?: 
             <div class="flex items-start gap-3 mb-3">
               <span class="text-3xl">{award.emoji}</span>
               <div class="flex-1">
-                <h3 class="font-black text-base sm:text-lg" style={`color: ${award.color};`}>{award.name}</h3>
+                <h3 class="font-black text-base sm:text-lg cn-award-title" style={`color: ${award.color};`}>{award.name}</h3>
                 <p class="text-xs" style="color: var(--text-muted);">{award.description}</p>
               </div>
             </div>
@@ -446,13 +449,13 @@ const winners2026: Record<string, { film: string; director: string; recipient?: 
               <div class="pt-3 border-t" style="border-color: var(--border);">
                 <p class="font-bold text-lg" style="color: var(--text-primary);">{winner.film}</p>
                 <p class="text-sm" style="color: var(--text-secondary);">
-                  {winner.recipient ? winner.recipient + ' — ' : ''}{winner.director}
+                  {[winner.recipient, winner.director].filter(Boolean).join(' — ')}
                 </p>
               </div>
             ) : (
               <div class="pt-3 border-t flex items-center gap-2" style="border-color: var(--border);">
                 <span class="text-xs px-2.5 py-1 rounded-full" style="background: rgba(255,255,255,0.05); color: var(--text-muted);">
-                  Pending · announced May 24
+                  {isOver ? 'Winner not recorded' : 'Pending · announced May 24'}
                 </span>
               </div>
             )}
@@ -462,3 +465,23 @@ const winners2026: Record<string, { film: string; director: string; recipient?: 
     </div>
   </section>
 </BaseLayout>
+
+<style>
+  /* Light mode. This page's accents are festival metals and neons chosen
+     for a dark ground -- gold #F7D000, silver #C0C0C0, rose #ff6b7a -- and
+     on the white winner cards they land around 1.3:1 to 2:1.
+
+     The award titles take their colour from data (award.color), so instead
+     of hardcoding a light value for every medal they are darkened with a
+     filter: it keeps each hue and needs no change when a category is added.
+     The chips set their colours inline, so these rules need !important. */
+  :global(html:not(.dark)) .cn-award-title{filter:brightness(.52) saturate(1.45)}
+  :global(html:not(.dark)) .cn-gold-chip{
+    background:rgba(247,208,0,.18)!important;
+    color:#6f5800!important;
+    border-color:rgba(247,208,0,.55)!important}
+  :global(html:not(.dark)) .cn-rose-chip{
+    background:rgba(181,12,27,.1)!important;
+    color:#a30d1c!important;
+    border-color:rgba(181,12,27,.35)!important}
+</style>
