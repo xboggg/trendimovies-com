@@ -548,5 +548,15 @@ const ogTitle = `${movie.title} ${ogYear}`.trim();
   .rv-banner-chip.rt{color:#22c55e}.rv-banner-chip.mo{color:#f59e0b}
   .rv-banner-verdict{font-style:italic;color:#e9e7ee;font-size:14px}
   .rv-banner-cta{color:var(--a);font-weight:800;font-size:16px;white-space:nowrap;flex:none}
+  /* Light mode: this promo card is a pale tint of the review accent, and
+     its heading, deck and verdict were written white for a dark page --
+     so on a light movie page the headline vanished into the card. */
+  :global(html:not(.dark)) .rv-banner-h{color:#14121a}
+  :global(html:not(.dark)) .rv-banner-deck,
+  :global(html:not(.dark)) .rv-banner-verdict{color:#4a4654}
+  :global(html:not(.dark)) .rv-banner-chip{
+    background:rgba(20,15,30,.05);border-color:rgba(20,15,30,.14)}
+  :global(html:not(.dark)) .rv-banner-chip.rt{color:#0b7a5e}
+  :global(html:not(.dark)) .rv-banner-chip.mo{color:#8a5a00}
   @media(max-width:640px){.rv-banner{flex-direction:column;align-items:flex-start}.rv-banner-h{font-size:20px}}
 </style>
