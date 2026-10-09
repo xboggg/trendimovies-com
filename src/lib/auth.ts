@@ -61,13 +61,21 @@ export function generateSessionToken(): string {
 
 // Create new user
 export async function createUser(email: string, password: string, displayName?: string): Promise<{ success: boolean; user?: any; error?: string }> {
+  // One normalised address used for the lookup, the insert and the duplicate
+  // test. Previously the check used the address AS TYPED while the insert
+  // stored the lowercased/trimmed form, so a difference in case or spacing
+  // walked straight past the check and into the unique index.
+  const normalisedEmail = email.toLowerCase().trim();
+
   try {
     // Check if email already exists
-    const existingRes = await fetch(`${POSTGREST_URL}/users?email=eq.${encodeURIComponent(email)}`);
+    const existingRes = await fetch(`${POSTGREST_URL}/users?email=eq.${encodeURIComponent(normalisedEmail)}`);
     const existing = await existingRes.json();
 
-    if (existing.length > 0) {
-      return { success: false, error: 'Email already registered' };
+    // PostgREST answers with an OBJECT on error, and `undefined > 0` is false,
+    // so without this the guard passed silently and the insert failed instead.
+    if (Array.isArray(existing) && existing.length > 0) {
+      return { success: false, error: 'An account with this email already exists. Try signing in instead, or use a different address.' };
     }
 
     // Hash password using bcrypt
@@ -78,15 +86,23 @@ export async function createUser(email: string, password: string, displayName?: 
       method: 'POST',
       headers: getAuthHeadersWithPrefer('return=representation'),
       body: JSON.stringify({
-        email: email.toLowerCase().trim(),
+        email: normalisedEmail,
         password_hash: passwordHash,
         display_name: displayName || email.split('@')[0]
       })
     });
 
     if (!res.ok) {
-      const error = await res.text();
-      return { success: false, error: `Failed to create user: ${error}` };
+      const raw = await res.text();
+      // 23505 is Postgres' unique-violation. It means the address was taken
+      // between our check and this insert (or the check could not run), and it
+      // is the one failure a visitor can actually act on. Everything else is an
+      // internal fault: log it, show something human.
+      if (raw.includes('23505') || raw.includes('users_email_key')) {
+        return { success: false, error: 'An account with this email already exists. Try signing in instead, or use a different address.' };
+      }
+      console.error('[auth] createUser failed:', raw);
+      return { success: false, error: 'Could not create your account right now. Please try again in a moment.' };
     }
 
     const users = await res.json();

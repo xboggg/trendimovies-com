@@ -1,0 +1,6 @@
+---
+// /tv had no index route, only /tv/[id], so the bare URL 404'd. Series live at
+// /series, so send visitors (and crawlers) there permanently rather than
+// duplicating the listing.
+return Astro.redirect('/series', 301);
+---

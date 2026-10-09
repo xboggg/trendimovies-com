@@ -232,6 +232,20 @@ function movieHref(m: Entry): string {
 </BaseLayout>
 
 <style>
+  /* The year strip is sticky between the heading and the grid. It
+     hardcoded a near-black bar, and its inactive pills are text-gray-300
+     on bg-white/5 -- fine over a dark page, invisible over a white one,
+     and the bar itself read as a slab dropped into the page. The active
+     pill is amber with black text, which works on either theme. */
+  :global(html:not(.dark)) .year-picker-wrap{
+    background-color:rgba(255,255,255,.92)!important}
+  :global(html:not(.dark)) .year-picker-wrap a[data-active="false"]{
+    color:#4a4654!important;background:rgba(20,15,30,.06)!important}
+  :global(html:not(.dark)) .year-picker-wrap a[data-active="false"]:hover{
+    background:rgba(20,15,30,.12)!important}
+</style>
+
+<style>
   .scrollbar-hide::-webkit-scrollbar { display: none; }
   .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
   /* Edge fades for the year strip */
