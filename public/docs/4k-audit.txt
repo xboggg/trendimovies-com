@@ -1,0 +1,122 @@
+#    SIZE     TITLE                        REAL      FILENAME
+------------------------------------------------------------------------------------------------------------------------------------------------------
+1    1.00 GB  Jarann                       720p      Jarann.2025.2160p.ZEE5.WEB-DL.DD+5.1.H.265-Telly.mkv
+2    1.02 GB  Black Mirror                 1080p     Black.Mirror.S07E05.2160p.10bit.HDR.DV.WEBRip.6CH.x265.HEVC-.mkv
+3    1.06 GB  Lantrani                     720p      Lantrani.2024.2160p.Zee5.WEB-DL.DDP5.1.HEVC-mkvCinemas.mkv
+4    1.09 GB  Phobia                       720p      Phobia.2016.2160p.ZEE5.WEB-DL.DD+5.1.H.265-YamRaaJ.mkv
+5    1.11 GB  Alien: Earth                 1080p     Alien.Earth.S01E06.2160p.10bit.HDR.DV.WEBRip.6CH.x26.mkv
+6    1.13 GB  Black Mirror                 1080p     Black.Mirror.S07E02.2160p.10bit.HDR.DV.WEBRip.6CH.x265.HEVC-.mkv
+7    1.14 GB  Interrogation (Letter from M 720p      Interrogation.2024.2160p.ZEE5.WEB-DL.DDP5.1.H.265-Spidey.mkv
+8    1.14 GB  Interrogation                720p      Interrogation.2024.2160p.ZEE5.WEB-DL.DDP5.1.H.265-Spidey.mkv
+9    1.14 GB  Star Trek: Strange New World 1080p     Star.Trek.Strange.New.Worlds.S01E07.The.Serene.Squall.2160p..mkv
+10   1.15 GB  The Call of the Wild         720p      Ruf.der.Wildnis.2020.German.AC3.UHD.BDRiP.XViD-HaN.avi
+11   1.16 GB  Star Trek: Strange New World 1080p     Star.Trek.Strange.New.Worlds.S03E01.2160p.HDR10Plus.DV.WEBRi.mkv
+12   1.17 GB  8 A.M. Metro                 720p      8.A.M.Metro.2023.HQ.2160p.ZEE5.WEB.DL.HEVC.10bit.DDP5.1.192k.mkv
+13   1.18 GB  Costao                       720p      Costao.2025.2160p.ZEE5.WEB-DL.DD+5.1.H.265-Telly.mkv
+14   1.18 GB  Sarkar 3                     720p      Sarkar.3.2017.2160p.ZEE5.WEB-DL.DD+5.1.H.265-YamRaaJ.mkv
+15   1.18 GB  Peacemaker                   1080p     Peacemaker.2022.S02E03.2160p.10bit.HDR.DV.WEBRip.6CH.x265.HE.mkv
+16   1.19 GB  Star Trek: Strange New World 1080p     Star.Trek.Strange.New.Worlds.S02E06.2160p.HDR10Plus.DV.WEBRi.mkv
+17   1.20 GB  Star Trek: Strange New World 1080p     Star.Trek.Strange.New.Worlds.S02E01.2160p.HDR10Plus.DV.WEBRi.mkv
+18   1.20 GB  Alien: Earth                 1080p     Alien Earth S01E04 2160p 10Bit HDR DV WEBRip x265 HEVC H.mkv
+19   1.21 GB  Star Trek: Strange New World 1080p     Star.Trek.Strange.New.Worlds.S02E03.2160p.HDR10Plus.DV.WEBRi.mkv
+20   1.21 GB  The Signature                720p      The.Signature.2024.2160p.ZEE5.WEB-DL.DD 5.1.H.265-TR.mkv
+21   1.22 GB  Star Trek: Strange New World 1080p     Star.Trek.Strange.New.Worlds.S01E10.A.Quality.of.Mercy.2160p.mkv
+22   1.23 GB  Colourrs of Love             1080p     Colourrs.of.Love.2024.2160p.ZEE5.WEB-DL.DD 5.1.H.265-TR.mkv
+23   1.24 GB  I Love You                   1080p     I.Love.You.2022.2160p.WEB-DL.H265.AAC-MOMOWEB.mkv
+24   1.24 GB  Star Trek: Strange New World 1080p     Star.Trek.Strange.New.Worlds.S02E09.2160p.HDR10Plus.DV.WEBRi.mkv
+25   1.28 GB  Star Trek: Strange New World 1080p     Star.Trek.Strange.New.Worlds.S01E04.Memento.Mori.2160p.HDR10.mkv
+26   1.30 GB  Trap                         1080p     Trap (2024) 2160p WEB-DL DoVi HDR AV1 OPUS 5.1 SMK.mkv
+27   1.30 GB  The Devil’s Trap             1080p     Trap (2024) 2160p WEB-DL DoVi HDR AV1 OPUS 5.1 SMK.mkv
+28   1.31 GB  Chalti Rahe Zindagi          1080p     Chalti.Rahe.Zindagi.2024.2160p.ZEE5.WEB-DL.DD+5.1.H.265-Tell.mkv
+29   1.31 GB  Star Trek: Strange New World 1080p     Star.Trek.Strange.New.Worlds.S02E10.2160p.HDR10Plus.DV.WEBRi.mkv
+30   1.32 GB  Star Trek: Strange New World 1080p     Star.Trek.Strange.New.Worlds.S02E04.2160p.HDR10Plus.DV.WEBRi.mkv
+31   1.34 GB  Queen Elizabeth              1080p     Queen.Elizabeth.2023.HQ.2160p.ZEE5.WEB.DL.HEVC.10bit.Dual.DD.mkv
+32   1.37 GB  Constable Kanakam            1080p     Constable Kanakam S01E02 - Thappetagullu., 4K-2160p .mkv
+33   1.37 GB  Greyhound                    1080p     Greyhound.2020.2160p.10bit.HDR.WEBRip.6CH.x265.HEVC-PSA.mkv
+34   1.40 GB  The Courier                  1080p     The.Courier.2020.2160p.HDR10Plus.WEBRip.6CH.x265.HEVC-PSA.mkv
+35   1.40 GB  Star Trek: Strange New World 1080p     Star.Trek.Strange.New.Worlds.S02E05.2160p.HDR10Plus.DV.WEBRi.mkv
+36   1.42 GB  Blue Sunshine                1080p     Neela Nira Sooriyan (2024) Tamil WEB-DL - 4K UHD - HEVC .mkv
+37   1.43 GB  Rautu ka Raaz                1080p     Rautu.Ka.Raaz.2024.2160p.ZEE5.WEB-DL.DDP5.1.Atmos.H.265-BiGi.mkv
+38   1.43 GB  Sherlock Holmes: A Game of S 1080p     Sherlock_Holmes_A_Game_of_Shadows_2011_2160p_UHD_BluRay_x265_HDR.mkv
+39   1.43 GB  The Punisher: One Last Kill  1080p     The.Punisher.One.Last.Kill.2026.2160p.HDR10Plus.DV.WEBRip.6C.mkv
+40   1.44 GB  Black Mirror                 1080p     Black.Mirror.S07E01.2160p.10bit.HDR.DV.WEBRip.6CH.x265.HEVC-.mkv
+41   1.46 GB  Take Off                     1080p     Take.Off.2017.Malayalam.UHD.x265.HEVC.1.5GB.mkv
+42   1.47 GB  Gunehgaar                    1080p     Gunehgaar.2022.2160p.ZEE5.WEB-DL.Multi.DDP5.1.H.265-Arch.mkv
+43   1.51 GB  Romantic                     1080p     Romantic_2021_Telugu_2160p_10bit_WEB_DL_x265_HEVC_AAC_5_1_ESub1TamilMV.mkv
+44   1.51 GB  Viraaji                      1080p     Viraaji.2024.2160p.AHA.WEB-DL.DD 5.1.H.265-DRAWIZ.mkv
+45   1.52 GB  Longlegs                     1080p     Longlegs.2024.2160p.HDR10Plus.DV.WEBRip.6CH.x265.HEVC-PSA.mkv
+46   1.52 GB  Tehran                       1080p     Tehran.2025.2160p.Zee5.WEB-DL.DDP5.1.Atmos.H.265-Spidey.mkv
+47   1.54 GB  Burqa                        1080p     Burqa 2023 Tamil WEB-DL 2160p.mkv
+48   1.54 GB  Ata Thambaycha Naay!         1080p     Ata_Thambaycha_Naay!_2025_2160p_ZEE5_WEB_DL_DD+5_1_H_265_Tel.mkv
+49   1.54 GB  8 Thottakkal                 1080p     8.Thottakkal.2017.2160p.ZEE5.WEB-DL.DD+5.1.H.265-CPTN5DW.mkv
+50   1.55 GB  Kaalidhar Laapata            1080p     Kaalidhar.Laapata.2025.2160p.ZEE5.WEB-DL.DD+5.1.H.265-Te.mkv
+51   1.56 GB  Christmas Ransom             1080p     Christmas_Ransom_2022_2160p_WEBRip_3500MB_DDP5_1_x264_GalaxyRG_part002.mkv
+52   1.58 GB  The Kashmir Files            1080p     The.Kashmir.Files.2022.2160p.ZEE5.WEB-DL.DDP5.1.H.265-Spidey.mkv
+53   1.58 GB  Bhagwat - Chapter One: Raaks 1080p     Bhagwat.Chapter.One.Raakshas.2025.2160p.ZEE5.WEB-DL..mkv
+54   1.58 GB  Barot House                  1080p     Barot.House.2019.2160p.ZEE5.WEB-DL.MULTi.AAC2.0.H.265-MR.mkv
+55   1.58 GB  Detective Sherdil            1080p     Detective.Sherdil.2025.2160p.ZEE5.WEB-DL.DDP5.1.Atmos.HEVC-P.mkv
+56   1.58 GB  Dhoom                        1080p     Dhoom_2004_Hindi_2160p_10bit_HDR_BluRay_x265_HEVC_AAC_5_1_ESubMusafirboy.mkv
+57   1.59 GB  Jism                         1080p     Jism.2003.2160p.ZEE5.WEB-DL.AAC2.0.H.265-YamRaaJ.mkv
+58   1.60 GB  Obsession                    1080p     Obsession.2025.2160p.10bit.HDR.DV.WEBRip.6CH.x265.HEVC-PSA.mkv
+59   1.61 GB  Sync                         1080p     Sync (2023) Tamil TRUE WEB-DL - 4K UHD - 2160p - HEVC - (DD+.mkv
+60   1.62 GB  Why Cheat India              1080p     Why.Cheat.India.2019.2160p.ZEE5.WEB-DL.DDP5.1.H.265-Spidey.mkv
+61   1.63 GB  Mrs.                         1080p     MRS.2025.2160p.ZEE5.WEB-DL.DD+5.1.H.265-Telly.mkv
+62   1.64 GB  Cheaters                     1080p     🔞 Cheaters 2024 2160p WEB DL x264 ESub.mkv
+63   1.68 GB  Headmaster                   1080p     Headmaster.2022.2160p.YT.WEB-DL.AAC.2.0.x264-DVDWO.mkv
+64   1.69 GB  Identity                     1080p     Identity (2025) 2160p 10bit ZEE5 WEB-DL x265 HEVC [Org U.mkv
+65   1.70 GB  Thadam                       1080p     Thadam 2019 4K 12bit Untouched UHD DD 2.0 x265 HEVC-THH.mkv
+66   1.71 GB  Irul                         1080p     Irul.2021.2160p.AHA.WEB-DL.DD 5.1.H.265-TR.mkv
+67   1.71 GB  Badlapur                     1080p     Badlapur.2015.2160p.ZEE5.WEB-DL.DDP5.1.H.265-Spidey.mkv
+68   1.71 GB  Constable Kanakam            1080p     Constable Kanakam S01E06 - Nakshatram., 4K-2160p ETV.mkv
+69   1.71 GB  Constable Kanakam            1080p     Constable Kanakam S01E05 - Mandasa Kova., 4K-2160p E.mkv
+70   1.73 GB  DC League of Super-Pets      1080p     DC_League_of_Super_Pets_2022_2160p_10bit_HDR_DV_WEBRip_6CH_x265.mkv
+71   1.73 GB  Thank You Brother!           1080p     Thank You Brother (2021) Telugu 4K-2160p - AHA WEB-DL - HEVC.mkv
+72   1.74 GB  Black Mirror                 1080p     Black.Mirror.S07E04.2160p.10bit.HDR.DV.WEBRip.6CH.x265.HEVC-.mkv
+73   1.74 GB  The Commuter                 1080p     The.Commuter.2018.2160p.10bit.HDR.BluRay.8CH.x265.HEVC-PSA.mkv
+74   1.76 GB  Grandma                      1080p     Grandma.2022.2160p.AHA.WEB-DL.DD+5.1.H.265-DRAWIZ.mkv
+75   1.77 GB  Pandrikku Nandri Solli       1080p     @Tentkotta4k Pandrikku Nandri Solli (2022) Tamil TRUE W.mkv
+76   1.77 GB  Blush                        1080p     Blush.2021.2160p.ATVP.WEB-DL.DDP5.1.Atmos.DoVi.HEVC.mkv
+77   1.79 GB  Black Mirror                 1080p     Black.Mirror.S07E03.2160p.10bit.HDR.DV.WEBRip.6CH.x265.HEVC-.mkv
+78   1.79 GB  RIWAJ                        1080p     Riwaj.2025.2160p.ZEE5.WEB-DL.AAC2.0.H.265.mkv
+79   1.79 GB  LEGO Marvel Avengers: Missio 1080p     Lego.Marvel.Avengers.Mission.Demolition.2024.2160p.4K.WEB.x2.mkv
+80   1.80 GB  Prathi Poovankozhi           1080p     Prathi.Poovankozhi.2019.2160p.ZEE5.WEB-DL.DDP5.1.H.265-P.mkv
+81   1.81 GB  Candyman                     1080p     Candyman.2021.2160p.10bit.HDR.WEBRip.6CH.x265.HEVC-PSA.mkv
+82   1.82 GB  Five Nights at Freddy's 2    1080p     Five_Nights_at_Freddy's_2_2025_2160p_HDR10Plus_DV_WEBRip_6CH.mkv
+83   1.82 GB  Manmarziyaan                 1080p     Manmarziyaan.2018.2160p.ZEE5.WEB-DL.DD+5.1.H.265-TR.mkv
+84   1.82 GB  Murder on the Orient Express 1080p     Murder.on.the.Orient.Express.2017.2160p.UHD.BluRay.HDR.mkv
+85   1.83 GB  A Quiet Place Part II        1080p     A.Quiet.Place.Part.II.2020.2160p.10bit.HDR.WEBRip.6CH.x265.mkv
+86   1.83 GB  Chennai Express              1080p     Chennai_Express_2013_2160p_10bit_UHD_BluRay_x265_HEVC_AAC_5_1_ESubOlaMovies.mkv
+87   1.83 GB  Madam Sengupta               1080p     Madam.Sengupta.2025.2160p.ZEE5.WEB-DL.DD+5.1.H.265-T.mkv
+88   1.84 GB  Zehan                        1080p     Zehan.2024.Hindi.2160p.ZEE5.WEB-DL.DD+5.1.H.265-OlaM.mkv
+89   1.84 GB  Chandramukhi                 1080p     Chandramukhi 2005 Tamil 4K REMASTERED TRUE UHD AVC x265 12Bi.mkv
+90   1.84 GB  Constable Kanakam            1080p     Constable Kanakam S01E04 - Thrisulam., 4K-2160p ETVW.mkv
+91   1.85 GB  Constable Kanakam            1080p     Constable Kanakam S01E03 - Adivigutta., 4K-2160p ETV.mkv
+92   1.86 GB  Sam Bahadur                  1080p     Sam.Bahadur.2023.2160p.HQ.ZEE5.WEB-DL.HIN.DD+ATMOS.448K.HEVC.mkv
+93   1.87 GB  The Pet Detective            1080p     The Pet Detective (2025) Tamil WEB-DL - 4K SDR - 2160p HQ -.mkv
+94   1.87 GB  Judgementall Hai Kya         1080p     Judgementall.Hai.Kya.2019.2160p.ZEE5.WEB-DL.DD+5.1.H.265.mkv
+95   1.87 GB  Silence 2: The Night Owl Bar 1080p     Silence.2.The.Night.Owl.Bar.Shootout.2024.2160p.ZEE5.WEB-DL..mkv
+96   1.87 GB  Annaatthe                    1080p     Annaatthe_2021_Tamil_2160p_10bit_WEB_DL_x265_HEVC_Atmos_7_1_MPEG7.mkv
+97   1.88 GB  Jallikattu                   1080p     Jallikattu.2019.2160p.8bit.UHD.AMZN.WEB-DL.AAC-5.1.x265.AVK.mkv
+98   1.88 GB  Sivaji: The Boss             1080p     Sivaji 2007 Tamil 4K FHD x265 12 Bit Opus 2 1 1 9Gb Esubs.mkv
+99   1.88 GB  The Last Duel                1080p     The_Last_Duel_2021_2160p_10bit_HDR_WEBRip_6CH_x265_HEVC_PSA_mkv.mkv
+100  1.89 GB  Escape Room: Tournament of C 1080p     Escape_Room_Tournament_Of_Champions_2021_2160p_Eng_@ALBCINEMASALL.mkv
+101  1.89 GB  Pranayam                     1080p     Pranayam 1947 (2025) [Telugu - 4K UHD - HEVC - x265 - [DDP5.mkv
+102  1.89 GB  Prince and Family            1080p     Prince.and.Family.2025.2160p.ZEE5.WEB-DL.DD+5.1.H.265-Telly.mkv
+103  1.89 GB  My Dear Donga                1080p     My.Dear.Donga.2024.Telugu.2160p.AHA.WEB-DL.DDP5.1.H.265-PMI.mkv
+104  1.89 GB  Hokum                        1080p     Hokum.2026.2160p.HDR10Plus.WEBRip.6CH.x265.HEVC-PSA.mkv
+105  1.89 GB  The Sabarmati Report         1080p     The Sabarmati Report (2024) ZEE5 2160p 10bit WEBRip Mult.mkv
+106  1.89 GB  Nagumome Chaalu Le           1080p     Nagumome Chaalu Le (2023) 2160p HQ SDR AHA WEB-DL x265 [Telu.mkv
+107  1.92 GB  The Daughter                 1080p     The.Daughter.2022.2160p.Jio.WEB-DL.DD5.1.H.264-Archie.mkv
+108  1.92 GB  Jojo Rabbit                  1080p     Jojo.Rabbit.2019.2160p.10bit.HDR.BluRay.6CH.x265.HEVC-PSA.mkv
+109  1.92 GB  Greenland 2: Migration       1080p     Greenland.2.Migration.2026.2160p.HDR10Plus.WEBRip.6CH.x265.H.mkv
+110  1.93 GB  Thuppakki                    1080p     Thuppakki_2012_Tamil_HQ_BluRay_1_224Kbps_&_AAC_2GB_ESub
+111  1.93 GB  Sam Bahadur                  1080p     Sam Bahadur 2023 Hindi WEB-DL 4K SDR 2160p.mkv
+112  1.93 GB  Gaami                        1080p     Gaami.2024.2160p.ZEE5.WEB-DL.Multi.DDP5.1.H.265-PMI.mkv
+113  1.94 GB  Maaman                       1080p     Maaman.2025.2160p.ZEE5.WEB-DL.DDP5.1.HEVC-PrimeFix.mkv
+114  1.95 GB  The Twilight Saga: Breaking  1080p     The Twilight Saga Breaking Dawn   Part 1 2011 2160p 4K BluPF.mkv
+115  1.95 GB  Constable Kanakam            1080p     Constable Kanakam S01E01 - Jaathara, 4K-2160p ETVWIN.mkv
+116  1.95 GB  Hisaab Barabar               1080p     Hisaab.Barabar.2025.2160p.ZEE5.WEB-DL.Multi.DD+5.1.ATMOS.mkv
+117  1.98 GB  Bloody Mary                  1080p     Bloody Mary 2022 UNCUT 2160p AHA WEB-DL x265 HEVC ESubs Org .mkv
+118  1.98 GB  Ente Mezhuthiri Athazhangal  1080p     Ente.Mezhuthiri.Athazhangal.2018.2160p.ZEE5.WEB-DL.DDP5..mkv
+119  1.98 GB  Asthram                      1080p     Asthram (2025) Tamil TRUE WEB-DL - 4K SDR - 2160p HQ - HEVC.mkv
+120  1.98 GB  Blink Twice                  1080p     Blink.Twice.2024.2160p.HDR10Plus.DV.WEBRip.6CH.x265.HEVC-PSA.mkv
