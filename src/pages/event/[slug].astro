@@ -70,7 +70,7 @@ const accent = event.accentColor === '#FFFFFF' ? '#F7D000' : event.accentColor;
         <div class="min-w-0">
           <div class="flex items-center gap-2 flex-wrap mb-2">
             {event.edition && (
-              <span class="text-xs font-bold px-2.5 py-1 rounded-full" style={`background: ${event.color}30; color: ${accent}; border: 1px solid ${event.color}55;`}>{event.edition} Edition</span>
+              <span class="text-xs font-bold px-2.5 py-1 rounded-full evd-accent" style={`background: ${event.color}30; color: ${accent}; border: 1px solid ${event.color}55;`}>{event.edition} Edition</span>
             )}
             {isLive ? (
               <span class="text-xs font-bold px-2.5 py-1 rounded-full animate-pulse" style="background: rgba(239,68,68,0.2); color:#f87171; border:1px solid rgba(239,68,68,0.4);">● LIVE NOW</span>
@@ -231,6 +231,10 @@ const accent = event.accentColor === '#FFFFFF' ? '#F7D000' : event.accentColor;
       color-mix(in srgb,var(--ev-tint) 16%,#ffffff) 45%,#ffffff 100%)!important}
   :global(html:not(.dark)) .evd .evd-heroscrim{
     background:linear-gradient(to top,#ffffff 0%,rgba(255,255,255,.72) 45%,transparent 100%)!important}
+  /* The edition pill takes the event's accent, which for a gold festival is
+     gold on pale gold once the hero is light. Darkened by filter so each
+     event keeps its own hue. */
+  :global(html:not(.dark)) .evd .evd-accent{filter:brightness(.55) saturate(1.5)}
   :global(html:not(.dark)) .evd h1.text-white,
   :global(html:not(.dark)) .evd h2.text-white,
   :global(html:not(.dark)) .evd a.text-white{color:var(--text-primary)}
