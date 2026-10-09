@@ -4,7 +4,9 @@ import { createUser } from '../../../lib/auth';
 export const POST: APIRoute = async ({ request, cookies }) => {
   try {
     const body = await request.json();
-    const { email, password, displayName } = body;
+    // `email` is reassigned below (trimmed), so it cannot be a const.
+    let { email } = body;
+    const { password, displayName } = body;
 
     if (!email || !password) {
       return new Response(JSON.stringify({ success: false, error: 'Email and password are required' }), {
@@ -19,6 +21,11 @@ export const POST: APIRoute = async ({ request, cookies }) => {
         headers: { 'Content-Type': 'application/json' }
       });
     }
+
+    // Trim BEFORE validating: the regex rejects whitespace, so a pasted
+    // address with a stray leading or trailing space was told its format was
+    // invalid, which tells the person nothing useful about what to change.
+    email = email.trim();
 
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(email)) {
