@@ -4,6 +4,7 @@ Disallow: /api/
 Disallow: /admin/
 Disallow: /tgstream/
 Disallow: /download/
+Disallow: /docs/
 
 User-Agent: Googlebot
 Allow: /
