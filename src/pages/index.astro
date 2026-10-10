@@ -311,6 +311,27 @@ try {
   const _SRC = 'https://www.dvdsreleasedates.com';
   const _MONTH_NAMES = ['january','february','march','april','may','june','july','august','september','october','november','december'];
   const _DATE_RE = /class=["']reldate[^>]*>(?:<a[^>]*><\/a>)?([A-Za-z]+day\s+[A-Za-z]+\s+\d{1,2},\s*\d{4})/g;
+  // dvdsreleasedates alt text is HTML-escaped ("Beware Boi&uacute;na"). Decode
+  // named Latin-1/typographic entities and numeric ones; anything unknown is
+  // left as-is so a bad entity can never corrupt a title further.
+  const _ENT: Record<string, string> = {
+    amp:'&', lt:'<', gt:'>', quot:'"', apos:"'", nbsp:' ', hellip:'…', ndash:'–', mdash:'—',
+    lsquo:'‘', rsquo:'’', ldquo:'“', rdquo:'”', copy:'©', reg:'®', trade:'™', deg:'°',
+    aacute:'á', eacute:'é', iacute:'í', oacute:'ó', uacute:'ú', ntilde:'ñ', ccedil:'ç',
+    agrave:'à', egrave:'è', igrave:'ì', ograve:'ò', ugrave:'ù', auml:'ä', euml:'ë', iuml:'ï',
+    ouml:'ö', uuml:'ü', acirc:'â', ecirc:'ê', icirc:'î', ocirc:'ô', ucirc:'û', atilde:'ã',
+    otilde:'õ', aring:'å', oslash:'ø', aelig:'æ', szlig:'ß', yacute:'ý', yuml:'ÿ',
+    Aacute:'Á', Eacute:'É', Iacute:'Í', Oacute:'Ó', Uacute:'Ú', Ntilde:'Ñ', Ccedil:'Ç',
+    Agrave:'À', Egrave:'È', Auml:'Ä', Ouml:'Ö', Uuml:'Ü', Acirc:'Â', Ecirc:'Ê', Ocirc:'Ô',
+    Atilde:'Ã', Otilde:'Õ', Aring:'Å', Oslash:'Ø', AElig:'Æ',
+  };
+  function decodeEntities(s: string): string {
+    return s
+      .replace(/&#x([0-9a-fA-F]+);/g, (_, h) => String.fromCodePoint(parseInt(h, 16)))
+      .replace(/&#(\d+);/g, (_, d) => String.fromCodePoint(parseInt(d, 10)))
+      .replace(/&([a-zA-Z]+);/g, (m, n) => (n in _ENT ? _ENT[n] : m))
+      .trim();
+  }
   const _MOVIE_RE = /href=['"]\/movies\/(\d+)\/([^'"]+)['"]><img[^>]*alt=['"]([^'"]+?)\s+DVD Release Date['"][^>]*src=['"]([^'"]+)['"]/g;
   async function _getOrScrapeMonth(mNum: number): Promise<any[]> {
     const cacheKey = `dvdsrd-2026-${mNum}`;
@@ -330,7 +351,7 @@ try {
       const chunk = html.slice(marks[i].idx, i + 1 < marks.length ? marks[i + 1].idx : html.length);
       const movies: any[] = []; let mm: RegExpExecArray | null; _MOVIE_RE.lastIndex = 0;
       while ((mm = _MOVIE_RE.exec(chunk))) {
-        movies.push({ id: mm[1], slug: mm[2], title: mm[3].replace(/&amp;/g, '&').replace(/&#039;/g, "'").trim() });
+        movies.push({ id: mm[1], slug: mm[2], title: decodeEntities(mm[3]) });
       }
       if (!movies.length) continue;
       const d = new Date(marks[i].date);
