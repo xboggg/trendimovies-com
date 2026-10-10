@@ -1078,6 +1078,9 @@ function norm(s: string) { return (s || '').toLowerCase().replace(/[^a-z0-9]+/g,
 
 let siteByTmdb = new Map<string, string>(); // tmdb_id (string) -> slug
 let siteByTitle = new Map<string, string>(); // norm(title) -> slug
+// tmdb_id (string) -> poster URL from OUR catalogue, used only when TMDB has none
+// for the title (e.g. a 'Planned' film TMDB has no image for yet).
+let sitePosterByTmdb = new Map<string, string>();
 try {
   // gather all REAL TMDB ids (resolved above) + titles shown across months
   const allIds = new Set<string>();
@@ -1092,11 +1095,13 @@ try {
   for (let i = 0; i < idsArr.length; i += 60) {
     const chunk = idsArr.slice(i, i + 60);
     const inList = chunk.join(',');
-    const res = await fetch(`${POSTGREST_URL}/movies?tmdb_id=in.(${encodeURIComponent(inList)})&has_downloads=eq.true&select=tmdb_id,title,slug`);
+    const res = await fetch(`${POSTGREST_URL}/movies?tmdb_id=in.(${encodeURIComponent(inList)})&has_downloads=eq.true&select=tmdb_id,title,slug,poster_path`);
     if (res.ok) {
       const rows: any[] = await res.json();
       for (const row of rows) if (row.slug) {
         if (row.tmdb_id != null) siteByTmdb.set(String(row.tmdb_id), row.slug);
+        if (row.tmdb_id != null && row.poster_path) sitePosterByTmdb.set(String(row.tmdb_id),
+          row.poster_path.startsWith('/images/') ? row.poster_path : `https://image.tmdb.org/t/p/w342${row.poster_path}`);
         if (row.title) siteByTitle.set(norm(row.title), row.slug);
       }
     }
@@ -1135,7 +1140,8 @@ const months = MONTHS.map(([n], idx) => {
       // Need the real TMDB id to build a working Watch link; without it, don't link.
       const watch_url = on_site && tid ? `/movie/${tid}` : null;
       // TMDB poster (CSP-allowed). Fall back to local placeholder if none.
-      const poster = posterByTitle.get(mv.title) || '/images/no-poster.svg';
+      // TMDB poster first; else our catalogue's poster for the same tmdb id; else placeholder.
+      const poster = posterByTitle.get(mv.title) || (tid ? sitePosterByTmdb.get(String(tid)) : undefined) || '/images/no-poster.svg';
       return { ...mv, tmdb_id: tid, poster, on_site: !!watch_url, watch_url };
     }),
   }));
