@@ -44,7 +44,10 @@
     // and only turns solid once you scroll PAST the hero. On other pages there's
     // no hero, so it goes solid almost immediately for readability.
     const isHome = window.location.pathname === '/';
-    const getThreshold = () => (isHome ? Math.max(window.innerHeight * 0.85, 200) : 50);
+    // Transparent only at the very top. The old homepage threshold (85% of
+    // the viewport) kept the header see-through for the whole hero, so the
+    // hero's own title scrolled up behind the logo and nav.
+    const getThreshold = () => (isHome ? 24 : 50);
     const handleScroll = () => {
       isScrolled = window.scrollY > getThreshold();
     };
@@ -156,9 +159,9 @@
     <div class="flex items-center justify-between h-16 lg:h-20">
       <!-- Premium Logo -->
       <a href="/" class="flex items-center group" aria-label="TrendiMovies home">
-        <!-- 535x176 asset shown at 36/44px high; width/height attrs prevent layout shift -->
-        <img src="/images/logo-header.png" alt="TrendiMovies" width="535" height="176"
-             class="h-9 lg:h-11 w-auto transition-transform group-hover:scale-105" decoding="async" fetchpriority="high" />
+        <!-- 681x224 wordmark (tagline removed) shown at 44/56px high; width/height attrs prevent layout shift -->
+        <img src="/images/logo-header.png" alt="TrendiMovies" width="681" height="224"
+             class="h-11 lg:h-14 w-auto transition-transform group-hover:scale-105" decoding="async" fetchpriority="high" />
       </a>
 
       <!-- Desktop Navigation -->
