@@ -155,29 +155,10 @@
   <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
     <div class="flex items-center justify-between h-16 lg:h-20">
       <!-- Premium Logo -->
-      <a href="/" class="flex items-center space-x-1 group">
-        <div class="relative">
-          <svg width="30" height="30" viewBox="0 0 60 60" class="lg:w-9 lg:h-9 transition-transform group-hover:scale-105" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-            <defs>
-              <linearGradient id="tmGold" x1="0" y1="0" x2="1" y2="1">
-                <stop offset="0%" stop-color="#fde68a"/><stop offset="45%" stop-color="#fbbf24"/><stop offset="100%" stop-color="#d97706"/>
-              </linearGradient>
-              <radialGradient id="tmReel" cx="42%" cy="38%" r="70%">
-                <stop offset="0%" stop-color="#9f1d1d"/><stop offset="100%" stop-color="#6d1414"/>
-              </radialGradient>
-            </defs>
-            <g transform="translate(30,30)">
-              <circle cx="0" cy="0" r="27" fill="url(#tmReel)"/>
-              <circle cx="0" cy="0" r="27" fill="none" stroke="url(#tmGold)" stroke-width="2.5"/>
-              <g fill="#0b0b0d" opacity="0.55">
-                <circle cx="0" cy="-18" r="3.4"/><circle cx="18" cy="0" r="3.4"/><circle cx="0" cy="18" r="3.4"/><circle cx="-18" cy="0" r="3.4"/>
-              </g>
-              <path d="M-7 -9 L12 0 L-7 9 Z" fill="url(#tmGold)"/>
-            </g>
-          </svg>
-        </div>
-        <span class="text-xl lg:text-2xl font-black tracking-tight logo-text">Trendi</span>
-        <span class="text-xl lg:text-2xl font-black tracking-tight logo-text-dark">Movies</span>
+      <a href="/" class="flex items-center group" aria-label="TrendiMovies home">
+        <!-- 535x176 asset shown at 36/44px high; width/height attrs prevent layout shift -->
+        <img src="/images/logo-header.png" alt="TrendiMovies" width="535" height="176"
+             class="h-9 lg:h-11 w-auto transition-transform group-hover:scale-105" decoding="async" fetchpriority="high" />
       </a>
 
       <!-- Desktop Navigation -->
