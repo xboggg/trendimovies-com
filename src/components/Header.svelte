@@ -159,8 +159,8 @@
     <div class="flex items-center justify-between h-16 lg:h-20">
       <!-- Premium Logo -->
       <a href="/" class="flex items-center group" aria-label="TrendiMovies home">
-        <!-- 681x224 wordmark (tagline removed) shown at 44/56px high; width/height attrs prevent layout shift -->
-        <img src="/images/logo-header.png" alt="TrendiMovies" width="681" height="224"
+        <!-- 678x224 wordmark (corrected logo, no tagline) shown at 44/56px high; width/height attrs prevent layout shift -->
+        <img src="/images/logo-header.png" alt="TrendiMovies" width="678" height="224"
              class="h-11 lg:h-14 w-auto transition-transform group-hover:scale-105" decoding="async" fetchpriority="high" />
       </a>
 
