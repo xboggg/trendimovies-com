@@ -156,8 +156,22 @@ export const GET: APIRoute = async ({ url }) => {
   }
 };
 
+// The acquirer on Oracle marks requests completed when a requested title is
+// already in the library. It has no admin cookie, so every PATCH returned 401
+// and it re-notified the same request on every run (A Different world, four
+// times a day from 28 Sep). It may authenticate with the shared acquirer token
+// instead; the comparison is constant-time and only an exact match passes.
+function acquirerTokenOk(request: Request): boolean {
+  const given = request.headers.get('x-acquirer-token') || '';
+  const expected = import.meta.env.ACQUIRER_TOKEN || process.env.ACQUIRER_TOKEN || '';
+  if (!given || !expected || given.length !== expected.length) return false;
+  let diff = 0;
+  for (let i = 0; i < expected.length; i++) diff |= given.charCodeAt(i) ^ expected.charCodeAt(i);
+  return diff === 0;
+}
+
 export const PATCH: APIRoute = async ({ request }) => {
-  const authError = requireAuth(request);
+  const authError = acquirerTokenOk(request) ? null : requireAuth(request);
   if (authError) return authError;
 
   try {
@@ -228,6 +242,24 @@ export const PATCH: APIRoute = async ({ request }) => {
         const matchData = await matchRes.json();
         if (Array.isArray(matchData) && matchData.length > 0) {
           matchedTmdbId = matchData[0].tmdb_id;
+        }
+      }
+
+      // The requester may have filed a series as a movie (or vice versa). If
+      // nothing matched in the request's own table, try the other one by title
+      // alone and correct content_type on a hit. "A Different World" (2026)
+      // was requested as a movie, is a series in the catalog, and the
+      // acquirer's completed-mark got 409 on every run (2026-10-16).
+      if (!matchedTmdbId && !overrideTmdbId && reqRow?.title) {
+        const other = table === 'series' ? 'movies' : 'series';
+        const altRes = await fetch(
+          `${POSTGREST_URL}/${other}?title=ilike.${encodeURIComponent(reqRow.title)}&select=tmdb_id&limit=1`,
+          { headers: { 'Accept-Profile': 'public' } }
+        );
+        const altData = await altRes.json();
+        if (Array.isArray(altData) && altData.length > 0) {
+          matchedTmdbId = altData[0].tmdb_id;
+          updatePayload.content_type = other === 'series' ? 'series' : 'movie';
         }
       }
 
