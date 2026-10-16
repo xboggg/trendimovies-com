@@ -55,12 +55,27 @@ const SORTS: Record<string, { label: string; order: string }> = {
 
 const fGenre = params.get('genre') || '';
 const fLang = params.get('lang') || '';
-const fYear = params.get('year') || '';
+const fYear = params.get('year') || '';   // legacy bucket links (?year=2020s) keep working
+
+// Year range (?yf=2025&yt=2026). Either end may be empty. Only whole years
+// in [YEAR_MIN, YEAR_MAX] are accepted; anything else is ignored.
+const YEAR_MAX = new Date().getFullYear();
+const YEAR_MIN = 1950;
+const YEAR_OPTIONS = Array.from({ length: YEAR_MAX - YEAR_MIN + 1 }, (_, i) => YEAR_MAX - i);
+const yearParam = (k: string) => {
+  const v = parseInt(params.get(k) || '', 10);
+  return Number.isInteger(v) && v >= YEAR_MIN && v <= YEAR_MAX ? v : null;
+};
+let fYearFrom = yearParam('yf');
+let fYearTo = yearParam('yt');
+if (fYearFrom !== null && fYearTo !== null && fYearFrom > fYearTo) {
+  [fYearFrom, fYearTo] = [fYearTo, fYearFrom];
+}
 const fRated = params.get('rating') === '7';
 const fNolly = params.get('from') === 'ng';
 const fSort = SORTS[params.get('sort') || ''] ? (params.get('sort') as string) : 'newest';
 
-const hasFilters = !!(fGenre || fLang || fYear || fRated || fNolly) || fSort !== 'newest';
+const hasFilters = !!(fGenre || fLang || fYear || fYearFrom !== null || fYearTo !== null || fRated || fNolly) || fSort !== 'newest';
 
 // Build the query -------------------------------------------------------------
 const q: string[] = ['has_downloads=eq.true'];
@@ -73,7 +88,10 @@ if (fGenre && GENRES.includes(fGenre)) {
 if (fLang && LANGS[fLang]) {
   q.push(`original_language=in.(${LANGS[fLang].codes.join(',')})`);
 }
-if (fYear && YEARS[fYear]) {
+if (fYearFrom !== null || fYearTo !== null) {
+  if (fYearFrom !== null) q.push(`year=gte.${fYearFrom}`);
+  if (fYearTo !== null) q.push(`year=lte.${fYearTo}`);
+} else if (fYear && YEARS[fYear]) {
   q.push(`year=gte.${YEARS[fYear].from}`, `year=lte.${YEARS[fYear].to}`);
 }
 if (fRated) q.push('vote_average=gte.7');
@@ -118,7 +136,11 @@ const totalPages = Math.ceil(total / perPage);
 function link(overrides: Record<string, string | null>) {
   const p = new URLSearchParams();
   const cur: Record<string, string> = {
-    genre: fGenre, lang: fLang, year: fYear,
+    genre: fGenre, lang: fLang,
+    // a range replaces a legacy bucket; never carry both
+    year: (fYearFrom !== null || fYearTo !== null) ? '' : fYear,
+    yf: fYearFrom !== null ? String(fYearFrom) : '',
+    yt: fYearTo !== null ? String(fYearTo) : '',
     rating: fRated ? '7' : '', from: fNolly ? 'ng' : '',
     sort: fSort === 'newest' ? '' : fSort,
   };
@@ -189,15 +211,20 @@ const heading = fNolly ? (fGenre ? `Latest Nollywood ${fGenre} Movies` : 'Latest
         </select>
       </label>
 
-      <label class="tmf__f">
-        <span>Year</span>
-        <select name="year">
-          <option value="">Any year</option>
-          {Object.entries(YEARS).map(([k, v]) => (
-            <option value={k} selected={fYear === k}>{v.label}</option>
-          ))}
-        </select>
-      </label>
+      <div class="tmf__f" role="group" aria-labelledby="tmf-year-l">
+        <span id="tmf-year-l">Year</span>
+        <div class="tmf__range">
+          <select name="yf" aria-label="From year" data-nosubmit>
+            <option value="">From</option>
+            {YEAR_OPTIONS.map(y => <option value={y} selected={fYearFrom === y}>{y}</option>)}
+          </select>
+          <span class="tmf__to" aria-hidden="true">–</span>
+          <select name="yt" aria-label="To year">
+            <option value="">To</option>
+            {YEAR_OPTIONS.map(y => <option value={y} selected={fYearTo === y}>{y}</option>)}
+          </select>
+        </div>
+      </div>
 
       <label class="tmf__f">
         <span>Language</span>
@@ -313,6 +340,9 @@ const heading = fNolly ? (fGenre ? `Latest Nollywood ${fGenre} Movies` : 'Latest
     cursor: pointer;
   }
   .tmf select option { background: var(--bg-card); color: var(--text-primary); }
+  .tmf__range { display: flex; align-items: center; gap: 6px; }
+  .tmf__range select { min-width: 92px; }
+  .tmf__to { color: var(--text-secondary); font-size: 13px; }
   .tmf select:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 
   .tmf__toggles { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-left: auto; }
@@ -353,6 +383,7 @@ const heading = fNolly ? (fGenre ? `Latest Nollywood ${fGenre} Movies` : 'Latest
        about two lines on a phone instead of filling the screen. */
     .tmf__f { flex: 1 1 calc(50% - 5px); }
     .tmf select { min-width: 0; width: 100%; }
+    .tmf__range select { min-width: 0; flex: 1 1 0; }
     .tmf__toggles { margin-left: 0; width: 100%; }
     .tmf__go { margin-left: auto; }
   }
@@ -366,5 +397,10 @@ const heading = fNolly ? (fGenre ? `Latest Nollywood ${fGenre} Movies` : 'Latest
   // Progressive enhancement ONLY. Without JS the Apply button submits the
   // form normally, so every filter combination stays reachable.
   const tmf = document.getElementById('tmf');
-  if (tmf) tmf.addEventListener('change', () => tmf.submit());
+  // "From" waits for "To" (or Apply) so picking a range is one page load.
+  if (tmf) tmf.addEventListener('change', (e) => {
+    const t = e.target as HTMLElement | null;
+    if (t && t.hasAttribute('data-nosubmit')) return;
+    tmf.submit();
+  });
 </script>
