@@ -40,6 +40,15 @@ OUT = "/var/www/trendimovies/.cache/hero-focus.json"
 MODEL = os.path.join(HERE, "face_detection_yunet_2023mar.onnx")
 YOLOX_MODEL = os.path.join(HERE, "yolox_s.onnx")      # opencv_zoo object_detection_yolox_2022nov
 VERSION = 2   # 1 = faces + HOG; 2 = + YOLOX people. Older entries are recomputed.
+
+# Subjects no detector recognises, measured from the image itself and keyed
+# by the exact backdrop (a swapped backdrop is never given this position).
+# value = horizontal centre of the subject as a fraction of the width.
+MANUAL_CENTRE = {
+    # Buddy (1514026): person in a red animal costume; neither YuNet nor YOLOX
+    # sees a human. Red-costume column profile spans 0.529-0.678 -> 0.604.
+    "/ytoLEl5yDaxB8AtZ52uKWjaQ9ql.jpg": 0.604,
+}
 sys.path.insert(0, HERE)
 import yolox_people  # noqa: E402
 PREVIEW = "/root/logo_v2/hero_focus_preview"
@@ -160,6 +169,14 @@ def main():
         os.makedirs(PREVIEW, exist_ok=True)
     changed = False
     for tid, title, path in hero_candidates():
+        if path in MANUAL_CENTRE:
+            x = to_object_position(MANUAL_CENTRE[path])
+            if cache.get(path, {}).get("x") != x:
+                cache[path] = {"tmdb_id": tid, "title": title, "method": "manual", "v": VERSION,
+                               "x": x, "computed": time.strftime("%Y-%m-%d %H:%M")}
+                changed = True
+                print("  %-8s %-34s manual x=%s" % (tid, (title or "")[:34], x))
+            continue
         if path in cache and cache[path].get("v", 1) >= VERSION and not preview:
             continue
         try:
