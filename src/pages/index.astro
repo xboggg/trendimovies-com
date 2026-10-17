@@ -9,6 +9,7 @@ import ContinueWatching from '../components/ContinueWatching.svelte';
 import TrendingNowRow from '../components/TrendingNowRow.svelte';
 import { getTrendingMovies, getNowPlayingMovies, getPopularMovies, getTopRatedMovies, getTrendingTV, getPopularTV, getOnTheAirTV, discoverMovies, getMovieDetails, getMovieGenres, getTVDetails, searchMovies, fetchFromTMDB } from '../lib/tmdb';
 import { getCache as _getCache, setCache as _setCache } from '../lib/cache';
+import { readFileSync as _readFileSync } from 'node:fs';
 import topMoviesData from '../data/top_movies_by_year.json';
 
 const POSTGREST_URL = import.meta.env.PUBLIC_SUPABASE_URL || 'http://localhost:3001';
@@ -284,6 +285,18 @@ const heroItems = (() => {
   while (si < heroSeriesItems.length) out.push(heroSeriesItems[si++]);
   return out;
 })();
+
+// Phone crop focus for the hero (where the people are in each backdrop),
+// written by /opt/trendimovies/hero-focus/hero_focus.py. Keyed by backdrop
+// path. No file / bad file -> no focus_x -> the centred crop, as before.
+const HERO_FOCUS_FILE = '/var/www/trendimovies/.cache/hero-focus.json';
+let heroFocus: Record<string, { x?: number }> = {};
+try { heroFocus = JSON.parse(_readFileSync(HERO_FOCUS_FILE, 'utf-8')) || {}; } catch (e) { heroFocus = {}; }
+for (const it of heroItems) {
+  const f = it && it.backdrop_path ? heroFocus[it.backdrop_path] : null;
+  const x = f && typeof f.x === 'number' && f.x >= 0 && f.x <= 100 ? f.x : null;
+  if (x !== null) it.focus_x = x;
+}
 
 const trendingItems = (trending || []).slice(0, 20).map(transformMovie);
 const featured = heroItems[0] || null;

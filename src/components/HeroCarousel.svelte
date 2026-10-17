@@ -17,6 +17,7 @@
     type: 'movie' | 'series';
     tagline?: string | null;
     release_date?: string | null;
+    focus_x?: number | null;   // phone crop focus (% from left), see index.astro
   }
 
   export let featured: TrendingItem | null = null;
@@ -37,6 +38,11 @@
     1284465: '85% center', // The Death of Robin Hood — face on the right
   };
   $: heroObjectPosition = (currentItem && HERO_OBJECT_POSITION[currentItem.id]) || 'center';
+  // Phones/tablets (< 1280px) see only a narrow vertical slice of the
+  // backdrop, so they aim at the detected people (focus_x). Desktop keeps
+  // its centred crop. A manual override above wins on every screen.
+  $: heroObjectPositionMobile = (currentItem && HERO_OBJECT_POSITION[currentItem.id])
+    || (typeof currentItem?.focus_x === 'number' ? `${currentItem.focus_x}% center` : 'center');
 
   $: backdropUrl = currentItem?.backdrop_path
     ? (currentItem.backdrop_path.startsWith('/images/') ? currentItem.backdrop_path : `https://image.tmdb.org/t/p/original${currentItem.backdrop_path}`)
@@ -141,7 +147,7 @@
         <img
           src={backdropUrl}
           alt={currentItem?.title || 'Featured'}
-          class="w-full h-full object-cover" style="object-position: {heroObjectPosition};" fetchpriority="high"
+          class="w-full h-full object-cover hero-bg-img" style="--hero-pos-m: {heroObjectPositionMobile}; --hero-pos-d: {heroObjectPosition};" fetchpriority="high"
         />
       </div>
     {/key}
@@ -319,6 +325,11 @@
 </section>
 
 <style>
+  /* Phone crop follows the people; desktop is unchanged (see focus_x). */
+  .hero-bg-img { object-position: var(--hero-pos-m, center); }
+  @media (min-width: 1280px) {
+    .hero-bg-img { object-position: var(--hero-pos-d, center); }
+  }
   @keyframes kenburns {
     0% { transform: scale(1); }
     100% { transform: scale(1.1); }
