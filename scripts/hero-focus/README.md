@@ -17,3 +17,7 @@ reads (focus_x per hero backdrop) and HeroCarousel.svelte uses below 1280px only
 
 Run with --preview to write crop previews (red = old centre, green = new) to
 /root/logo_v2/hero_focus_preview/.
+
+YOLOX person detector (used when no face is found, e.g. masked Spider-Man):
+yolox_s.onnx = opencv_zoo object_detection_yolox_2022nov.onnx
+(sha256 c5c2d13e59ae883e6af3b45daea64af4833a4951c92d116ec270d9ddbe998063).

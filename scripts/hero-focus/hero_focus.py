@@ -38,6 +38,10 @@ import numpy as np
 HERE = "/opt/trendimovies/hero-focus"
 OUT = "/var/www/trendimovies/.cache/hero-focus.json"
 MODEL = os.path.join(HERE, "face_detection_yunet_2023mar.onnx")
+YOLOX_MODEL = os.path.join(HERE, "yolox_s.onnx")      # opencv_zoo object_detection_yolox_2022nov
+VERSION = 2   # 1 = faces + HOG; 2 = + YOLOX people. Older entries are recomputed.
+sys.path.insert(0, HERE)
+import yolox_people  # noqa: E402
 PREVIEW = "/root/logo_v2/hero_focus_preview"
 WINDOW = 412 / 915 / (16 / 9)        # visible fraction of width on a 412x915 phone (~0.25)
 POSTGREST = "http://127.0.0.1:3001"
@@ -87,6 +91,19 @@ def detect(img):
             boxes.append(((x + bw / 2) / w, bw / w, float(bw * bh * score)))
     if boxes:
         return boxes, "faces"
+    # Masked/turned-away people have no detectable face (Spider-Man): find
+    # whole PEOPLE with YOLOX. A body is usually wider than the phone window,
+    # so it is represented by its central core (at most 60% of the window).
+    try:
+        for x1, y1, x2, y2, score in yolox_people.people(img, YOLOX_MODEL, conf=0.5):
+            bw = (x2 - x1) / w
+            if (y2 - y1) < h * 0.25:            # only sizeable people, not crowds in the distance
+                continue
+            boxes.append((((x1 + x2) / 2) / w, min(bw, WINDOW * 0.6), float(bw * (y2 - y1) / h * score)))
+    except Exception as e:  # noqa: BLE001
+        print("    yolox failed:", e)
+    if boxes:
+        return boxes, "people"
     hog = cv2.HOGDescriptor()
     hog.setSVMDetector(cv2.HOGDescriptor_getDefaultPeopleDetector())
     rects, weights = hog.detectMultiScale(img, winStride=(8, 8), padding=(8, 8), scale=1.05)
@@ -143,7 +160,7 @@ def main():
         os.makedirs(PREVIEW, exist_ok=True)
     changed = False
     for tid, title, path in hero_candidates():
-        if path in cache and not preview:
+        if path in cache and cache[path].get("v", 1) >= VERSION and not preview:
             continue
         try:
             img = load_image(path)
@@ -151,7 +168,7 @@ def main():
             print("  skip %s %s: %s" % (tid, title, e))
             continue
         boxes, method = detect(img)
-        entry = {"tmdb_id": tid, "title": title, "method": method, "n": len(boxes),
+        entry = {"tmdb_id": tid, "title": title, "method": method, "n": len(boxes), "v": VERSION,
                  "computed": time.strftime("%Y-%m-%d %H:%M")}
         if boxes:
             c = choose_centre(boxes)
