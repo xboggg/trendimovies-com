@@ -11,7 +11,8 @@ export const STREAMING_SERVERS = {
     getMovieUrl: (tmdbId: number) => `https://vidcore.org/embed/movie/${tmdbId}`,
     getTVUrl: (tmdbId: number, season: number, episode: number) =>
       `https://vidcore.org/embed/tv/${tmdbId}/${season}/${episode}`,
-    idType: 'tmdb' as const
+    idType: 'tmdb' as const,
+    sandbox: true
   },
   server2: {
     id: 'server2',
@@ -19,7 +20,8 @@ export const STREAMING_SERVERS = {
     getMovieUrl: (tmdbId: number) => `https://vidlink.pro/movie/${tmdbId}`,
     getTVUrl: (tmdbId: number, season: number, episode: number) =>
       `https://vidlink.pro/tv/${tmdbId}/${season}/${episode}`,
-    idType: 'tmdb' as const
+    idType: 'tmdb' as const,
+    sandbox: true
   },
   server3: {
     id: 'server3',
@@ -27,7 +29,8 @@ export const STREAMING_SERVERS = {
     getMovieUrl: (tmdbId: number) => `https://cinesrc.st/embed/movie/${tmdbId}`,
     getTVUrl: (tmdbId: number, season: number, episode: number) =>
       `https://cinesrc.st/embed/tv/${tmdbId}?s=${season}&e=${episode}`,
-    idType: 'tmdb' as const
+    idType: 'tmdb' as const,
+    sandbox: true
   },
   server4: {
     id: 'server4',
@@ -36,7 +39,10 @@ export const STREAMING_SERVERS = {
     getMovieUrl: (tmdbId: number) => `https://vidsrc.me/embed/movie?tmdb=${tmdbId}`,
     getTVUrl: (tmdbId: number, season: number, episode: number) =>
       `https://vidsrc.me/embed/tv?tmdb=${tmdbId}&season=${season}&episode=${episode}`,
-    idType: 'tmdb' as const
+    idType: 'tmdb' as const,
+    // VidSrc refuses <iframe sandbox> ("can't be embedded in a sandboxed
+    // frame"), so it runs unsandboxed -- its pop-ups still open here.
+    sandbox: false
   }
 };
 

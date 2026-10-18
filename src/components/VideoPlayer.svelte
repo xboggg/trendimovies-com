@@ -221,19 +221,22 @@
       {#if currentUrl}
         <!-- sandbox WITHOUT allow-popups / allow-top-navigation: the providers'
              pop-under ads and page redirects cannot open, the video still plays
-             (measured on every server 2026-10-18). Do not add allow-popups. -->
+             (measured 2026-10-18). Do not add allow-popups. A provider that refuses
+             to run sandboxed gets sandbox: false in streaming.ts (VidSrc). -->
+        {#key activeServer}
         <iframe
           bind:this={iframeRef}
           src={currentUrl}
           allowfullscreen
           scrolling="no"
           allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen"
-          sandbox="allow-scripts allow-same-origin allow-forms allow-presentation"
+          sandbox={STREAMING_SERVERS[activeServer].sandbox ? 'allow-scripts allow-same-origin allow-forms allow-presentation' : undefined}
           title="Video Player"
           style="overflow: hidden;"
           on:load={handleIframeLoad}
           on:error={handleIframeError}
         ></iframe>
+        {/key}
       {:else}
         <div class="absolute inset-0 flex items-center justify-center" style="background-color: var(--bg-secondary);">
           <p style="color: var(--text-secondary);">
