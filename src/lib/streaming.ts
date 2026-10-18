@@ -17,6 +17,15 @@ export const STREAMING_SERVERS = {
   server2: {
     id: 'server2',
     name: 'Server 2',
+    getMovieUrl: (tmdbId: number) => `https://cinesrc.st/embed/movie/${tmdbId}`,
+    getTVUrl: (tmdbId: number, season: number, episode: number) =>
+      `https://cinesrc.st/embed/tv/${tmdbId}?s=${season}&e=${episode}`,
+    idType: 'tmdb' as const,
+    sandbox: true
+  },
+  server3: {
+    id: 'server3',
+    name: 'Server 3',
     getMovieUrl: (tmdbId: number) => `https://vidlink.pro/movie/${tmdbId}`,
     getTVUrl: (tmdbId: number, season: number, episode: number) =>
       `https://vidlink.pro/tv/${tmdbId}/${season}/${episode}`,
@@ -24,15 +33,6 @@ export const STREAMING_SERVERS = {
     // VidLink shows "Please Disable Sandbox" (Edmund, 2026-10-18), so it runs
     // unsandboxed -- its pop-ups still open here.
     sandbox: false
-  },
-  server3: {
-    id: 'server3',
-    name: 'Server 3',
-    getMovieUrl: (tmdbId: number) => `https://cinesrc.st/embed/movie/${tmdbId}`,
-    getTVUrl: (tmdbId: number, season: number, episode: number) =>
-      `https://cinesrc.st/embed/tv/${tmdbId}?s=${season}&e=${episode}`,
-    idType: 'tmdb' as const,
-    sandbox: true
   },
   server4: {
     id: 'server4',
