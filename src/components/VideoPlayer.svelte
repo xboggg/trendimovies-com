@@ -219,12 +219,16 @@
       {/if}
 
       {#if currentUrl}
+        <!-- sandbox WITHOUT allow-popups / allow-top-navigation: the providers'
+             pop-under ads and page redirects cannot open, the video still plays
+             (measured on every server 2026-10-18). Do not add allow-popups. -->
         <iframe
           bind:this={iframeRef}
           src={currentUrl}
           allowfullscreen
           scrolling="no"
-          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen"
+          sandbox="allow-scripts allow-same-origin allow-forms allow-presentation"
           title="Video Player"
           style="overflow: hidden;"
           on:load={handleIframeLoad}

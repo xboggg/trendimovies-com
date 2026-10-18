@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<title>Player Test — TrendiMovies (private)</title>
+<style>
+  :root { --bg: #0b0b0d; --card: #16161a; --fg: #f2f2f2; --muted: #a3a3ad; --accent: #fbbf24; --line: #2a2a31; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--fg); font: 15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  main { max-width: 1100px; margin: 0 auto; padding: 20px 16px 48px; }
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  p.note { color: var(--muted); margin: 0 0 16px; font-size: 14px; }
+  .row { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0; }
+  .row span.lbl { color: var(--muted); font-size: 13px; align-self: center; min-width: 64px; }
+  button { background: var(--card); color: var(--fg); border: 1px solid var(--line); border-radius: 8px;
+           padding: 8px 12px; font: inherit; font-size: 14px; cursor: pointer; }
+  button.on { background: var(--accent); color: #111; border-color: var(--accent); font-weight: 600; }
+  .player { position: relative; width: 100%; aspect-ratio: 16 / 9; background: #000; border-radius: 12px; overflow: hidden; }
+  .player iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
+  .status { margin-top: 10px; font-size: 13px; color: var(--muted); }
+  .status b { color: var(--fg); }
+  ol { color: var(--muted); font-size: 14px; padding-left: 20px; }
+  ol b { color: var(--fg); }
+  .warn { color: #f87171; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Player test (private — not linked anywhere)</h1>
+  <p class="note">Pick a title and a server. <b>Sandbox ON</b> = pop-ups and redirects are blocked (what we plan to ship). Switch it OFF to compare with today.</p>
+
+  <div class="row" id="titles"><span class="lbl">Title</span></div>
+  <div class="row" id="servers"><span class="lbl">Server</span></div>
+  <div class="row"><span class="lbl">Sandbox</span>
+    <button id="sbOn" class="on">ON (no pop-ups)</button>
+    <button id="sbOff">OFF (like today)</button>
+  </div>
+
+  <div class="player" id="player"></div>
+  <div class="status" id="status"></div>
+
+  <ol>
+    <li>Press <b>play</b> — does the video start?</li>
+    <li>Tap the video a few times — does any <b>pop-up, new tab or redirect</b> appear?</li>
+    <li>Try <b>fullscreen</b>, <b>subtitles</b> and <b>jumping ahead</b>.</li>
+    <li>Do it on your <b>phone</b> and your <b>laptop</b>.</li>
+  </ol>
+</main>
+<script>
+  // Titles by TMDB id. Servers as they would appear after the change.
+  var TITLES = [
+    { name: 'Spider-Man: Brand New Day', kind: 'movie', id: 969681 },
+    { name: 'Inception', kind: 'movie', id: 27205 },
+    { name: 'Breaking Bad S1E1', kind: 'tv', id: 1396, s: 1, e: 1 },
+    { name: 'Therapy Done Right (new)', kind: 'movie', id: 1487317 }
+  ];
+  var SERVERS = [
+    { name: '1 · VidCore (new)', movie: function (t) { return 'https://vidcore.org/embed/movie/' + t.id; },
+      tv: function (t) { return 'https://vidcore.org/embed/tv/' + t.id + '/' + t.s + '/' + t.e; } },
+    { name: '2 · VidLink', movie: function (t) { return 'https://vidlink.pro/movie/' + t.id; },
+      tv: function (t) { return 'https://vidlink.pro/tv/' + t.id + '/' + t.s + '/' + t.e; } },
+    { name: '3 · CineSrc', movie: function (t) { return 'https://cinesrc.st/embed/movie/' + t.id; },
+      tv: function (t) { return 'https://cinesrc.st/embed/tv/' + t.id + '?s=' + t.s + '&e=' + t.e; } },
+    { name: '4 · VidSrc', movie: function (t) { return 'https://vidsrc.me/embed/movie?tmdb=' + t.id; },
+      tv: function (t) { return 'https://vidsrc.me/embed/tv?tmdb=' + t.id + '&season=' + t.s + '&episode=' + t.e; } }
+  ];
+  var SANDBOX = 'allow-scripts allow-same-origin allow-forms allow-presentation';
+  var state = { t: 0, s: 0, sb: true };
+
+  function mkButtons(rowId, list, key) {
+    var row = document.getElementById(rowId);
+    list.forEach(function (item, i) {
+      var b = document.createElement('button');
+      b.textContent = item.name;
+      b.addEventListener('click', function () { state[key] = i; render(); });
+      row.appendChild(b);
+    });
+  }
+  function render() {
+    [['titles', 't'], ['servers', 's']].forEach(function (p) {
+      var btns = document.getElementById(p[0]).querySelectorAll('button');
+      btns.forEach(function (b, i) { b.classList.toggle('on', i === state[p[1]]); });
+    });
+    document.getElementById('sbOn').classList.toggle('on', state.sb);
+    document.getElementById('sbOff').classList.toggle('on', !state.sb);
+    var t = TITLES[state.t], s = SERVERS[state.s];
+    var url = t.kind === 'tv' ? s.tv(t) : s.movie(t);
+    var holder = document.getElementById('player');
+    while (holder.firstChild) holder.removeChild(holder.firstChild);
+    var f = document.createElement('iframe');
+    f.src = url;
+    f.allow = 'autoplay; fullscreen; encrypted-media; picture-in-picture';
+    f.setAttribute('allowfullscreen', '');
+    f.setAttribute('referrerpolicy', 'origin');
+    if (state.sb) f.setAttribute('sandbox', SANDBOX);
+    holder.appendChild(f);
+    var st = document.getElementById('status');
+    while (st.firstChild) st.removeChild(st.firstChild);
+    var line = document.createElement('span');
+    line.textContent = 'Now: ' + t.name + ' on ' + s.name + ' — sandbox ' + (state.sb ? 'ON' : 'OFF') + ' — ' + url;
+    st.appendChild(line);
+  }
+  document.getElementById('sbOn').addEventListener('click', function () { state.sb = true; render(); });
+  document.getElementById('sbOff').addEventListener('click', function () { state.sb = false; render(); });
+  mkButtons('titles', TITLES, 't');
+  mkButtons('servers', SERVERS, 's');
+  render();
+</script>
+</body>
+</html>

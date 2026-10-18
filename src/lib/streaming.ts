@@ -1,39 +1,41 @@
 // Streaming server configurations
 export const STREAMING_SERVERS = {
+  // Order and providers measured 2026-10-18 (see git log). Every provider
+  // that streams also serves pop-under ads; VideoPlayer.svelte sandboxes the
+  // iframe so those cannot open. Any domain here (and its redirect target)
+  // must also be in nginx frame-src or the player is silently blank.
   server1: {
     id: 'server1',
     name: 'Server 1',
-    getMovieUrl: (tmdbId: number) => `https://vidlink.pro/movie/${tmdbId}`,
+    // VidCore -- played every test title (recent, classic, TV, brand-new).
+    getMovieUrl: (tmdbId: number) => `https://vidcore.org/embed/movie/${tmdbId}`,
     getTVUrl: (tmdbId: number, season: number, episode: number) =>
-      `https://vidlink.pro/tv/${tmdbId}/${season}/${episode}`,
+      `https://vidcore.org/embed/tv/${tmdbId}/${season}/${episode}`,
     idType: 'tmdb' as const
   },
   server2: {
     id: 'server2',
     name: 'Server 2',
-    getMovieUrl: (tmdbId: number) => `https://cinesrc.st/embed/movie/${tmdbId}`,
+    getMovieUrl: (tmdbId: number) => `https://vidlink.pro/movie/${tmdbId}`,
     getTVUrl: (tmdbId: number, season: number, episode: number) =>
-      `https://cinesrc.st/embed/tv/${tmdbId}?s=${season}&e=${episode}`,
+      `https://vidlink.pro/tv/${tmdbId}/${season}/${episode}`,
     idType: 'tmdb' as const
   },
   server3: {
     id: 'server3',
     name: 'Server 3',
-    // Replaced dead vidbinge.to (404 as of 2026-07-08) with vidsrc.me — uses
-    // query-param URLs (?tmdb=&season=&episode=), verified live for movie + TV.
-    getMovieUrl: (tmdbId: number) => `https://vidsrc.me/embed/movie?tmdb=${tmdbId}`,
+    getMovieUrl: (tmdbId: number) => `https://cinesrc.st/embed/movie/${tmdbId}`,
     getTVUrl: (tmdbId: number, season: number, episode: number) =>
-      `https://vidsrc.me/embed/tv?tmdb=${tmdbId}&season=${season}&episode=${episode}`,
+      `https://cinesrc.st/embed/tv/${tmdbId}?s=${season}&e=${episode}`,
     idType: 'tmdb' as const
   },
   server4: {
     id: 'server4',
     name: 'Server 4',
-    // vidfast.pro now 301-redirects to vidfast.vc — point straight at the current
-    // domain so we don't rely on their redirect staying up (fixed 2026-07-08).
-    getMovieUrl: (tmdbId: number) => `https://vidfast.vc/movie/${tmdbId}`,
+    // vidsrc.me 301-redirects to vidsrc.sh; both are in nginx frame-src.
+    getMovieUrl: (tmdbId: number) => `https://vidsrc.me/embed/movie?tmdb=${tmdbId}`,
     getTVUrl: (tmdbId: number, season: number, episode: number) =>
-      `https://vidfast.vc/tv/${tmdbId}/${season}/${episode}`,
+      `https://vidsrc.me/embed/tv?tmdb=${tmdbId}&season=${season}&episode=${episode}`,
     idType: 'tmdb' as const
   }
 };
