@@ -21,7 +21,9 @@ export const STREAMING_SERVERS = {
     getTVUrl: (tmdbId: number, season: number, episode: number) =>
       `https://vidlink.pro/tv/${tmdbId}/${season}/${episode}`,
     idType: 'tmdb' as const,
-    sandbox: true
+    // VidLink shows "Please Disable Sandbox" (Edmund, 2026-10-18), so it runs
+    // unsandboxed -- its pop-ups still open here.
+    sandbox: false
   },
   server3: {
     id: 'server3',
