@@ -250,7 +250,10 @@
   <!-- Controls Bar -->
   <div class="flex items-center justify-between px-3 py-2 text-xs" style="color: var(--text-muted); background-color: var(--bg-secondary);">
     <div>
-      <p>If the current server doesn't work, try switching to another server above.</p>
+      <!-- Streaming providers match some new / same-name films by title and can play
+           the wrong film (Wingman 2026 played the 2025 film on Server 1, 2026-10-19).
+           Downloads are matched by IMDb id, so they are always the right film. -->
+      <p>Video not playing, or not matching this title? Try another server above &mdash; or use the Download button below for the exact file.</p>
       <p class="hidden sm:block mt-1">Press <kbd class="px-1.5 py-0.5 rounded bg-[#333] text-[#ccc] font-mono text-[10px]">T</kbd> for theater mode, <kbd class="px-1.5 py-0.5 rounded bg-[#333] text-[#ccc] font-mono text-[10px]">F</kbd> for fullscreen</p>
     </div>
     <div class="flex items-center gap-2">
