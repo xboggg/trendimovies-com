@@ -28,8 +28,24 @@ const json = (body: unknown, status = 200) =>
     headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' },
   });
 
-export const GET: APIRoute = async ({ request }) => {
+export const GET: APIRoute = async ({ request, url }) => {
   if (!acquirerTokenOk(request)) return json({ error: 'Unauthorized' }, 401);
+
+  // ?all_ids=1 -> TMDB ids of EVERY series on the site (any status). The
+  // tracker's new-series detection uses it so a finished mini-series that is
+  // already on the site (Carrie 2026, "Ended") is never treated as new.
+  if (url.searchParams.get('all_ids') === '1') {
+    try {
+      const r = await fetch(`${POSTGREST_URL}/series?select=tmdb_id&tmdb_id=not.is.null&limit=50000`,
+                            { headers: { 'Accept-Profile': 'public' } });
+      if (!r.ok) return json({ error: 'Database error' }, 502);
+      const ids = (await r.json()).map((x: any) => x.tmdb_id);
+      return json({ count: ids.length, ids });
+    } catch (e) {
+      console.error('airing-series all_ids error:', e);
+      return json({ error: 'Server error' }, 500);
+    }
+  }
 
   const cols = 'tmdb_id,title,original_title,year,status,popularity,last_air_date';
   const since = new Date(Date.now() - 30 * 86400 * 1000).toISOString().slice(0, 10);
