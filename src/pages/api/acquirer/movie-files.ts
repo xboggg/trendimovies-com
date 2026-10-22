@@ -1,25 +1,21 @@
 import type { APIRoute } from 'astro';
 import Database from 'better-sqlite3';
-import jwt from 'jsonwebtoken';
-import { readFileSync } from 'fs';
 
-// Which files each film's download buttons use right now (added 2026-10-22).
-// The acquirer uses it to skip films already complete and to know which
-// copies are still missing. Token-gated (X-Acquirer-Token).
+// Which files of a film are ALREADY IN TELEGRAM (active, not deleted) - added
+// 2026-10-22, corrected twice the same day:
+//  1. it first returned only the files the site's buttons use (one per quality),
+//     so Hope 2026 / Masterplan 2026 looked incomplete although every copy was there;
+//  2. a film can carry several titles: Hope 2026 (Korean, original 호프) is
+//     uploaded as "Hopeu.2026..." too. Every known title counts: the title, the
+//     original title, TMDB's other titles (sent as `alts`) and IMDb's other
+//     titles for the film's IMDb id (offline IMDb data on this server).
 //
-// GET ?tmdb_ids=1,2,3 (max 100)
-//  -> { films: { "<tmdb_id>": { on_site: bool, links: [{quality, file_name, message_id}] } } }
+// GET ?films=<json>  json = [{"id":1,"title":"Hope","alt":"호프","alts":["Hopeu"],"imdb":"tt27369017","year":2026}] (max 50)
+//  -> { films: { "1": { files: [{file_name, message_id, file_size}], names: [...] } } }
+// Token-gated (X-Acquirer-Token).
 
-const POSTGREST_URL = import.meta.env.PUBLIC_SUPABASE_URL || 'http://localhost:3001';
 const CATALOG_PATH = '/opt/trendimovies/bot/database/movies.db';
-
-let _apiJwt = '';
-try { _apiJwt = readFileSync('/etc/trendimovies/jwt_secret', 'utf-8').trim(); } catch {}
-function pgHeaders(): Record<string, string> {
-  const h: Record<string, string> = { 'Accept-Profile': 'public' };
-  if (_apiJwt) h['Authorization'] = 'Bearer ' + jwt.sign({ role: 'web_auth' }, _apiJwt, { expiresIn: '5m' });
-  return h;
-}
+const IMDB_PATH = '/opt/trendimovies/imdb/imdb_titles.db';
 
 function acquirerTokenOk(request: Request): boolean {
   const given = request.headers.get('x-acquirer-token') || '';
@@ -36,41 +32,70 @@ const json = (body: unknown, status = 200) =>
     headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' },
   });
 
+const norm = (s: string) =>
+  (s || '').normalize('NFKD').replace(/[̀-ͯ]/g, '').toLowerCase()
+    .replace(/&/g, ' and ').replace(/[^a-z0-9]+/g, ' ').trim();
+
 export const GET: APIRoute = async ({ request, url }) => {
   if (!acquirerTokenOk(request)) return json({ error: 'Unauthorized' }, 401);
-  const ids = (url.searchParams.get('tmdb_ids') || '')
-    .split(',').map((x) => parseInt(x, 10)).filter((x) => x > 0).slice(0, 100);
-  if (!ids.length) return json({ error: 'tmdb_ids required' }, 400);
+  let films: any[] = [];
   try {
-    const mr = await fetch(`${POSTGREST_URL}/movies?tmdb_id=in.(${ids.join(',')})&select=id,tmdb_id`,
-                           { headers: pgHeaders() });
-    if (!mr.ok) return json({ error: 'Database error' }, 502);
-    const movies: any[] = await mr.json();
-    const films: Record<string, any> = {};
-    for (const id of ids) films[String(id)] = { on_site: false, links: [] };
-    if (movies.length) {
-      const byId = new Map(movies.map((m) => [m.id, m.tmdb_id]));
-      const lr = await fetch(`${POSTGREST_URL}/download_links?content_type=eq.movie&is_active=eq.true` +
-                             `&content_id=in.(${movies.map((m) => m.id).join(',')})&select=content_id,quality,telegram_file_id`,
-                             { headers: pgHeaders() });
-      if (!lr.ok) return json({ error: 'Database error' }, 502);
-      const links: any[] = await lr.json();
-      const db = new Database(CATALOG_PATH, { readonly: true, fileMustExist: true });
-      try {
-        const q = db.prepare('SELECT message_id, file_name FROM movies WHERE id = ?');
-        for (const l of links) {
-          const tid = String(byId.get(l.content_id));
-          const row: any = q.get(parseInt(l.telegram_file_id, 10)) || {};
-          films[tid].on_site = true;
-          films[tid].links.push({ quality: l.quality, file_name: row.file_name ?? null, message_id: row.message_id ?? null });
-        }
-      } finally {
-        db.close();
-      }
-    }
-    return json({ films });
-  } catch (e) {
-    console.error('movie-files error:', e);
-    return json({ error: 'Server error' }, 500);
+    films = JSON.parse(url.searchParams.get('films') || '[]').slice(0, 50);
+  } catch {
+    return json({ error: 'films must be JSON' }, 400);
   }
+  const db = new Database(CATALOG_PATH, { readonly: true, fileMustExist: true });
+  let imdb: Database.Database | null = null;
+  try { imdb = new Database(IMDB_PATH, { readonly: true, fileMustExist: true }); } catch { imdb = null; }
+  const out: Record<string, any> = {};
+  try {
+    // One catalogue scan per YEAR (not per name): every active non-episode file of
+    // that year, indexed by its title part (everything before the year). A film
+    // can have ~25 names; scanning a million rows per name timed out.
+    const byYear = new Map<number, Map<string, any[]>>();
+    const scan = db.prepare(`SELECT file_name, message_id, file_size FROM movies
+                             WHERE file_name LIKE ? AND COALESCE(is_deleted, 0) = 0`);
+    const yearIndex = (year: number) => {
+      if (!byYear.has(year)) {
+        const idx = new Map<string, any[]>();
+        const re = new RegExp(`^(.*?)\\s${year}\\b`);
+        for (const row of scan.all(`%${year}%`) as any[]) {
+          const fnorm = norm(row.file_name.replace(/\[[^\]]*\]/g, ' '));
+          if (/\bs\d{1,2}\s?e\d{1,3}\b/.test(fnorm)) continue;    // episodes are not films
+          const m = fnorm.match(re);
+          const t = m ? m[1].trim() : '';
+          if (!t) continue;
+          for (const k of new Set([t, t.replace(/^the /, '')])) {
+            if (!idx.has(k)) idx.set(k, []);
+            idx.get(k)!.push(row);
+          }
+        }
+        byYear.set(year, idx);
+      }
+      return byYear.get(year)!;
+    };
+    const qa = imdb ? imdb.prepare(`SELECT DISTINCT norm FROM titles WHERE tconst = ? LIMIT 40`) : null;
+    for (const f of films) {
+      const year = parseInt(f.year, 10);
+      const raw: string[] = [f.title, f.alt, ...(Array.isArray(f.alts) ? f.alts : [])];
+      if (qa && typeof f.imdb === 'string' && /^tt\d+$/.test(f.imdb)) {
+        for (const r of qa.all(f.imdb) as any[]) raw.push(r.norm);
+      }
+      const names = [...new Set(raw.filter(Boolean).map(norm).filter((x: string) => x.length > 1))].slice(0, 25);
+      const found: Record<string, any> = {};
+      if (year) {
+        const idx = yearIndex(year);
+        for (const n of names) {
+          for (const k of [n, n.replace(/^the /, '')]) {
+            for (const row of idx.get(k) || []) found[row.file_name] = row;
+          }
+        }
+      }
+      out[String(f.id)] = { files: Object.values(found), names };
+    }
+  } finally {
+    db.close();
+    if (imdb) imdb.close();
+  }
+  return json({ films: out });
 };
