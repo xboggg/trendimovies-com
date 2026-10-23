@@ -677,6 +677,15 @@ const pageDesc = 'How to search, download and get the most out of the TrendiMovi
   :global(html:not(.dark)) .bg-warn{color:#9c1733}
   :global(html:not(.dark)) .bg-note a{color:color-mix(in srgb,var(--a) 68%,#140a00)}
   :global(html:not(.dark)) a.cmd.lnk{color:color-mix(in srgb,var(--a) 68%,#04121a)}
+  /* Sticky section menu: written for the dark page. On a white page the bar is white-ish, the pills get a faint
+     dark tint and a clear outline, and the labels are dark. The active (amber) pill is unchanged. */
+  :global(html:not(.dark)) .bg-nav{background:rgba(255,255,255,.94)}
+  :global(html:not(.dark)) .bg-navinner a{background:rgba(20,15,30,.045);color:#3d3750;border-color:rgba(20,15,30,.2)}
+  :global(html:not(.dark)) .bg-navinner a b{opacity:.8}
+  :global(html:not(.dark)) .bg-navinner a:hover{color:#171320;background:rgba(20,15,30,.09);border-color:rgba(20,15,30,.36)}
+  :global(html:not(.dark)) .bg-navinner a.on{color:#0a0810;background:linear-gradient(100deg,#ff9f1c,#ffd166);border-color:transparent}
+  :global(html:not(.dark)) .bg-tip:hover{box-shadow:0 14px 34px rgba(20,15,30,.14);border-color:rgba(20,15,30,.24)}
+  :global(html:not(.dark)) tbody tr:hover{background:rgba(20,15,30,.045)}
   .bg-warn{margin:12px 0 0 !important;padding:9px 13px;border-radius:9px;font-size:.9rem !important;
     background:rgba(255,77,109,.1);border:1px solid rgba(255,77,109,.25);color:#ffc2cd !important}
 
