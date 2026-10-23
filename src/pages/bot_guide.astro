@@ -76,25 +76,24 @@ const searchTips = [
   },
   {
     h: 'Want a specific quality of a series?',
-    p: 'Put the quality on the end — alone, or with a season or episode.',
+    p: 'Put the quality on the end of a season or an episode and only that quality is offered. On its own, the bot first asks which season you want.',
     label: 'Examples',
     ex: [
-      '/s stranger things 720p',
+      '/s stranger things 720p   (the bot asks which season first)',
       '/s stranger things S01 720p   (whole season, that quality)',
       '/s stranger things S01E03 720p   (one episode, that quality)',
     ],
   },
   {
     h: 'Anime with no seasons',
-    p: 'Many anime run straight from episode 1 to 1000 with no season numbers. Try the name and the episode number on its own — it works when the file was named that way. If nothing comes back, the file is probably filed under a season, so try the S01E form with the same number.',
+    p: 'Many anime run straight from episode 1 to 1000 with no season numbers. Try the name and the episode number on its own — it works when the file was named that way. If nothing comes back, the file is probably filed under a season, so try the S01E form with the same number. Episode numbers of 1000 and above (One Piece 1109, for example) are not found yet — the bot reads only the first three digits.',
     label: 'Examples',
-    ex: ['/m naruto 071', '/s one piece s01e1109   (when the bare number finds nothing)'],
+    ex: ['/m naruto 071'],
   },
 ];
 
-// Tested against the live search: punctuation is stripped before the query
-// reaches the index, so typing it changes nothing. What DOES break a search is
-// closing a hyphen up into one word, or spelling an ampersand out as "and".
+// Tested against the live bot on 2026-10-23: punctuation is ignored, but a closed-up hyphen and an
+// ampersand-versus-"and" spelling each change which files come back.
 const tgSteps = [
   { lead: 'Search.', text: 'Send /m and the movie name, or /s and the series name.' },
   { lead: 'Pick the title.', text: 'Tap the one you want from the results.' },
@@ -110,22 +109,10 @@ const webSteps = [
   { lead: 'Send it to Telegram.', text: "Use the Telegram download button and our delivery bot sends you the file. Save it with Telegram's download arrow." },
 ];
 
-// Sections 03-10 are all command/reference tables, so they share one shape.
+// Sections 03-09 are all command/reference tables, so they share one shape.
 const tableSections = [
   {
-    n: '03', id: 'dates', title: 'Release dates & schedule', hue: 'gold',
-    sub: 'Knowing when something is due, so you are not searching for a file that does not exist yet.',
-    note: { lead: 'What a digital release date actually means.', text: 'A film opens in cinemas, then later reaches streaming. The digital release date is the day the proper HD copy is DUE — the real quality file, rather than the poor camera recordings that circulate before it. It is a calendar of what is coming, exactly like a cinema release schedule. It does not mean the file is here yet.' },
-    head: ['Command', 'What it does'],
-    rows: [
-      ['/digitalrelease', 'Films whose digital release has been announced for the next 90 days — the day a proper HD copy is DUE, not the day it arrives. Seven at a time; tap one to Track it.'],
-      ['/schedule', 'The full release calendar, day by day, covering what is coming across the months ahead.'],
-      ['/upcoming', 'Films not yet released at all. Tap Track on one and you are messaged on the day it becomes available — no need to keep checking back.'],
-      ['/notify <title>', 'Watches one specific title for you and messages you the moment it is added.'],
-    ],
-  },
-  {
-    n: '04', id: 'commands', title: 'Search commands', hue: 'magenta',
+    n: '03', id: 'commands', title: 'Search commands', hue: 'magenta',
     sub: 'The full set. Every search starts with a command — a title typed on its own does nothing.',
     head: ['Command', 'What it does'],
     rows: [
@@ -133,40 +120,43 @@ const tableSections = [
       ['/s <title>', 'Series only. Use it when a show shares its name with a film, or to go straight to a season or episode. e.g. /s blacklist'],
       ['/similar <title>', 'Give it something you liked and it suggests what people who watched it went on to watch — then shows only the ones we actually hold. e.g. /similar inception'],
       ['/year <year> [title]', 'Browse a single year three ways: /year 2024 for that year’s top picks, /year 2024 action for one genre, or /year 2024 dune to search a title inside it — useful when a remake shares a name.'],
+      ['/history <title>', 'Full details for one film from TMDB — the poster, plot, cast, crew and ratings. Needs a title: /history inception. (Your own search log is /myhistory.) Clears itself after 90 seconds.'],
       ['/request <title>', 'Asks us to add a movie or series we do not have. It joins a real queue and you are messaged when it lands. e.g. /request the batman'],
     ],
   },
   {
-    n: '05', id: 'discover', title: 'Discover', hue: 'orange',
+    n: '04', id: 'discover', title: 'Discover', hue: 'orange',
     sub: '/discovery opens one visual menu covering the main tiles — or type any command directly.',
-    note: { lead: 'These lists clear themselves, and they are yours.', text: 'Any browsing list — Discovery, Trending, New Files, Upcoming, Top 100, Hidden Gems, Surprise Me, Digital Releases, the Schedule — deletes itself after about two minutes to keep the group tidy, so it has not broken if it vanishes while you are reading. Only the person who ran the command can page through it; if you tap Next on someone else\'s list the bot will tell you to run your own. Send the command again for a fresh one.' },
+    note: { lead: 'These lists clear themselves, and they are yours.', text: 'Any browsing list — Discovery, Trending, New Files, Upcoming, Top 100, Hidden Gems, Surprise Me, Digital Releases, the Schedule — deletes itself after one to two minutes to keep the group tidy, so it has not broken if it vanishes while you are reading. Only the person who ran the command can page through it; if you tap Next on someone else\'s list the bot will tell you to run your own. Send the command again for a fresh one.' },
     head: ['Command', 'What it does'],
     rows: [
-      ['/discovery', 'The Discovery Hub — one tap-through menu covering New Files, Trending, Upcoming, Top 100, Digital Releases, the Schedule, Surprise Me, Hidden Gems, Nollywood and Franchises. Start here when you do not know what you want.'],
+      ['/discovery', 'The Discovery Hub — one tap-through menu with ten ways into the library: New Files, Trending, Upcoming, Top 100, Digital Releases, the Schedule, Surprise Me, Hidden Gems, Nollywood and Franchises. Start here when you do not know what you want.'],
       ['/trending', 'The most-viewed titles on the website right now, counted from real visits rather than a chart copied from elsewhere. Anything we cannot actually deliver is left out.'],
       ['/newfiles', 'The most recent additions, newest first. Asks whether you want Movies, Series or Everything, then lists them.'],
+      ['/upcoming', 'Films not yet released at all. Tap Track on one and you are messaged on the day it becomes available — no need to keep checking back.'],
       ['/topmovies', 'The 100 best-rated films of any single year from 1990 to today. Pick a year and browse it.'],
       ['/hiddengems', 'Titles with high ratings but little attention — good when the obvious choices are exhausted.'],
       ['/surpriseme', 'One random title from the whole library. Open Details for the plot and rating first, or re-roll as often as you like.'],
+      ['/digitalrelease', 'Films whose digital release has been announced for the next 90 days — the day a proper HD copy is DUE, not the day it arrives. Seven at a time; tap one to Track it.'],
+      ['/schedule', 'The full release calendar, day by day, covering what is coming across the months ahead.'],
       ['/genres', 'Browse by genre — Action, Comedy, Drama and the rest — or switch to browsing by mood instead: Happy, Scared, Romantic. Clears itself after 120 seconds.'],
       ['/franchise', 'Whole film universes laid out in the correct watch order, so you know what to see first.'],
       ['/nollywood', 'Nigerian cinema, filtered by Drama, Comedy, Action, Romance or Thriller. Clears itself after 120 seconds.'],
       ['/director <name>', 'Every film we hold by one director. e.g. /director christopher nolan. Clears itself after 90 seconds.'],
       ['/actor <name>', 'Every film we hold starring one actor. e.g. /actor tom cruise. Clears itself after 90 seconds.'],
+      ['/collections', 'Themed challenges — Action, Classic, DC, Horror, Marvel and Sci-Fi. Work through a set to fill it in and earn its badge; shows how far along you are on each.'],
     ],
   },
   {
-    n: '06', id: 'profile', title: 'Your profile', hue: 'teal',
+    n: '05', id: 'profile', title: 'Your profile', hue: 'teal',
     sub: '/profile opens one menu covering all of this — or type each command directly.',
     head: ['Command', 'What it does'],
     rows: [
       ['/profile', 'Your Profile Hub — everything in this section in one place. Clears itself after 120 seconds.'],
       ['/stats', 'How many searches and downloads you have made, and the date you joined.'],
-      ['/history <title>', 'Full details for one film from TMDB — the poster, plot, cast, crew and ratings. Needs a title: /history inception. (Your own search log is /myhistory.) Clears itself after 90 seconds.'],
       ['/myhistory', 'Your own recent searches, so you can return to something without retyping it. Clears itself after 60 seconds.'],
       ['/points', 'Your points balance and level. Points come from searching, downloading, checking in and inviting friends.'],
       ['/badges', 'Badges you have earned and the ones still to unlock, with what each one needs.'],
-      ['/collections', 'Themed challenges — Action, Classic, DC, Horror, Marvel and Sci-Fi. Work through a set to fill it in and earn its badge; shows how far along you are on each.'],
       ['/streak', 'Your current and longest run of consecutive days. Search on any day to keep it alive.'],
       ['/checkin', "Claim today's reward. Checking in on consecutive days pays more each time."],
       ['/leaderboard', 'The top 20 members by points, counted all-time rather than reset weekly.'],
@@ -175,7 +165,7 @@ const tableSections = [
     ],
   },
   {
-    n: '07', id: 'fun', title: 'Fun', hue: 'purple',
+    n: '06', id: 'fun', title: 'Fun', hue: 'purple',
     sub: 'A little extra for the regulars. Both reset every day.',
     head: ['Command', 'What it does'],
     rows: [
@@ -184,20 +174,21 @@ const tableSections = [
     ],
   },
   {
-    n: '08', id: 'settings', title: 'Settings & help', hue: 'slate',
+    n: '07', id: 'settings', title: 'Settings & help', hue: 'slate',
     sub: 'Housekeeping, and where to find help without leaving the bot.',
     head: ['Command', 'What it does'],
     rows: [
       ['/settings', 'Your preferences, including whether you receive the weekly digest.'],
+      ['/notify <title>', 'Tell the bot which movie you are waiting for and it messages you the moment it is added. e.g. /notify deadpool 3. Clears itself after 90 seconds.'],
       ['/help', 'Short help panels for the main features.'],
-      ['/guide', 'The same manual as this page, but inside Telegram. Not to be confused with Guides on the website, which are hand-picked lists of what to watch.'],
+      ['/guide', 'A short how-to inside Telegram — this page is the full manual. Not to be confused with Guides on the website, which are hand-picked lists of what to watch.'],
       ['/commands', 'This entire command list, on your phone, always current.'],
-      ['/about', 'Live numbers — how many titles we hold, searches made today, members active.'],
+      ['/about', 'Live numbers — movies and series episodes in the library, what was added in the last 24 hours, searches made today, members active.'],
       ['/start', 'Starts or re-initialises the bot. Also what opens when someone uses your invite link.'],
     ],
   },
   {
-    n: '09', id: 'channel', title: 'In the Channel', hue: 'pink',
+    n: '08', id: 'channel', title: 'In the Channel', hue: 'pink',
     sub: 'You do not have to ask for any of this. Join the Channel and it arrives on its own.',
     head: ['When', 'What arrives'],
     // Only rows backed by an ACTIVE cron on srv 38. Daily Picks, Trending Now,
@@ -215,7 +206,7 @@ const tableSections = [
     ],
   },
   {
-    n: '10', id: 'website', title: 'On the website', hue: 'cyan',
+    n: '09', id: 'website', title: 'On the website', hue: 'cyan',
     sub: 'trendimovies.com — the same library, with covers, cast and plot.',
     head: ['Where', 'What you get'],
     // Third element, where present, turns the first cell into real links.
@@ -334,24 +325,26 @@ const pageDesc = 'How to search, download and get the most out of the TrendiMovi
         ))}
 
         <article class="bg-tip reveal">
-          <h3><span class="bg-tick">▸</span>Punctuation takes care of itself</h3>
+          <h3><span class="bg-tick">▸</span>Punctuation mostly takes care of itself</h3>
           <p>
-            Type the title exactly as it is written. Apostrophes, colons, hyphens and
-            ampersands are all ignored by the search, so putting them in or leaving them out
-            makes no difference — <code class="cmd inline">Raven's Home</code> and
-            <code class="cmd inline">Ravens Home</code> find the same thing.
+            Type the title as it is written. Apostrophes, colons, commas and full stops are ignored by the
+            search, so putting them in or leaving them out makes no difference —
+            <code class="cmd inline">Ocean's Eleven</code> and
+            <code class="cmd inline">Oceans Eleven</code> find the same thing.
           </p>
-          <p>Only two things trip it up:</p>
+          <p>Two things are worth knowing:</p>
           <ul class="bg-rules">
             <li>
-              <b>Do not join a hyphenated name into one word.</b>
-              <span class="ok">Grown-ish</span> and <span class="ok">Grown ish</span> both work
-              — <span class="no">Grownish</span> finds nothing.
+              <b>Keep a hyphenated name as it is written.</b>
+              <span class="ok">Grown-ish</span> and <span class="ok">Grown ish</span> find the same thing
+              — <span class="no">Grownish</span> behaves differently and can miss files. The same goes for
+              <span class="ok">Spider-Man</span> against <span class="no">Spiderman</span>.
             </li>
             <li>
-              <b>Do not spell an ampersand out as “and”.</b>
-              <span class="ok">Tom &amp; Jerry</span> finds the film —
-              <span class="no">Tom and Jerry</span> brings back the wrong one.
+              <b>An ampersand (&amp;) and the word “and” find different files.</b>
+              Some files are named <span class="ok">Tom &amp; Jerry</span>, others
+              <span class="ok">Tom and Jerry</span>, and each spelling finds only the files named that way.
+              If you do not see what you expect, try the other spelling.
             </li>
           </ul>
         </article>
@@ -426,7 +419,7 @@ const pageDesc = 'How to search, download and get the most out of the TrendiMovi
         </div>
       </section>
 
-      <!-- 03 - 10 : reference tables -->
+      <!-- 03 - 09 : reference tables -->
       {tableSections.map((s) => (
         <section class={`bg-sec hue-${s.hue}`} id={s.id}>
           <div class="bg-sechead reveal">
