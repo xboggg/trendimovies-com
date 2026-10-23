@@ -86,14 +86,14 @@ const searchTips = [
   },
   {
     h: 'Anime with no seasons',
-    p: 'Many anime run straight from episode 1 to 1000 with no season numbers. Try the name and the episode number on its own — it works when the file was named that way. If nothing comes back, the file is probably filed under a season, so try the S01E form with the same number. Episode numbers of 1000 and above (One Piece 1109, for example) are not found yet — the bot reads only the first three digits.',
+    p: 'Many anime run straight from episode 1 to 1000 with no season numbers. Try the name and the episode number on its own — it works when the file was named that way. If nothing comes back, the file is probably filed under a season, so try the S01E form with the same number.',
     label: 'Examples',
-    ex: ['/m naruto 071'],
+    ex: ['/m naruto 071', '/s one piece s01e1109   (episodes numbered 1000 or more work too)'],
   },
 ];
 
-// Tested against the live bot on 2026-10-23: punctuation is ignored, but a closed-up hyphen and an
-// ampersand-versus-"and" spelling each change which files come back.
+// Tested against the live bot on 2026-10-23: punctuation is ignored, "&" and "and" find the same files, and a
+// closed-up hyphen can still miss files.
 const tgSteps = [
   { lead: 'Search.', text: 'Send /m and the movie name, or /s and the series name.' },
   { lead: 'Pick the title.', text: 'Tap the one you want from the results.' },
@@ -325,26 +325,24 @@ const pageDesc = 'How to search, download and get the most out of the TrendiMovi
         ))}
 
         <article class="bg-tip reveal">
-          <h3><span class="bg-tick">▸</span>Punctuation mostly takes care of itself</h3>
+          <h3><span class="bg-tick">▸</span>Punctuation takes care of itself</h3>
           <p>
             Type the title as it is written. Apostrophes, colons, commas and full stops are ignored by the
             search, so putting them in or leaving them out makes no difference —
             <code class="cmd inline">Ocean's Eleven</code> and
-            <code class="cmd inline">Oceans Eleven</code> find the same thing.
+            <code class="cmd inline">Oceans Eleven</code> find the same thing. An ampersand and the word
+            “and” are treated as the same word too:
+            <code class="cmd inline">Tom &amp; Jerry</code> and
+            <code class="cmd inline">Tom and Jerry</code> bring back the same files.
           </p>
-          <p>Two things are worth knowing:</p>
+          <p>One thing is worth knowing:</p>
           <ul class="bg-rules">
             <li>
               <b>Keep a hyphenated name as it is written.</b>
               <span class="ok">Grown-ish</span> and <span class="ok">Grown ish</span> find the same thing
-              — <span class="no">Grownish</span> behaves differently and can miss files. The same goes for
-              <span class="ok">Spider-Man</span> against <span class="no">Spiderman</span>.
-            </li>
-            <li>
-              <b>An ampersand (&amp;) and the word “and” find different files.</b>
-              Some files are named <span class="ok">Tom &amp; Jerry</span>, others
-              <span class="ok">Tom and Jerry</span>, and each spelling finds only the files named that way.
-              If you do not see what you expect, try the other spelling.
+              — <span class="no">Grownish</span> can still be understood, but joining a hyphenated name into
+              one word can miss files. The same goes for <span class="ok">Spider-Man</span> against
+              <span class="no">Spiderman</span>.
             </li>
           </ul>
         </article>
