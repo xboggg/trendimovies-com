@@ -30,14 +30,23 @@ checkout after preserving conflicts; do not rebuild or restart the application.
 
 Watch a deploy: https://github.com/xboggg/trendimovies-com/actions
 
-**Status 2026-10-26 -- the auto-deploy is currently failing.** Step 4 stops with
-`Cannot find module 'astro/config'` when the build is started as the deploy user through
-`npx` (none of the last 30 runs succeeded, the oldest checked was 2026-10-15). It fails
-before the swap, so nothing is replaced and the live site is not affected. Until this is
-fixed, deploy by hand from the server: build in the checkout (`npm run build`), restart
-`trendimovies-astro`, then confirm the process on the web port is the one PM2 tracks and
-that the home page, `/app` and `/api/app/home` return 200. The Telegram Mini App
-releases on 2026-10-26 were deployed this way. Cause not yet investigated.
+**Status 2026-10-26 -- repaired.** From at least 2026-10-15 every run failed. The cause: the stored deploy
+settings still pointed at the OLD server from before the site moved. Each push copied the source there and the
+build then failed (`Cannot find module 'astro/config'`: no dependencies, and the live site is not on that server).
+The live site was never affected. Fixed on 2026-10-26 by setting up the same deploy path on the production server:
+the deploy user with the same numeric id as the file owner, the two deploy scripts, the restricted deploy key,
+and the host setting in GitHub. A manual run succeeded, and the next push (commit 9f069d5) deployed by itself.
+
+Things to know:
+
+- The install step's file sync protects `.well-known`, `dist.prev.old`, `public/docs` and every `*.md` file. The
+  tarball leaves out all `.md` files, so without that last rule the sync deleted nested ones (it removed
+  `scripts/hero-focus/README.md` from the live folder on the first run; restored from git).
+- To test the pipeline without a code push, use "Run workflow" (it is `workflow_dispatch`) on the Deploy workflow.
+- A failed build leaves the old build running: the script fails before the swap.
+- Test risky changes first: build into a throw-away folder as the deploy user and run it on a spare port.
+- If a deploy ever has to be done by hand, build in the checkout, restart `trendimovies-astro`, then confirm the
+  process on the web port is the one PM2 tracks and that the home page, `/app` and `/api/app/home` return 200.
 
 **Manual deploy (server SSH):**
 ```bash
