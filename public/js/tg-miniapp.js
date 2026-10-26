@@ -85,6 +85,10 @@
       if (url.hostname === 't.me' || url.hostname === 'telegram.me') {
         ev.preventDefault();
         if (!safe(function () { tg.openTelegramLink(url.href); return true; })) location.href = url.href;
+      } else if (a.hasAttribute('download') || url.pathname.indexOf('/tgstream/') === 0) {
+        // Direct file downloads do nothing inside Telegram's built-in browser: hand them to the phone's browser.
+        ev.preventDefault();
+        if (!safe(function () { tg.openLink(url.href); return true; })) window.open(url.href, '_blank');
       } else if (url.hostname !== location.hostname && !/(^|\.)trendimovies\.com$/.test(url.hostname)) {
         ev.preventDefault();
         if (!safe(function () { tg.openLink(url.href); return true; })) window.open(url.href, '_blank');
