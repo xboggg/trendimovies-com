@@ -54,6 +54,14 @@
 
     .row { margin-top: 22px; }
     .row h3 { margin: 0 16px 10px; font-family: var(--font-display); font-weight: 400; font-size: 24px; letter-spacing: .05em; }
+    .rowhead { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin: 0 16px 10px; }
+    .rowhead h3 { margin: 0; }
+    .more { font-size: 13px; font-weight: 700; color: var(--accent); padding: 4px 0 4px 10px; white-space: nowrap; }
+    .mhead { display: flex; align-items: center; gap: 12px; padding: 14px 16px 0; }
+    .mback { flex: 0 0 auto; width: 38px; height: 38px; border-radius: 99px; border: 1px solid var(--line); display: grid; place-items: center; font-size: 22px; line-height: 1; }
+    .mhead h2 { margin: 0; font-family: var(--font-display); font-weight: 400; font-size: 28px; letter-spacing: .04em; }
+    .rlist { display: flex; flex-direction: column; gap: 10px; padding: 14px 16px 0; }
+    .rlist .rcard { flex: none; }
     .rail { display: flex; gap: 10px; overflow-x: auto; padding: 0 16px 4px; scroll-snap-type: x proximity; scrollbar-width: none; }
     .rail::-webkit-scrollbar { display: none; }
     .poster { flex: 0 0 118px; aspect-ratio: 2 / 3; border-radius: 8px; position: relative; overflow: hidden; scroll-snap-align: start; display: block; text-align: left;
@@ -125,6 +133,11 @@
       <div id="home-body"><div class="skel"></div></div>
     </section>
 
+    <section class="view" id="v-more">
+      <div class="mhead"><button class="mback" data-mback aria-label="Back">‹</button><h2 id="more-title"></h2></div>
+      <div id="more-body"></div>
+    </section>
+
     <section class="view" id="v-movies">
       <div class="brand"><h1>MOVIES</h1><span>From the home rows</span></div>
       <div class="grid" id="movies-grid"></div>
@@ -161,7 +174,7 @@
   <div class="scrim" id="scrim"></div>
   <div class="sheet" id="sheet" role="dialog" aria-modal="true" aria-label="Title details"></div>
 
-  <script is:inline src="/js/tg-miniapp.js?v=20261026c" defer></script>
+  <script is:inline src="/js/tg-miniapp.js?v=20261026d" defer></script>
   <script is:inline>
     (function () {
       'use strict';
@@ -202,6 +215,15 @@
           (tag ? '<span class="b">' + esc(tag) + '</span>' : '') + date + '</button>';
       }
       function grid(list) { return list.map(function (c) { return poster(c); }).join(''); }
+      function head(title, key, showMore) {
+        return '<div class="rowhead"><h3>' + esc(title) + '</h3>' + (showMore ? '<button class="more" data-more="' + esc(key) + '">More \u203a</button>' : '') + '</div>';
+      }
+      function reviewCard(r) {
+        var s = parseInt(r.rt, 10), cls = r.rt ? (s >= 70 ? 'good' : (s < 50 ? 'bad' : '')) : '';
+        return '<a class="rcard" href="' + esc(r.href) + '"><div class="pic">' + (r.img ? '<img src="' + esc(r.img) + '" alt="" loading="lazy">' : '') + '</div><div class="body">' +
+          '<div class="rt"><b>' + esc(r.t) + '</b>' + (r.rt ? '<span class="' + cls + '">RT ' + esc(r.rt) + '</span>' : '') + '</div>' +
+          '<p>' + esc(r.h) + '</p><span class="go">Read review</span></div></a>';
+      }
 
       function render() {
         D.rows.forEach(function (r) { r.items = r.items.map(register); });
@@ -215,15 +237,10 @@
               '<span class="cta">' + (h.c.type === 'series' ? 'Open' : 'Download') + '</span></div></button>';
           }).join('') + '</div><div class="dots" id="dots">' + D.hero.map(function () { return '<span class="dot"></span>'; }).join('') + '</div></div>';
         D.rows.forEach(function (r) {
-          html += '<div class="row"><h3>' + esc(r.title) + '</h3><div class="rail">' + r.items.map(function (c) { return poster(c, '', r.key === 'digital'); }).join('') + '</div></div>';
+          html += '<div class="row">' + head(r.title, r.key, r.total > r.items.length) + '<div class="rail">' + r.items.map(function (c) { return poster(c, '', r.key === 'digital'); }).join('') + '</div></div>';
         });
         if (D.reviews && D.reviews.length) {
-          html += '<div class="row"><h3>Movie Reviews</h3><div class="rail">' + D.reviews.map(function (r) {
-            var s = parseInt(r.rt, 10), cls = r.rt ? (s >= 70 ? 'good' : (s < 50 ? 'bad' : '')) : '';
-            return '<a class="rcard" href="' + esc(r.href) + '"><div class="pic">' + (r.img ? '<img src="' + esc(r.img) + '" alt="" loading="lazy">' : '') + '</div><div class="body">' +
-              '<div class="rt"><b>' + esc(r.t) + '</b>' + (r.rt ? '<span class="' + cls + '">RT ' + esc(r.rt) + '</span>' : '') + '</div>' +
-              '<p>' + esc(r.h) + '</p><span class="go">Read review</span></div></a>';
-          }).join('') + '</div></div>';
+          html += '<div class="row">' + head(D.reviewsTitle || 'Movie Reviews', 'reviews', (D.reviewsTotal || 0) > D.reviews.length) + '<div class="rail">' + D.reviews.map(reviewCard).join('') + '</div></div>';
         }
         html += '<a class="full" href="/">Open the full website</a>';
         setHtml($('home-body'), html);
@@ -262,7 +279,12 @@
         if (name === 'list') renderList();
         window.scrollTo(0, 0);
       }
-      tabs.forEach(function (b) { b.addEventListener('click', function () { show(b.dataset.view); }); });
+      tabs.forEach(function (b) {
+        b.addEventListener('click', function () {
+          if (/^#more=/.test(location.hash)) { try { history.replaceState(null, '', location.pathname + location.search); } catch (e) {} navNote(); }
+          show(b.dataset.view);
+        });
+      });
 
       function renderList() {
         setHtml($('list-grid'), saved.map(function (s) { return poster(s.item); }).join(''));
@@ -305,13 +327,16 @@
         scrim.classList.add('on'); sheet.classList.add('on');
         fetch('/api/app/title?type=movie&id=' + c.id).then(function (r) { return r.json(); }).then(function (j) {
           if (openKey !== keyOf(c)) return;
-          var links = j.links || [], body;
-          if (links.length) {
-            body = '<a class="cta" href="' + esc(links[0].tg) + '" style="margin-top:16px">Get ' + esc(links[0].quality || 'it') + ' in Telegram' + (links[0].size ? ' · ' + esc(links[0].size) : '') + '</a>' +
-              '<p class="sub">The delivery bot opens and sends the file to you.</p>';
-            if (links.length > 1) {
-              body += '<details><summary>Other qualities</summary>' + links.slice(1).map(function (l) {
-                return '<a class="q" href="' + esc(l.tg) + '">' + esc(l.quality || 'File') + '<span>' + esc([l.size, l.lang].filter(Boolean).join(' · ')) + '</span></a>';
+          var best = j.best || [], more = j.more || [], body;
+          if (!best.length && more.length) { best = [more[0]]; more = more.slice(1); }
+          function lab(l) { return [l.variant, l.size, l.lang].filter(Boolean).join(' \u00b7 '); }
+          if (best.length) {
+            body = best.map(function (l, n) {
+              return '<a class="cta" href="' + esc(l.tg) + '" style="margin-top:' + (n ? 10 : 16) + 'px">Get ' + esc(l.quality || 'it') + ' in Telegram' + (lab(l) ? ' \u00b7 ' + esc(lab(l)) : '') + '</a>';
+            }).join('') + '<p class="sub">The delivery bot opens and sends the file to you.</p>';
+            if (more.length) {
+              body += '<details><summary>Other versions</summary>' + more.map(function (l) {
+                return '<a class="q" href="' + esc(l.tg) + '">' + esc(l.quality || 'File') + '<span>' + esc(lab(l)) + '</span></a>';
               }).join('') + '</details>';
             }
           } else {
@@ -336,18 +361,66 @@
       });
 
       $('app').addEventListener('click', function (e) {
+        var mb = e.target.closest('[data-more]');
+        if (mb) { openMore(mb.getAttribute('data-more')); return; }
+        if (e.target.closest('[data-mback]')) { closeMore(); return; }
         var p = e.target.closest('[data-k]');
         if (!p) return;
         var c = byKey[p.getAttribute('data-k')];
         if (c) openItem(c);
       });
 
+      // "More": the full list behind a row, inside the app. It gets its own history entry (#more=<row>), so
+      // Telegram's Back button, and the one in the page, simply close it.
+      var lastView = 'home', moreCache = {};
+      function navNote() { try { window.dispatchEvent(new Event('tm-nav')); } catch (e) {} }
+      function showMore(key) {
+        var cur = document.querySelector('.view.on');
+        if (cur && cur.id !== 'v-more') lastView = cur.id.replace('v-', '');
+        document.querySelectorAll('.view').forEach(function (v) { v.classList.toggle('on', v.id === 'v-more'); });
+        $('more-title').textContent = '';
+        setHtml($('more-body'), '<div class="skel"></div>');
+        window.scrollTo(0, 0);
+        function fill(j) {
+          if (!$('v-more').classList.contains('on')) return;
+          $('more-title').textContent = j.title;
+          var html;
+          if (key === 'reviews') html = '<div class="rlist">' + j.items.map(reviewCard).join('') + '</div>';
+          else html = '<div class="grid">' + j.items.map(register).map(function (c) { return poster(c, '', key === 'digital'); }).join('') + '</div>';
+          setHtml($('more-body'), html + '<a class="full" href="' + esc(j.seeAll) + '">See everything on the website</a>');
+        }
+        if (moreCache[key]) { fill(moreCache[key]); return; }
+        fetch('/api/app/more?row=' + encodeURIComponent(key)).then(function (r) { if (!r.ok) throw new Error('bad'); return r.json(); }).then(function (j) {
+          moreCache[key] = j; fill(j);
+        }).catch(function () {
+          setHtml($('more-body'), '<p class="empty"><b>Could not load</b>Check your connection and try again.</p>');
+        });
+      }
+      function openMore(key) {
+        try { history.pushState({more: key}, '', '#more=' + key); } catch (e) { location.hash = 'more=' + key; }
+        navNote();
+        showMore(key);
+      }
+      function route() {
+        var m = (location.hash || '').match(/^#more=([a-z]+)$/);
+        if (m) showMore(m[1]);
+        else if ($('v-more').classList.contains('on')) show(lastView || 'home');
+        navNote();
+      }
+      window.addEventListener('popstate', route);
+      function closeMore() {
+        if (history.state && history.state.more) { history.back(); return; }
+        try { history.replaceState(null, '', location.pathname + location.search); } catch (e) {}
+        show(lastView || 'home');
+        navNote();
+      }
+
       // start
       loadSaved();
       saved = saved.filter(function (s) { return s && s.k && s.item; });
       saved.forEach(function (s) { s.item = register(s.item); });
       fetch('/api/app/home').then(function (r) { if (!r.ok) throw new Error('bad'); return r.json(); }).then(function (j) {
-        D = j; render();
+        D = j; render(); route();
       }).catch(function () {
         setHtml($('home-body'), '<p class="empty"><b>Could not load</b>Check your connection and try again.</p>' +
           '<a class="full" href="" onclick="location.reload();return false">Try again</a><a class="full" href="/">Open the full website</a>');

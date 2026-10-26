@@ -129,6 +129,19 @@ export const GET: APIRoute = async ({ url }) => {
       total = total + newLocal.length;
     }
 
+    // RANKING-FIX (2026-10-26): a result that actually contains the searched name must not sit below loose, fuzzy hits
+    // ("clayface" used to list Clap, Face and Claw before the real Clayface). ONLY that is changed: results that contain
+    // the name keep exactly their old relative order (local titles with downloads first, then TMDB's own order), and the
+    // loose ones follow in their old order. A query that matches nothing keeps exactly the old order.
+    {
+      const norm = (v: any) => String(v || '').toLowerCase().normalize('NFKD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, '');
+      const q = norm(query);
+      if (q.length >= 3) {
+        const matches = (r: any) => [norm(r.title), norm(r.original_title)].some((n) => n && n.includes(q));
+        results = [...results.filter(matches), ...results.filter((r: any) => !matches(r))];
+      }
+    }
+
     // Override poster_path from DB for movies with custom posters.
     // Movie and TV tmdb_ids are separate namespaces on TMDB, so a movie
     // and a series can share the same numeric id by coincidence (e.g.

@@ -65,7 +65,8 @@
     // Native Back button: hidden on the home page, shown everywhere else.
     function syncBack() {
       safe(function () {
-        var atHome = location.pathname === '/' || location.pathname === '' || location.pathname === '/app' || location.pathname === '/app/';
+        var onHomePage = location.pathname === '/' || location.pathname === '' || location.pathname === '/app' || location.pathname === '/app/';
+        var atHome = onHomePage && !/^#more=/.test(location.hash);   // the app's "More" lists have their own Back step
         if (!atHome && history.length > 1) tg.BackButton.show(); else tg.BackButton.hide();
       });
     }
@@ -73,6 +74,8 @@
     syncBack();
     window.addEventListener('pageshow', syncBack);
     window.addEventListener('popstate', syncBack);
+    window.addEventListener('hashchange', syncBack);
+    window.addEventListener('tm-nav', syncBack);   // sent by /app when it opens or closes a "More" list
 
     // Links: t.me goes through Telegram; links to other sites open in the phone's browser.
     document.addEventListener('click', function (ev) {

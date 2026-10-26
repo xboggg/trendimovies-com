@@ -314,7 +314,10 @@ const latestAdditionItems = (latestAdditions || []).map(transformDbMovie);
 // the same TMDB lookup the page uses (shared dvdsrd-lk2 cache).
 const _dToday = new Date();
 const _midnight = new Date(_dToday); _midnight.setHours(0, 0, 0, 0);
-const _todayISO = _midnight.toISOString().slice(0, 10);
+// Dates here are LOCAL dates. toISOString() is UTC, which on this server (Berlin time) turns local midnight into the
+// day before -- that made every "Digital in N days" one day short (tomorrow showed as 0 days).
+const _localISO = (d: Date) => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+const _todayISO = _localISO(_midnight);
 let digitalReleaseItems: any[] = [];
 try {
   // The dvdsrd cache (6h TTL) is normally populated by the /digital-releases page.
@@ -403,10 +406,13 @@ try {
     const groups = await _getOrScrapeMonth(mNum); // read cache, or scrape+cache on miss
     if (!groups || !groups.length) continue;
     for (const g of groups) {
-      if (!g.iso || g.iso <= _todayISO) continue; // strictly upcoming only
-      const days = Math.ceil((new Date(g.iso + 'T00:00:00').getTime() - _midnight.getTime()) / 86400000);
+      // the date printed on the source page, read as a local date (the cached g.iso is a day early on this server)
+      const _gd = g.date ? new Date(g.date) : null;
+      const _gIso = _gd && !isNaN(+_gd) ? _localISO(_gd) : null;
+      if (!_gIso || _gIso <= _todayISO) continue; // strictly upcoming only
+      const days = Math.round((new Date(_gIso + 'T00:00:00').getTime() - _midnight.getTime()) / 86400000);
       for (const mv of (g.movies || [])) {
-        if (mv && mv.title) _flat.push({ title: mv.title, iso: g.iso, days });
+        if (mv && mv.title) _flat.push({ title: mv.title, iso: _gIso, days });
       }
     }
   }
