@@ -3,6 +3,13 @@ import BaseLayout from '../layouts/BaseLayout.astro';
 import { getCache, getCacheStale, setCache } from '../lib/cache';
 import { fetchFromTMDB } from '../lib/tmdb';
 
+// The calendar date of a Date that was parsed from printed text ("Tuesday October 27, 2026" = local midnight).
+// toISOString() is UTC: on a server ahead of UTC (Berlin) it turns local midnight into the DAY BEFORE, which made every
+// date on this page one day early (the 27th showed "today" all through the 26th).
+function isoLocal(d: Date): string {
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
+
 // ============================================================================
 // Digital & HD Release Dates — date-grouped list scraped from
 // dvdsreleasedates.com (all 12 months of 2026). POSTERS come from TMDB (the
@@ -102,7 +109,7 @@ async function scrapeMonth(monthNum: string, monthName: string) {
     // Skip date headers that parsed no movies — never render an empty date group.
     if (!movies.length) continue;
     const d = new Date(marks[i].date);
-    groups.push({ date: marks[i].date, iso: isNaN(+d) ? null : d.toISOString().slice(0, 10), movies });
+    groups.push({ date: marks[i].date, iso: isNaN(+d) ? null : isoLocal(d), movies });
   }
   // If the fresh scrape yielded nothing (external site slow/timed-out/blocked),
   // DON'T overwrite the cache with empty and DON'T return empty — serve the last
@@ -120,6 +127,10 @@ async function scrapeMonth(monthNum: string, monthName: string) {
 const monthData = await Promise.all(
   MONTHS.map(([n, name]) => scrapeMonth(n, name).catch(() => readStaleCache(`dvdsrd-${YEAR}-${n}`) || []))
 );
+for (const _month of monthData) for (const _g of (_month || [])) {
+  const _gd = _g.date ? new Date(_g.date) : null;
+  if (_gd && !isNaN(+_gd)) _g.iso = isoLocal(_gd);   // cached months written before 2026-10-26 hold dates a day early
+}
 
 // ============================================================================
 // MANUAL OVERRIDES — upcoming/extra digital releases harmonised from
@@ -891,7 +902,7 @@ for (const rel of MANUAL_RELEASES) {
   // MANUAL_RELEASES uses \"Tuesday, July 14, 2026\" (with comma); matching on the
   // string created a DUPLICATE header for the same day. iso is comma-immune.
   const dManual = new Date(rel.date);
-  const relIso = isNaN(+dManual) ? null : dManual.toISOString().slice(0, 10);
+  const relIso = isNaN(+dManual) ? null : isoLocal(dManual);
   let grp = (relIso && monthArr.find((g: any) => g.iso === relIso)) || monthArr.find((g: any) => g.date === rel.date);
   if (!grp) {
     grp = { date: rel.date, iso: relIso, movies: [] };
@@ -943,7 +954,7 @@ for (const ov of MANUAL_OVERRIDE_DATES) {
   const already = monthArr.some((g: any) => g.movies.some((mv: any) => _mnorm(mv.title) === ovN));
   if (already) continue;
   const d = new Date(ov.date);
-  const iso = isNaN(+d) ? null : d.toISOString().slice(0, 10);
+  const iso = isNaN(+d) ? null : isoLocal(d);
   let grp = (iso && monthArr.find((g: any) => g.iso === iso)) || monthArr.find((g: any) => g.date === ov.date);
   if (!grp) { grp = { date: ov.date, iso, movies: [] }; monthArr.push(grp); }
   grp.movies.push({ id: null, slug: null, title: ov.title, poster: null, _manual: true });
@@ -957,7 +968,7 @@ const MANUAL_EXCLUDE: { title: string; date: string }[] = [
 for (const ex of MANUAL_EXCLUDE) {
   const exN = _mnorm(ex.title);
   const d = new Date(ex.date);
-  const iso = isNaN(+d) ? null : d.toISOString().slice(0, 10);
+  const iso = isNaN(+d) ? null : isoLocal(d);
   for (const monthArr of monthData) {
     if (!monthArr) continue;
     for (const g of monthArr) {
@@ -1287,7 +1298,8 @@ const ogImage = _ogPosters.length
           var diff = new Date(iso + 'T00:00:00') - now;
           if (diff <= 0) { el.textContent = 'today'; return; }
           var d = Math.floor(diff / 86400000), h = Math.floor((diff % 86400000) / 3600000);
-          el.textContent = d > 0 ? ('⏳ ' + d + 'd') : ('⏳ ' + h + 'h');
+          var mi = Math.floor((diff % 3600000) / 60000);
+          el.textContent = d > 0 ? ('⏳ ' + d + 'd') : (h > 0 ? ('⏳ ' + h + 'h') : ('⏳ ' + mi + 'm'));
         });
       }
       ticks(); setInterval(ticks, 60000);

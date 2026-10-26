@@ -32,9 +32,9 @@ export type AppData = { today: string; rows: Record<string, Card[]>; reviews: Re
 
 let cache: { at: number; data: AppData } | null = null;
 
-/** Today's date in the SERVER's own time zone (not UTC: the server runs on Berlin time and UTC would be a day behind after midnight). */
+/** Today's date as the UTC date (= Ghana's date). The home page and /digital-releases use the same "today". */
 export function localISO(d: Date = new Date()): string {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  return d.toISOString().slice(0, 10);
 }
 
 function decode(s: string): string {

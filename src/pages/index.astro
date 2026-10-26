@@ -317,7 +317,7 @@ const _midnight = new Date(_dToday); _midnight.setHours(0, 0, 0, 0);
 // Dates here are LOCAL dates. toISOString() is UTC, which on this server (Berlin time) turns local midnight into the
 // day before -- that made every "Digital in N days" one day short (tomorrow showed as 0 days).
 const _localISO = (d: Date) => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
-const _todayISO = _localISO(_midnight);
+const _todayISO = new Date(_dToday).toISOString().slice(0, 10);   // UTC date = Ghana's date; same "today" as /digital-releases and the app
 let digitalReleaseItems: any[] = [];
 try {
   // The dvdsrd cache (6h TTL) is normally populated by the /digital-releases page.
@@ -410,7 +410,7 @@ try {
       const _gd = g.date ? new Date(g.date) : null;
       const _gIso = _gd && !isNaN(+_gd) ? _localISO(_gd) : null;
       if (!_gIso || _gIso <= _todayISO) continue; // strictly upcoming only
-      const days = Math.round((new Date(_gIso + 'T00:00:00').getTime() - _midnight.getTime()) / 86400000);
+      const days = Math.round((Date.parse(_gIso + 'T00:00:00Z') - Date.parse(_todayISO + 'T00:00:00Z')) / 86400000);
       for (const mv of (g.movies || [])) {
         if (mv && mv.title) _flat.push({ title: mv.title, iso: _gIso, days });
       }
