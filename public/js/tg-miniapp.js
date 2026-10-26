@@ -65,7 +65,7 @@
     // Native Back button: hidden on the home page, shown everywhere else.
     function syncBack() {
       safe(function () {
-        var atHome = location.pathname === '/' || location.pathname === '';
+        var atHome = location.pathname === '/' || location.pathname === '' || location.pathname === '/app' || location.pathname === '/app/';
         if (!atHome && history.length > 1) tg.BackButton.show(); else tg.BackButton.hide();
       });
     }
