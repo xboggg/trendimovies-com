@@ -403,5 +403,8 @@ const ogUrl = new URL(Astro.url.pathname + Astro.url.search, Astro.site || 'http
     <script is:inline src="https://pl21735685.effectivecpmnetwork.com/52/ac/e9/52ace93d1cfd04911005b777950ab266.js"></script>
   )}
 
+  <!-- Telegram Mini App bridge: does nothing unless the page is opened from inside Telegram -->
+  <script is:inline src="/js/tg-miniapp.js" defer></script>
+
 </body>
 </html>
