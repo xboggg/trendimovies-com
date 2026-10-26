@@ -30,6 +30,15 @@ checkout after preserving conflicts; do not rebuild or restart the application.
 
 Watch a deploy: https://github.com/xboggg/trendimovies-com/actions
 
+**Status 2026-10-26 -- the auto-deploy is currently failing.** Step 4 stops with
+`Cannot find module 'astro/config'` when the build is started as the deploy user through
+`npx` (none of the last 30 runs succeeded, the oldest checked was 2026-10-23). It fails
+before the swap, so nothing is replaced and the live site is not affected. Until this is
+fixed, deploy by hand from the server: build in the checkout (`npm run build`), restart
+`trendimovies-astro`, then confirm the process on the web port is the one PM2 tracks and
+that the home page, `/app` and `/api/app/home` return 200. The Telegram Mini App
+releases on 2026-10-26 were deployed this way. Cause not yet investigated.
+
 **Manual deploy (server SSH):**
 ```bash
 cd /var/www/trendimovies

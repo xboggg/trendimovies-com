@@ -79,4 +79,5 @@ See `DOCS/WORKSPACE_SYNC.md` for the three-location procedure.
 ## Related documentation
 
 - This file and `DOCS/*.md` are the sanitized, public-safe operating rules for this repo -- no server addresses, absolute infrastructure paths, or credentials.
+- `DOCS/TELEGRAM_MINI_APP.md` documents the Telegram Mini App (`/app`), its data endpoints and the bridge script (`public/js/tg-miniapp.js`).
 - Full operational runbooks with exact commands, schemas, and infrastructure detail are maintained privately on the production server (not in this repo, on purpose). If you have server access, check there first for anything this file only describes at a high level.
