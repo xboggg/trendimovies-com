@@ -146,3 +146,5 @@ The entry point is the bot's **menu button** (Bot API `setChatMenuButton`, type 
 - **Menu button:** the bot's menu button is now set for everyone and opens `/app`. The commands list is still reachable by typing `/`.
 - **"New Episodes This Week" now means newly aired:** the database view `recent_episode_series` only counts episodes that AIRED in the last 14 days and whose file was first linked in the last 7 days, and shows the highest such episode per series. Back-catalogue uploads and re-linked old files no longer appear. This view feeds the website's own New Episodes row and `/series/new-episodes` too. The previous definition is kept as a rollback file with the other SQL changes.
 
+- **Group link:** the Mini App is registered with BotFather as `mini`, so `https://t.me/tmovies_up_bot/mini` opens `/app` with one tap, also from inside a Telegram group (the menu button does not appear in groups). Changing what it opens means editing the app in BotFather (`/myapps`).
+
