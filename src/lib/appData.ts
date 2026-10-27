@@ -134,6 +134,7 @@ function parseHero(home: string): HeroCard[] {
           t: String(title), img: p.startsWith('/images/') ? p : `https://image.tmdb.org/t/p/w500${p}`,
           href: `${series ? '/tv/' : '/movie/'}${id}`, type: series ? 'series' : 'movie', id,
           tag: series ? 'Trending series' : 'Trending movie',
+          y: (() => { const v = parseInt(String(it.release_date || it.first_air_date || it.year || '').slice(0, 4), 10); return v > 1800 ? v : undefined; })(),
         });
       }
       if (out.length) return out;
@@ -198,12 +199,46 @@ async function topUp(rows: Record<string, Card[]>): Promise<void> {
           const href = `${spec.type === 'series' ? '/tv/' : '/movie/'}${id}`;
           if (seen.has(href)) continue;
           seen.add(href);
-          row.push({ t: String(title), img: `https://image.tmdb.org/t/p/w342${r.poster_path}`, href, type: spec.type, id });
+          const yr = parseInt(String(r.release_date || r.first_air_date || '').slice(0, 4), 10);
+          row.push({ t: String(title), img: `https://image.tmdb.org/t/p/w342${r.poster_path}`, href, type: spec.type, id, y: yr > 1800 ? yr : undefined });
         }
         if (row.length >= MORE_LIMIT) break;
       }
     } catch (e) { /* keep the row as the website has it */ }
   }
+}
+
+/** Year printed on a poster. The website's cards do not carry it, so fill it from our own tables (one query per 150 titles). */
+async function fillYears(rows: Record<string, Card[]>, hero: HeroCard[]): Promise<void> {
+  try {
+    const all: Card[] = [...hero, ...Object.values(rows).flat()];
+    for (const [type, table] of [['movie', 'movies'], ['series', 'series']] as const) {
+      const need = all.filter((c) => c.type === type && c.id && !c.y);
+      const ids = Array.from(new Set(need.map((c) => c.id as number)));
+      const year = new Map<number, number>();
+      for (let i = 0; i < ids.length; i += 150) {
+        const r = await fetch(`${PG}/${table}?tmdb_id=in.(${ids.slice(i, i + 150).join(',')})&select=tmdb_id,year`, { signal: AbortSignal.timeout(8000) });
+        if (!r.ok) continue;
+        for (const x of (await r.json()) || []) if (x.year) year.set(Number(x.tmdb_id), Number(x.year));
+      }
+      for (const c of need) {
+        const y = year.get(c.id as number);
+        if (y) c.y = y;
+      }
+    }
+    for (const c of all) if (!c.y && c.date) c.y = Number(c.date.slice(0, 4));      // digital release not in our tables yet
+    // titles we do not hold (trending ones): ask TMDB, 10 at a time (the site's TMDB helper caches every answer)
+    const rest = Array.from(new Map(all.filter((c) => !c.y && c.id && (c.type === 'movie' || c.type === 'series')).map((c) => [c.href, c])).values());
+    for (let i = 0; i < rest.length; i += 10) {
+      await Promise.all(rest.slice(i, i + 10).map(async (c) => {
+        try {
+          const t: any = await fetchFromTMDB<any>(`/${c.type === 'series' ? 'tv' : 'movie'}/${c.id}`, {});
+          const y = parseInt(String((t && (t.release_date || t.first_air_date)) || '').slice(0, 4), 10);
+          if (y > 1800) for (const x of all) if (x.href === c.href) x.y = y;
+        } catch (e) { /* no year */ }
+      }));
+    }
+  } catch (e) { /* a poster without a year is fine */ }
 }
 
 async function build(): Promise<AppData> {
@@ -220,7 +255,9 @@ async function build(): Promise<AppData> {
   await topUp(rows);
   const total = Object.values(rows).reduce((n, r) => n + r.length, 0);
   if (total === 0) throw new Error('home page markup changed: no cards parsed');
-  return { today, rows, reviews, hero: parseHero(home) };
+  const hero = parseHero(home);
+  await fillYears(rows, hero);
+  return { today, rows, reviews, hero };
 }
 
 export async function getAppData(): Promise<AppData> {

@@ -133,3 +133,10 @@ The entry point is the bot's **menu button** (Bot API `setChatMenuButton`, type 
 - Torrent links inside the app (Telegram cannot open them).
 - A direct Mini App link for the group (needs a BotFather setup).
 - The menu button for all users (at the time of writing it is on for the owner's chat only).
+
+## Pop-up details, year on posters, "Newly Added" fix (2026-10-27)
+
+- **Pop-up:** tapping a movie or a series now shows its year, length (or seasons), rating, up to four genre chips and the synopsis. Movies keep the 720p-then-1080p Telegram buttons; series get a "See episodes and downloads" button to the normal series page. `GET /api/app/title?type=movie|series&id=<tmdb id>` returns the details from our own tables and asks TMDB only when our row has no synopsis, genres or year.
+- **Year on posters:** a small year pill sits bottom-left of every poster (not on Digital Releases, where the date strip is). `fillYears()` in `src/lib/appData.ts` fills it from our tables, then TMDB for titles we do not hold.
+- **"Newly Added Movies" no longer jumps on re-linked files:** the database function `recently_added_movies` now ranks a movie by when its newest FILE was first linked (the earliest link row for that Telegram file), not by the newest link row. Background jobs that deactivate and re-create the link of the same file no longer make an old movie look new. The previous definition is kept as a rollback file next to the other SQL changes.
+

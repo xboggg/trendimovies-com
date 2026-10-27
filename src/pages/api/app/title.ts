@@ -13,6 +13,7 @@
  * Everything else (other resolutions and the runners-up) is returned in `more`.
  */
 import type { APIRoute } from 'astro';
+import { fetchFromTMDB } from '../../../lib/tmdb';
 
 const PG = import.meta.env.PUBLIC_SUPABASE_URL || 'http://localhost:3001';
 const DELIVERY_BOTS = ['trendimovies_dl_bot', 'trendimovies_dl2_bot'];
@@ -38,17 +39,53 @@ function better(a: Link, b: Link): number {
   return 0;
 }
 
+/** Genre names, synopsis, year, length and rating for the pop-up. Our own table first (movies: genres = ["Action"], series: [{id,name}]); TMDB only when ours has no synopsis. */
+async function details(kind: 'movie' | 'series', tmdb: number, row: any): Promise<{ year: number | null; genres: string[]; overview: string; runtime: number | null; rating: number | null; seasons: number | null }> {
+  const names = (g: any): string[] => (Array.isArray(g) ? g : []).map((x: any) => (typeof x === 'string' ? x : x && x.name)).filter(Boolean);
+  let year: number | null = row && row.year ? Number(row.year) : null;
+  let genres = row ? names(row.genres) : [];
+  let overview = row && row.overview ? String(row.overview).trim() : '';
+  let runtime: number | null = row && row.runtime ? Number(row.runtime) : (row && Array.isArray(row.episode_run_time) && row.episode_run_time[0] ? Number(row.episode_run_time[0]) : null);
+  let rating: number | null = row && row.vote_average && row.vote_count > 0 ? Number(row.vote_average) : null;
+  const seasons: number | null = row && row.number_of_seasons ? Number(row.number_of_seasons) : null;
+  if (!overview || !genres.length || !year) {
+    try {
+      const t: any = await fetchFromTMDB<any>(`/${kind === 'series' ? 'tv' : 'movie'}/${tmdb}`, {});
+      if (t) {
+        if (!overview && t.overview) overview = String(t.overview).trim();
+        if (!genres.length) genres = names(t.genres);
+        if (!year) { const y = parseInt(String(t.release_date || t.first_air_date || '').slice(0, 4), 10); if (y > 1800) year = y; }
+        if (!runtime) runtime = Number(t.runtime || (t.episode_run_time && t.episode_run_time[0]) || 0) || null;
+        if (rating == null && t.vote_count > 0) rating = Number(t.vote_average);
+      }
+    } catch (e) { /* the pop-up simply shows less */ }
+  }
+  return { year, genres: genres.slice(0, 4), overview, runtime, rating: rating == null ? null : Math.round(rating * 10) / 10, seasons };
+}
+
 export const GET: APIRoute = async ({ url }) => {
   const headers = { 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=60' };
   const tmdb = Number(url.searchParams.get('id'));
-  if (url.searchParams.get('type') !== 'movie' || !Number.isInteger(tmdb) || tmdb <= 0) {
+  const kind = url.searchParams.get('type');
+  if ((kind !== 'movie' && kind !== 'series') || !Number.isInteger(tmdb) || tmdb <= 0) {
     return new Response(JSON.stringify({ error: 'bad request' }), { status: 400, headers });
+  }
+  if (kind === 'series') {
+    try {
+      const sr = await fetch(`${PG}/series?tmdb_id=eq.${tmdb}&select=title,year,genres,overview,episode_run_time,vote_average,vote_count,number_of_seasons&limit=1`, { signal: AbortSignal.timeout(8000) });
+      const row = ((await sr.json()) || [])[0];
+      const d = await details('series', tmdb, row);
+      return new Response(JSON.stringify({ id: tmdb, title: row ? row.title : '', ...d, best: [], more: [], other: 0, page: `/tv/${tmdb}` }), { status: 200, headers });
+    } catch (e) {
+      return new Response(JSON.stringify({ error: 'unavailable' }), { status: 502, headers });
+    }
   }
   const page = `/movie/${tmdb}`;
   try {
-    const mr = await fetch(`${PG}/movies?tmdb_id=eq.${tmdb}&select=id,title,year&limit=1`, { signal: AbortSignal.timeout(8000) });
+    const mr = await fetch(`${PG}/movies?tmdb_id=eq.${tmdb}&select=id,title,year,genres,overview,runtime,vote_average,vote_count&limit=1`, { signal: AbortSignal.timeout(8000) });
     const movie = ((await mr.json()) || [])[0];
-    if (!movie) return new Response(JSON.stringify({ id: tmdb, best: [], more: [], other: 0, page }), { status: 200, headers });
+    const det = await details('movie', tmdb, movie);
+    if (!movie) return new Response(JSON.stringify({ id: tmdb, ...det, best: [], more: [], other: 0, page }), { status: 200, headers });
 
     const lr = await fetch(`${PG}/download_links?content_type=eq.movie&content_id=eq.${movie.id}&is_active=eq.true&select=*`, { signal: AbortSignal.timeout(8000) });
     const rows: any[] = (await lr.json()) || [];
@@ -81,7 +118,7 @@ export const GET: APIRoute = async ({ url }) => {
       .sort((a, b) => (ORDER[a.quality] ?? 9) - (ORDER[b.quality] ?? 9) || better(b, a));
 
     const out = (l: Link) => ({ quality: l.quality, size: l.size, variant: VARIANT_LABEL[l.variant] || '', lang: l.lang, hard: l.hard, tg: l.tg });
-    return new Response(JSON.stringify({ id: tmdb, title: movie.title, year: movie.year, best: best.map(out), more: more.map(out), other, page }), { status: 200, headers });
+    return new Response(JSON.stringify({ id: tmdb, title: movie.title, ...det, best: best.map(out), more: more.map(out), other, page }), { status: 200, headers });
   } catch (e) {
     return new Response(JSON.stringify({ error: 'unavailable' }), { status: 502, headers });
   }

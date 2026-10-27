@@ -88,6 +88,7 @@
     .poster .date { position: absolute; inset: auto 0 0 0; padding: 26px 6px 7px; background: linear-gradient(to top, #000000ee 20%, #00000000); display: flex; flex-direction: column; gap: 1px; z-index: 1; }
     .poster .date b { font-size: 12px; letter-spacing: .04em; text-transform: uppercase; }
     .poster .date i { font-style: normal; font-size: 11px; color: var(--ok); font-weight: 600; }
+    .poster .y { position: absolute; left: 6px; bottom: 6px; background: #000000b8; color: #fff; font-size: 10.5px; font-weight: 700; padding: 1px 6px; border-radius: 10px; letter-spacing: .02em; z-index: 1; }
     .poster:active { transform: scale(.97); }
 
     .rcard { flex: 0 0 292px; scroll-snap-align: start; text-align: left; background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 10px; display: flex; gap: 12px; }
@@ -141,6 +142,9 @@
     .sheet .poster { flex: 0 0 84px; }
     .sheet h4 { margin: 0; font-family: var(--font-display); font-weight: 400; font-size: 28px; line-height: 1; letter-spacing: .03em; }
     .sheet .meta { color: var(--muted); font-size: 13px; margin-top: 4px; }
+    .sheet .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+    .sheet .chips span { font-size: 11.5px; font-weight: 600; padding: 3px 9px; border: 1px solid var(--line); border-radius: 12px; color: var(--muted); }
+    .sheet .about { margin: 14px 0 0; font-size: 13.5px; line-height: 1.5; color: var(--text, inherit); }
     .sheet .sub { color: var(--muted); font-size: 12.5px; text-align: center; margin: 8px 0 0; }
     details { margin-top: 12px; border-top: 1px solid var(--line); padding-top: 10px; }
     summary { cursor: pointer; font-weight: 600; font-size: 14px; padding: 4px 0; }
@@ -237,6 +241,7 @@
         else {
           if (c.date && !byKey[k].date) byKey[k].date = c.date;
           if (c.ep && !byKey[k].ep) byKey[k].ep = c.ep;
+          if (c.y && !byKey[k].y) byKey[k].y = c.y;
         }
         return byKey[k];
       }
@@ -245,7 +250,7 @@
         var date = (withDate && c.date) ?'<span class="date"><b>' + esc(dlabel(c.date)) + '</b><i>' + esc(rel(c.date)) + '</i></span>' : '';
         return '<button class="poster" data-k="' + esc(keyOf(c)) + '" style="--h:' + hue(c.t) + '" aria-label="Open ' + esc(c.t) + '">' +
           (c.img ? '<img src="' + esc(c.img) + '" alt="' + esc(c.t) + '" loading="lazy">' : '<span class="t">' + esc(c.t) + '</span>') +
-          (tag ? '<span class="b">' + esc(tag) + '</span>' : '') + date + '</button>';
+          (tag ? '<span class="b">' + esc(tag) + '</span>' : '') + date + ((c.y && !date) ? '<span class="y">' + esc(c.y) + '</span>' : '') + '</button>';
       }
       function grid(list) { return list.map(function (c) { return poster(c); }).join(''); }
       function head(title, key, showMore) {
@@ -470,19 +475,29 @@
       scrim.addEventListener('click', closeSheet);
       document.addEventListener('keydown', function (e) { if (e.key === 'Escape') closeSheet(); });
 
-      function sheetShell(c, body) {
-        var meta = c.date ? 'Digital release · ' + dlabel(c.date) + ' · ' + rel(c.date) : 'Movie';
+      function runtimeLabel(m) { m = Number(m) || 0; return m ? (m >= 60 ? Math.floor(m / 60) + 'h ' + (m % 60 ? (m % 60) + 'm' : '') : m + 'm').trim() : ''; }
+      function sheetShell(c, body, d) {
+        d = d || {};
+        var kind = c.type === 'series' ? 'Series' : 'Movie';
+        var bits = [kind, d.year || c.y, d.seasons ? d.seasons + (d.seasons === 1 ? ' season' : ' seasons') : '', runtimeLabel(d.runtime), d.rating ? '\u2605 ' + d.rating : ''].filter(Boolean);
+        var meta = c.date ? 'Digital release · ' + dlabel(c.date) + ' · ' + rel(c.date) : bits.join(' · ');
+        var chips = (d.genres && d.genres.length) ? '<div class="chips">' + d.genres.map(function (g) { return '<span>' + esc(g) + '</span>'; }).join('') + '</div>' : '';
+        var about = d.overview ? '<p class="about">' + esc(d.overview) + '</p>' : '';
         return '<div class="grab"></div><div class="top"><div class="poster" style="--h:' + hue(c.t) + '">' + (c.img ? '<img src="' + esc(c.img) + '" alt="">' : '') + '</div>' +
-          '<div><h4>' + esc(c.t) + '</h4><div class="meta">' + esc(meta) + '</div></div></div>' + body +
+          '<div><h4>' + esc(c.t) + '</h4><div class="meta">' + esc(meta) + '</div>' + chips + '</div></div>' + about + body +
           '<button class="save" data-act="save" aria-pressed="' + isSaved(c) + '">' + (isSaved(c) ? 'Saved to My List' : 'Save to My List') + '</button>';
       }
       function openItem(c) {
-        if (c.type !== 'movie') { location.href = c.href; return; }          // series and request pages are the normal pages
+        if (c.type !== 'movie' && c.type !== 'series') { location.href = c.href; return; }          // request pages are the normal pages
         openKey = keyOf(c);
-        setHtml(sheet, sheetShell(c, '<p class="sub">Loading the download buttons…</p>'));
+        setHtml(sheet, sheetShell(c, '<p class="sub">' + (c.type === 'series' ? 'Loading…' : 'Loading the download buttons…') + '</p>'));
         scrim.classList.add('on'); sheet.classList.add('on');
-        fetch('/api/app/title?type=movie&id=' + c.id).then(function (r) { return r.json(); }).then(function (j) {
+        fetch('/api/app/title?type=' + c.type + '&id=' + c.id).then(function (r) { return r.json(); }).then(function (j) {
           if (openKey !== keyOf(c)) return;
+          if (c.type === 'series') {
+            setHtml(sheet, sheetShell(c, '<a class="cta" href="' + esc(c.href) + '" style="margin-top:16px">See episodes and downloads</a>', j));
+            return;
+          }
           var best = j.best || [], more = j.more || [], body;
           if (!best.length && more.length) { best = [more[0]]; more = more.slice(1); }
           function lab(l) { return [l.variant, l.size, l.lang].filter(Boolean).join(' \u00b7 '); }
@@ -500,10 +515,10 @@
               '<a class="cta soft" href="' + esc(c.href) + '" style="margin-top:12px">Open the movie page</a>';
           }
           body += '<a class="pagelink" href="' + esc(c.href) + '">Open the full movie page</a>';
-          setHtml(sheet, sheetShell(c, body));
+          setHtml(sheet, sheetShell(c, body, j));
         }).catch(function () {
           if (openKey !== keyOf(c)) return;
-          setHtml(sheet, sheetShell(c, '<a class="cta soft" href="' + esc(c.href) + '" style="margin-top:16px">Open the movie page</a>'));
+          setHtml(sheet, sheetShell(c, '<a class="cta soft" href="' + esc(c.href) + '" style="margin-top:16px">Open the ' + (c.type === 'series' ? 'series' : 'movie') + ' page</a>'));
         });
       }
       sheet.addEventListener('click', function (e) {
