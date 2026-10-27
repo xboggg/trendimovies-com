@@ -42,20 +42,24 @@ Nothing changes for visitors who are not inside Telegram.
 - **Logo:** the app home shows the website's own wordmark (`/images/logo-header.png`, the same file as the site header) instead of a text title. The other tabs keep their text titles.
 - **Row sources on the website:** Trending This Week = TMDB weekly trending movies (global, not our audience); Trending TV Series = TMDB weekly trending series; Newly Added Movies = our database (`rpc/recently_added_movies`); New Episodes This Week = our database (`recent_episode_series`) plus TMDB on-the-air; Non-Stop Action = TMDB discover (action, by popularity, 15 shown); Digital Releases = the dated list on `/digital-releases`.
 
-## Movie pop-up: the best 1080p and the best 720p
+## Movie pop-up: the best 720p, then the best 1080p
 
 `title.ts` follows the movie page rules: active `download_links` whose `url` goes through the file-streaming path become `t.me/<delivery bot>?start=<id>`. One of the two delivery bots is chosen by the parity of the id, exactly as in `DownloadSection.svelte`, so a file always maps to the same bot.
 
-The pop-up shows two buttons, the **best 1080p** and the **best 720p** (only the ones that exist). Among files of the same resolution, "best" is decided in this order:
+The pop-up shows two buttons, the **best 720p first, then the best 1080p** (the same order as the movie page; only the ones that exist). Among files of the same resolution, "best" is decided in this order:
 
 1. a file with no language tag beats a tagged one (a dub must never win just for being bigger);
 2. no hard-coded subtitles beats hard-coded;
 3. BluRay beats WEB-DL beats WEBRip beats unknown;
 4. the larger file.
 
-Every other file (other resolutions, 4K, HDRip, the runners-up) is listed under "Other versions" with its variant, size and language. If a movie has neither 1080p nor 720p, the best remaining file is the main button.
+Every other file (other resolutions, 4K, HDRip, the runners-up) is listed under "Other versions" with its variant, size and language, in the website's order (720p, 1080p, 4K, 480p, HDRip). If a movie has neither 1080p nor 720p, the best remaining file is the main button.
 
 Series do not have a pop-up: tapping a series opens its normal page, which has the season and episode picker with the same Telegram buttons (episodes have far more Telegram links than movies).
+
+## The episode number on a "New Episodes" card
+
+The New Episodes row (website home, `/series/new-episodes`, and the app) reads the database view `recent_episode_series`: one entry per series that had a file added in the last 7 days. Since 2026-10-27 the number shown is the **highest episode that received a file in those 7 days** (before, it was the episode whose file was added last, so a batch of older episodes made a finished season show e.g. S01E04 when E08 was there; 99 of 195 shows were affected). The order of the row is unchanged (by the time of the newest file). A show whose only file this week is an old episode still shows that episode: the label means "newest episode that got a file this week", not "newest aired episode".
 
 ## Behaviour
 

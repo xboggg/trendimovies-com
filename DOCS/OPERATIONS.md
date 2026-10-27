@@ -121,6 +121,14 @@ docker exec -it supabase-db psql -U postgres -d postgres
 # series_episodes, downloads, requests, events
 ```
 
+### Row view `recent_episode_series` (changed 2026-10-27)
+
+Feeds the "New Episodes This Week" row on the home page, `/series/new-episodes` and the Telegram Mini App. One row per series that had a file
+added in the last 7 days. `episode_number` / `season_number` are the HIGHEST episode that received a file in that window; `latest_added` is the time of
+the newest file and still drives the order. (Before: the episode whose file was added last, which showed a lower number whenever older episodes were
+linked in a batch.) Same columns and types as before, so nothing that reads it needs a change. To undo, run the saved rollback statement (the
+private runbook has its location). After replacing a view, run `NOTIFY pgrst, 'reload schema'`.
+
 ## Telegram bot integration
 
 The bot stream service lives on a separate box (38.242.195.0:8765).
