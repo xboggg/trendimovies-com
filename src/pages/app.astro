@@ -142,6 +142,8 @@
     .sheet .poster { flex: 0 0 84px; }
     .sheet h4 { margin: 0; font-family: var(--font-display); font-weight: 400; font-size: 28px; line-height: 1; letter-spacing: .03em; }
     .sheet .meta { color: var(--muted); font-size: 13px; margin-top: 4px; }
+    .sheet .back { display: inline-flex; align-items: center; gap: 4px; margin: 0 0 10px -4px; padding: 6px 12px 6px 6px; font-weight: 700; font-size: 15px; color: var(--text, inherit); border-radius: 18px; background: var(--card); border: 1px solid var(--line); }
+    .sheet .back:active { transform: scale(.96); }
     .sheet .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
     .sheet .chips span { font-size: 11.5px; font-weight: 600; padding: 3px 9px; border: 1px solid var(--line); border-radius: 12px; color: var(--muted); }
     .sheet .about { margin: 14px 0 0; font-size: 13.5px; line-height: 1.5; color: var(--text, inherit); }
@@ -483,7 +485,7 @@
         var meta = c.date ? 'Digital release · ' + dlabel(c.date) + ' · ' + rel(c.date) : bits.join(' · ');
         var chips = (d.genres && d.genres.length) ? '<div class="chips">' + d.genres.map(function (g) { return '<span>' + esc(g) + '</span>'; }).join('') + '</div>' : '';
         var about = d.overview ? '<p class="about">' + esc(d.overview) + '</p>' : '';
-        return '<div class="grab"></div><div class="top"><div class="poster" style="--h:' + hue(c.t) + '">' + (c.img ? '<img src="' + esc(c.img) + '" alt="">' : '') + '</div>' +
+        return '<div class="grab"></div><button class="back" data-act="close" aria-label="Back">‹ Back</button><div class="top"><div class="poster" style="--h:' + hue(c.t) + '">' + (c.img ? '<img src="' + esc(c.img) + '" alt="">' : '') + '</div>' +
           '<div><h4>' + esc(c.t) + '</h4><div class="meta">' + esc(meta) + '</div>' + chips + '</div></div>' + about + body +
           '<button class="save" data-act="save" aria-pressed="' + isSaved(c) + '">' + (isSaved(c) ? 'Saved to My List' : 'Save to My List') + '</button>';
       }
@@ -522,6 +524,7 @@
         });
       }
       sheet.addEventListener('click', function (e) {
+        if (e.target.closest('[data-act="close"]')) { closeSheet(); return; }
         var pk = e.target.closest('[data-pick]');
         if (pk) { applyPick(pk.getAttribute('data-kind'), pk.getAttribute('data-field'), pk.getAttribute('data-val')); closeSheet(); return; }
         var b = e.target.closest('[data-act="save"]'); if (!b || !openKey) return;

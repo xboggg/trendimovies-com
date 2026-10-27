@@ -140,3 +140,9 @@ The entry point is the bot's **menu button** (Bot API `setChatMenuButton`, type 
 - **Year on posters:** a small year pill sits bottom-left of every poster (not on Digital Releases, where the date strip is). `fillYears()` in `src/lib/appData.ts` fills it from our tables, then TMDB for titles we do not hold.
 - **"Newly Added Movies" no longer jumps on re-linked files:** the database function `recently_added_movies` now ranks a movie by when its newest FILE was first linked (the earliest link row for that Telegram file), not by the newest link row. Background jobs that deactivate and re-create the link of the same file no longer make an old movie look new. The previous definition is kept as a rollback file next to the other SQL changes.
 
+### Later the same day (2026-10-27)
+
+- **Back button:** the pop-up has a "Back" button at its top-left that closes it (tapping outside it, or Escape, still works).
+- **Menu button:** the bot's menu button is now set for everyone and opens `/app`. The commands list is still reachable by typing `/`.
+- **"New Episodes This Week" now means newly aired:** the database view `recent_episode_series` only counts episodes that AIRED in the last 14 days and whose file was first linked in the last 7 days, and shows the highest such episode per series. Back-catalogue uploads and re-linked old files no longer appear. This view feeds the website's own New Episodes row and `/series/new-episodes` too. The previous definition is kept as a rollback file with the other SQL changes.
+
