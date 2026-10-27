@@ -89,6 +89,16 @@
 
     .full { display: block; margin: 28px 16px 8px; text-align: center; color: var(--muted); font-size: 13px; padding: 12px; border: 1px solid var(--line); border-radius: 10px; }
 
+    .fbar { display: flex; gap: 8px; overflow-x: auto; padding: 12px 16px 0; scrollbar-width: none; }
+    .fbar::-webkit-scrollbar { display: none; }
+    .fchip { flex: 0 0 auto; padding: 8px 13px; border: 1px solid var(--line); border-radius: 99px; background: var(--card); color: var(--text); font-size: 13px; font-weight: 600; white-space: nowrap; }
+    .fchip.on { border-color: var(--accent); background: #e5091426; }
+    .fchip.clear { color: var(--accent); border-style: dashed; background: none; }
+    .fcount { margin: 10px 16px 0; color: var(--muted); font-size: 12.5px; }
+    .showmore { width: calc(100% - 32px); }
+    .optlist { max-height: 58vh; overflow-y: auto; margin-top: 10px; }
+    .opt { display: flex; align-items: center; justify-content: space-between; width: 100%; padding: 14px 6px; border-bottom: 1px solid var(--line); font-weight: 600; text-align: left; }
+    .opt.on { color: var(--accent); }
     .tabs { position: sticky; bottom: 0; z-index: 20; display: grid; grid-template-columns: repeat(5, 1fr); background: var(--surface); border-top: 1px solid var(--line);
             padding: 6px 4px calc(6px + env(safe-area-inset-bottom, 0px)); margin-top: 20px; }
     .tabs button { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 6px 0; font-size: 11.5px; color: var(--muted); font-weight: 600; }
@@ -140,19 +150,26 @@
     </section>
 
     <section class="view" id="v-movies">
-      <div class="brand"><h1>MOVIES</h1><span>Newest additions first</span></div>
+      <div class="brand"><h1>MOVIES</h1><span>Filter and sort</span></div>
+      <div class="fbar" id="movies-fbar"></div>
+      <p class="fcount" id="movies-count"></p>
       <div class="grid" id="movies-grid"><div class="skel" style="grid-column: 1 / -1"></div></div>
+      <button class="full showmore" id="movies-more" data-showmore="movies" hidden>Show more</button>
       <a class="full" href="/movies/latest">See every new movie on the website</a>
     </section>
 
     <section class="view" id="v-series">
-      <div class="brand"><h1>SERIES</h1><span>New episodes first</span></div>
+      <div class="brand"><h1>SERIES</h1><span>Filter and sort</span></div>
+      <div class="fbar" id="series-fbar"></div>
+      <p class="fcount" id="series-count"></p>
       <div class="grid" id="series-grid"><div class="skel" style="grid-column: 1 / -1"></div></div>
+      <button class="full showmore" id="series-more" data-showmore="series" hidden>Show more</button>
       <a class="full" href="/series/new-episodes">See every new episode on the website</a>
     </section>
 
     <section class="view" id="v-search">
       <input class="search" id="q" type="search" placeholder="Search movies and series" autocomplete="off" enterkeyhint="search">
+      <div class="fbar" id="search-fbar"></div>
       <div class="grid" id="search-grid"></div>
       <p class="empty" id="search-empty" hidden><b>No match</b>Try another name.</p>
     </section>
@@ -270,18 +287,105 @@
         sync();
       }
 
-      // Movies and Series tabs: 60 titles each, loaded the first time the tab is opened
-      var tabLoaded = {};
-      function loadTab(name) {
-        if (tabLoaded[name]) return;
-        tabLoaded[name] = 'loading';
-        fetch('/api/app/list?kind=' + name).then(function (r) { if (!r.ok) throw new Error('bad'); return r.json(); }).then(function (j) {
-          setHtml($(name + '-grid'), j.items.map(register).map(function (c) { return poster(c); }).join(''));
-          tabLoaded[name] = 'done';
+      // Movies and Series tabs: 60 per page with filters, from /api/app/browse (the first page loads when the tab is first opened)
+      var BR = {
+        movies: {f: {}, meta: null, items: [], total: 0, page: 0, busy: false, started: false},
+        series: {f: {}, meta: null, items: [], total: 0, page: 0, busy: false, started: false}
+      };
+      function ensureBrowse(kind) { if (!BR[kind].started) { BR[kind].started = true; loadBrowse(kind, true); } }
+      function browseQuery(kind, page) {
+        var f = BR[kind].f, q = ['kind=' + kind, 'page=' + page];
+        ['genre', 'lang', 'year', 'sort'].forEach(function (k) { if (f[k]) q.push(k + '=' + encodeURIComponent(f[k])); });
+        ['rating', 'nolly', 'running'].forEach(function (k) { if (f[k]) q.push(k + '=1'); });
+        return q.join('&');
+      }
+      function loadBrowse(kind, reset) {
+        var S = BR[kind];
+        if (S.busy) return;
+        S.busy = true;
+        var page = reset ? 1 : S.page + 1;
+        if (reset) setHtml($(kind + '-grid'), '<div class="skel" style="grid-column: 1 / -1"></div>');
+        fetch('/api/app/browse?' + browseQuery(kind, page)).then(function (r) { if (!r.ok) throw new Error('bad'); return r.json(); }).then(function (j) {
+          S.meta = j.meta; S.total = j.total; S.page = j.page; S.hasMore = j.hasMore;
+          var fresh = j.items.map(register);
+          S.items = reset ? fresh : S.items.concat(fresh);
+          S.busy = false;
+          renderBrowse(kind);
         }).catch(function () {
-          tabLoaded[name] = '';
-          setHtml($(name + '-grid'), '<p class="empty" style="grid-column: 1 / -1"><b>Could not load</b>Open the tab again to retry.</p>');
+          S.busy = false;
+          if (reset) { S.started = false; setHtml($(kind + '-grid'), '<p class="empty" style="grid-column: 1 / -1"><b>Could not load</b>Open the tab again to retry.</p>'); }
         });
+      }
+      function filterLabel(list, key, fallback) {
+        for (var i = 0; i < list.length; i++) if ((list[i].key || list[i][0]) === key) return list[i].label || list[i][1];
+        return fallback;
+      }
+      function anyFilter(kind) {
+        var S = BR[kind], f = S.f;
+        return !!(f.genre || f.lang || f.year || f.rating || f.nolly || f.running || (f.sort && S.meta && f.sort !== S.meta.defaultSort));
+      }
+      function chipHtml(kind, field, label, on) {
+        return '<button class="fchip' + (on ? ' on' : '') + '" data-open="' + field + '" data-kind="' + kind + '">' + esc(label) + ' ▾</button>';
+      }
+      function toggleHtml(kind, field, label, on) {
+        return '<button class="fchip' + (on ? ' on' : '') + '" data-toggle="' + field + '" data-kind="' + kind + '">' + esc(label) + '</button>';
+      }
+      function renderBrowse(kind) {
+        var S = BR[kind], m = S.meta, f = S.f;
+        if (!m) return;
+        var sort = f.sort || m.defaultSort, bar = '';
+        bar += chipHtml(kind, 'sort', filterLabel(m.sorts, sort, 'Sort'), sort !== m.defaultSort);
+        bar += chipHtml(kind, 'genre', f.genre || 'Genre', !!f.genre);
+        bar += chipHtml(kind, 'year', f.year ? filterLabel(m.years, f.year, 'Year') : 'Year', !!f.year);
+        bar += chipHtml(kind, 'lang', f.lang ? filterLabel(m.langs, f.lang, 'Language') : 'Language', !!f.lang);
+        bar += toggleHtml(kind, 'rating', '7+ rating', !!f.rating);
+        if (kind === 'movies') bar += toggleHtml(kind, 'nolly', 'Nigerian', !!f.nolly);
+        if (kind === 'series') bar += toggleHtml(kind, 'running', 'Still running', !!f.running);
+        if (anyFilter(kind)) bar += '<button class="fchip clear" data-clear="1" data-kind="' + kind + '">Clear</button>';
+        setHtml($(kind + '-fbar'), bar);
+        var noun = kind === 'movies' ? 'movies' : 'series';
+        $(kind + '-count').textContent = S.total ? (S.total.toLocaleString('en-US') + ' ' + noun) : '';
+        if (!S.items.length) {
+          setHtml($(kind + '-grid'), '<p class="empty" style="grid-column: 1 / -1"><b>Nothing matches</b>Try fewer filters' + (anyFilter(kind) ? ' or tap Clear.' : '.') + '</p>');
+        } else {
+          setHtml($(kind + '-grid'), S.items.map(function (c) { return poster(c); }).join(''));
+        }
+        $(kind + '-more').hidden = !S.hasMore;
+        $(kind + '-more').textContent = 'Show more (' + Math.max(0, S.total - S.items.length).toLocaleString('en-US') + ' left)';
+      }
+      function searchOpts(field) {
+        if (field === 'type') return [['all', 'All'], ['movie', 'Movies'], ['series', 'Series']];
+        return [['', 'Any year']].concat(SEARCH_YEARS.map(function (y) { return [y.key, y.label]; }));
+      }
+      function openPicker(kind, field) {
+        var title, opts, cur;
+        if (kind === 'search') {
+          title = field === 'type' ? 'Show' : 'Year'; opts = searchOpts(field); cur = field === 'type' ? searchType : searchYear;
+        } else {
+          var S = BR[kind], m = S.meta;
+          if (!m) return;
+          if (field === 'genre') { title = 'Genre'; opts = [['', 'Any genre']].concat(m.genres.map(function (g) { return [g, g]; })); cur = S.f.genre || ''; }
+          else if (field === 'year') { title = 'Year'; opts = [['', 'Any year']].concat(m.years.map(function (y) { return [y.key, y.label]; })); cur = S.f.year || ''; }
+          else if (field === 'lang') { title = 'Language'; opts = [['', 'Any language']].concat(m.langs.map(function (l) { return [l.key, l.label]; })); cur = S.f.lang || ''; }
+          else { title = 'Sort by'; opts = m.sorts.map(function (o) { return [o.key, o.label]; }); cur = S.f.sort || m.defaultSort; }
+        }
+        setHtml(sheet, '<div class="grab"></div><h4>' + esc(title) + '</h4><div class="optlist">' + opts.map(function (o) {
+          var on = o[0] === cur;
+          return '<button class="opt' + (on ? ' on' : '') + '" data-pick="1" data-kind="' + kind + '" data-field="' + field + '" data-val="' + esc(o[0]) + '"><span>' + esc(o[1]) + '</span>' + (on ? '<b>✓</b>' : '') + '</button>';
+        }).join('') + '</div>');
+        openKey = '';
+        scrim.classList.add('on'); sheet.classList.add('on');
+      }
+      function applyPick(kind, field, val) {
+        if (kind === 'search') {
+          if (field === 'type') { searchType = val || 'all'; doSearch(); } else { searchYear = val; renderSearch(); }
+          renderSearchBar();
+          return;
+        }
+        var S = BR[kind];
+        if (field === 'sort' && S.meta && val === S.meta.defaultSort) val = '';
+        if (val) S.f[field] = val; else delete S.f[field];
+        loadBrowse(kind, true);
       }
 
       // tabs
@@ -290,7 +394,7 @@
         document.querySelectorAll('.view').forEach(function (v) { v.classList.toggle('on', v.id === 'v-' + name); });
         tabs.forEach(function (b) { b.setAttribute('aria-selected', b.dataset.view === name ? 'true' : 'false'); });
         if (name === 'list') renderList();
-        if (name === 'movies' || name === 'series') loadTab(name);
+        if (name === 'movies' || name === 'series') ensureBrowse(name);
         window.scrollTo(0, 0);
       }
       tabs.forEach(function (b) {
@@ -307,20 +411,43 @@
 
       // search (the site's own search)
       function posterUrl(p) { return p ? (String(p).indexOf('/images/') === 0 ? p : 'https://image.tmdb.org/t/p/w185' + p) : ''; }
+      // Search: the site's own search, plus "Show" (all / movies / series) and a year filter on the results
+      var searchType = 'all', searchYear = '', lastSearch = [];
+      var SEARCH_YEARS = [
+        {key: '2026', label: '2026', from: 2026, to: 2026}, {key: '2025', label: '2025', from: 2025, to: 2025}, {key: '2024', label: '2024', from: 2024, to: 2024},
+        {key: '2020s', label: '2020–23', from: 2020, to: 2023}, {key: '2010s', label: '2010s', from: 2010, to: 2019}, {key: 'older', label: 'Before 2010', from: 1900, to: 2009}
+      ];
+      function renderSearchBar() {
+        var typeLabel = filterLabel(searchOpts('type'), searchType, 'All'), yr = '';
+        for (var i = 0; i < SEARCH_YEARS.length; i++) if (SEARCH_YEARS[i].key === searchYear) yr = SEARCH_YEARS[i].label;
+        setHtml($('search-fbar'), chipHtml('search', 'type', typeLabel, searchType !== 'all') + chipHtml('search', 'year', yr || 'Year', !!searchYear) +
+          ((searchType !== 'all' || searchYear) ? '<button class="fchip clear" data-clear="1" data-kind="search">Clear</button>' : ''));
+      }
+      function renderSearch() {
+        var list = lastSearch;
+        if (searchYear) {
+          var r = SEARCH_YEARS.filter(function (y) { return y.key === searchYear; })[0];
+          list = list.filter(function (c) { return c.y && c.y >= r.from && c.y <= r.to; });
+        }
+        setHtml($('search-grid'), grid(list));
+        $('search-empty').hidden = list.length > 0 || $('q').value.trim().length < 2;
+      }
       function doSearch() {
         var v = $('q').value.trim();
-        if (v.length < 2) { setHtml($('search-grid'), ''); $('search-empty').hidden = true; return; }
-        fetch('/api/search?q=' + encodeURIComponent(v) + '&type=all').then(function (r) { return r.json(); }).then(function (j) {
+        if (v.length < 2) { lastSearch = []; setHtml($('search-grid'), ''); $('search-empty').hidden = true; return; }
+        fetch('/api/search?q=' + encodeURIComponent(v) + '&type=' + encodeURIComponent(searchType)).then(function (r) { return r.json(); }).then(function (j) {
           if ($('q').value.trim() !== v) return;
-          var list = (j.results || []).filter(function (x) { return x && x.id && x.title; }).map(function (x) {
+          lastSearch = (j.results || []).filter(function (x) { return x && x.id && x.title; }).map(function (x) {
             var type = x.type === 'series' || x.type === 'tv' ? 'series' : 'movie';
-            return register({t: x.title, img: posterUrl(x.poster_path), type: type, id: Number(x.id), href: (type === 'series' ? '/tv/' : '/movie/') + x.id});
+            var c = register({t: x.title, img: posterUrl(x.poster_path), type: type, id: Number(x.id), href: (type === 'series' ? '/tv/' : '/movie/') + x.id});
+            if (x.year) c.y = Number(x.year);
+            return c;
           });
-          setHtml($('search-grid'), grid(list));
-          $('search-empty').hidden = list.length > 0;
-        }).catch(function () { setHtml($('search-grid'), ''); $('search-empty').hidden = false; });
+          renderSearch();
+        }).catch(function () { lastSearch = []; setHtml($('search-grid'), ''); $('search-empty').hidden = false; });
       }
       $('q').addEventListener('input', function () { clearTimeout(searchTimer); searchTimer = setTimeout(doSearch, 300); });
+      renderSearchBar();
 
       // pop-up
       var sheet = $('sheet'), scrim = $('scrim'), openKey = '';
@@ -365,6 +492,8 @@
         });
       }
       sheet.addEventListener('click', function (e) {
+        var pk = e.target.closest('[data-pick]');
+        if (pk) { applyPick(pk.getAttribute('data-kind'), pk.getAttribute('data-field'), pk.getAttribute('data-val')); closeSheet(); return; }
         var b = e.target.closest('[data-act="save"]'); if (!b || !openKey) return;
         var c = byKey[openKey], at = -1;
         saved.forEach(function (s, n) { if (s.k === openKey) at = n; });
@@ -375,6 +504,14 @@
       });
 
       $('app').addEventListener('click', function (e) {
+        var op = e.target.closest('[data-open]');
+        if (op) { openPicker(op.getAttribute('data-kind'), op.getAttribute('data-open')); return; }
+        var tg = e.target.closest('[data-toggle]');
+        if (tg) { var tk = tg.getAttribute('data-kind'), tf = tg.getAttribute('data-toggle'); if (BR[tk].f[tf]) delete BR[tk].f[tf]; else BR[tk].f[tf] = true; loadBrowse(tk, true); return; }
+        var cl = e.target.closest('[data-clear]');
+        if (cl) { var ck = cl.getAttribute('data-kind'); if (ck === 'search') { searchType = 'all'; searchYear = ''; renderSearchBar(); doSearch(); } else { BR[ck].f = {}; loadBrowse(ck, true); } return; }
+        var sm = e.target.closest('[data-showmore]');
+        if (sm) { loadBrowse(sm.getAttribute('data-showmore'), false); return; }
         var mb = e.target.closest('[data-more]');
         if (mb) { openMore(mb.getAttribute('data-more')); return; }
         if (e.target.closest('[data-mback]')) { closeMore(); return; }

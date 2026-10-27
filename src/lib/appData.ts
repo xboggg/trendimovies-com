@@ -18,8 +18,6 @@ const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 
 const ROW_LIMIT = 60;
 /** A "More" list shows at most this many titles. */
 export const MORE_LIMIT = 30;
-/** The Movies and Series tabs show this many titles. */
-const TAB_LIMIT = 60;
 
 /** Row order on the app home. `heading` = the h2 text on the website home page ('' = built from another source). */
 export const ROWS: Array<{ key: string; title: string; heading: string; seeAll: string }> = [
@@ -32,7 +30,7 @@ export const ROWS: Array<{ key: string; title: string; heading: string; seeAll: 
 ];
 export const REVIEWS_META = { key: 'reviews', title: 'Movie Reviews', seeAll: '/reviews' };
 
-export type Card = { t: string; img: string; href: string; type: 'movie' | 'series' | 'request'; id?: number; ep?: string; q?: string; date?: string };
+export type Card = { t: string; img: string; href: string; type: 'movie' | 'series' | 'request'; id?: number; ep?: string; q?: string; date?: string; y?: number };
 export type Review = { slug: string; t: string; y: number | null; h: string; rt: string; img: string; href: string };
 export type HeroCard = Card & { tag: string };
 export type AppData = { today: string; rows: Record<string, Card[]>; reviews: Review[]; hero: HeroCard[] };
@@ -235,10 +233,58 @@ export async function getAppData(): Promise<AppData> {
 }
 
 // ---------------------------------------------------------------------------------------------------------------------------
-// The Movies and Series tabs: the 60 newest titles from OUR OWN database, same sources as the website's home rows
-// "Newly Added Movies" (rpc/recently_added_movies: ordered by the moment a file was really added) and "New Episodes This Week"
-// (recent_episode_series).
-const tabCache: Record<string, { at: number; items: Card[] }> = {};
+// The Movies and Series tabs: 60 titles per page from OUR OWN database, with filters (genre, year, language, rating, sort, ...).
+// The rules copy the website's own /movies/latest page, so the app and the site agree: only titles that have files; quality is NOT a
+// filter (on the site it only matters when delivering on Telegram); the rating sort needs a vote floor, otherwise the top is films with
+// 0 votes at a meaningless 10.0. Every value that reaches a query is checked against the lists below first.
+export const PAGE_SIZE = 60;
+const MOVIE_GENRES = ['Action', 'Adventure', 'Animation', 'Comedy', 'Crime', 'Documentary', 'Drama', 'Family', 'Fantasy', 'History', 'Horror',
+  'Music', 'Mystery', 'Romance', 'Science Fiction', 'Thriller', 'War', 'Western'];
+const SERIES_GENRES = ['Drama', 'Comedy', 'Sci-Fi & Fantasy', 'Crime', 'Animation', 'Action & Adventure', 'Mystery', 'Documentary', 'Family',
+  'Reality', 'Kids', 'War & Politics', 'Western', 'Soap'];
+const LANGS: Record<string, { label: string; codes: string[] }> = {
+  en: { label: 'English', codes: ['en'] },
+  indian: { label: 'Indian', codes: ['hi', 'ta', 'ml', 'te', 'kn', 'bn', 'mr', 'pa', 'gu'] },
+  chinese: { label: 'Chinese', codes: ['zh', 'cn'] },
+  japanese: { label: 'Japanese', codes: ['ja'] },
+  french: { label: 'French', codes: ['fr'] },
+  korean: { label: 'Korean', codes: ['ko'] },
+  spanish: { label: 'Spanish', codes: ['es'] },
+};
+const YEARS: Record<string, { label: string; from: number; to: number }> = {
+  '2026': { label: '2026', from: 2026, to: 2026 },
+  '2025': { label: '2025', from: 2025, to: 2025 },
+  '2024': { label: '2024', from: 2024, to: 2024 },
+  '2020s': { label: '2020–23', from: 2020, to: 2023 },
+  '2010s': { label: '2010s', from: 2010, to: 2019 },
+  'older': { label: 'Before 2010', from: 1900, to: 2009 },
+};
+const MOVIE_SORTS: Record<string, { label: string; order: string }> = {
+  newest: { label: 'Newest added', order: 'created_at.desc' },
+  rated: { label: 'Top rated', order: 'vote_average.desc' },
+  popular: { label: 'Most popular', order: 'popularity.desc' },
+  released: { label: 'Release date', order: 'release_date.desc' },
+};
+const SERIES_SORTS: Record<string, { label: string; order: string }> = {
+  episodes: { label: 'New episodes', order: '' },                       // special: the series with the newest files, newest first
+  rated: { label: 'Top rated', order: 'vote_average.desc' },
+  popular: { label: 'Most popular', order: 'popularity.desc' },
+  newest: { label: 'Newest shows', order: 'first_air_date.desc.nullslast' },
+};
+
+export type BrowseKind = 'movies' | 'series';
+export type BrowseFilters = { genre?: string; lang?: string; year?: string; rating?: boolean; nolly?: boolean; running?: boolean; sort?: string; page?: number };
+
+export function browseMeta(kind: BrowseKind) {
+  const movies = kind === 'movies';
+  return {
+    genres: movies ? MOVIE_GENRES : SERIES_GENRES,
+    langs: Object.entries(LANGS).map(([key, v]) => ({ key, label: v.label })),
+    years: Object.entries(YEARS).map(([key, v]) => ({ key, label: v.label })),
+    sorts: Object.entries(movies ? MOVIE_SORTS : SERIES_SORTS).map(([key, v]) => ({ key, label: v.label })),
+    defaultSort: movies ? 'newest' : 'episodes',
+  };
+}
 
 function posterUrl(p: any): string {
   if (!p) return '';
@@ -246,40 +292,81 @@ function posterUrl(p: any): string {
   return v.startsWith('/images/') ? v : (v.startsWith('http') ? v : `https://image.tmdb.org/t/p/w342${v}`);
 }
 
-export async function getTabList(kind: 'movies' | 'series'): Promise<Card[]> {
-  const hit = tabCache[kind];
-  if (hit && Date.now() - hit.at < TTL_MS) return hit.items;
-  try {
-    let items: Card[] = [];
-    if (kind === 'movies') {
-      const r = await fetch(`${PG}/rpc/recently_added_movies`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ result_limit: TAB_LIMIT, min_year: new Date().getFullYear() - 1 }),
-        signal: AbortSignal.timeout(10000),
-      });
-      if (!r.ok) throw new Error(`recently_added_movies ${r.status}`);
-      const rows: any[] = (await r.json()) || [];
-      items = rows.filter((x) => x.poster_path && x.title).map((x) => ({
-        t: x.title, img: posterUrl(x.poster_path), href: `/movie/${x.tmdb_id}`, type: 'movie' as const, id: Number(x.tmdb_id),
-      }));
-    } else {
-      const r = await fetch(`${PG}/recent_episode_series?order=latest_added.desc&limit=${TAB_LIMIT * 2}`, { signal: AbortSignal.timeout(10000) });
-      if (!r.ok) throw new Error(`recent_episode_series ${r.status}`);
-      const rows: any[] = (await r.json()) || [];
-      const seen = new Set<number>();
-      for (const x of rows) {
-        if (!x.poster_path || !x.title || seen.has(x.tmdb_id)) continue;
-        seen.add(x.tmdb_id);
-        const ep = `S${String(x.season_number).padStart(2, '0')}E${String(x.episode_number).padStart(2, '0')}`;
-        items.push({ t: x.title, img: posterUrl(x.poster_path), href: `/tv/${x.tmdb_id}`, type: 'series', id: Number(x.tmdb_id), ep });
-      }
+function totalOf(range: string | null): number {
+  const m = range && range.match(/\/(\d+)$/);
+  return m ? parseInt(m[1], 10) : 0;
+}
+
+const browseCache = new Map<string, { at: number; data: any }>();
+
+export async function browse(kind: BrowseKind, f: BrowseFilters) {
+  const movies = kind === 'movies';
+  const genre = f.genre && (movies ? MOVIE_GENRES : SERIES_GENRES).includes(f.genre) ? f.genre : '';
+  const lang = f.lang && LANGS[f.lang] ? f.lang : '';
+  const year = f.year && YEARS[f.year] ? f.year : '';
+  const sorts = movies ? MOVIE_SORTS : SERIES_SORTS;
+  const defaultSort = movies ? 'newest' : 'episodes';
+  const sort = f.sort && sorts[f.sort] ? f.sort : defaultSort;
+  const page = Math.min(Math.max(1, Math.floor(Number(f.page) || 1)), 200);
+  const rating = !!f.rating;
+  const nolly = movies && !!f.nolly;
+  const running = !movies && !!f.running;
+
+  const key = JSON.stringify([kind, genre, lang, year, sort, page, rating, nolly, running]);
+  const hit = browseCache.get(key);
+  if (hit && Date.now() - hit.at < 60000) return hit.data;
+
+  // filters shared by both kinds; genre and status are shaped differently in the two tables
+  const q: string[] = [];
+  if (genre) q.push(`genres=cs.${encodeURIComponent(JSON.stringify(movies ? [genre] : [{ name: genre }]))}`);
+  if (lang) q.push(`original_language=in.(${LANGS[lang].codes.join(',')})`);
+  if (year) q.push(`year=gte.${YEARS[year].from}`, `year=lte.${YEARS[year].to}`);
+  if (rating) q.push('vote_average=gte.7');
+  if (nolly) q.push(`production_countries=cs.${encodeURIComponent(JSON.stringify(['NG']))}`);   // Nigerian: matched on production country, as on the website
+  if (running) q.push('status=in.(%22Returning%20Series%22,%22In%20Production%22)');
+  if (sort === 'rated') q.push(movies ? 'vote_count=gte.200' : 'vote_count=gte.100');
+
+  const offset = (page - 1) * PAGE_SIZE;
+  let items: Card[] = [];
+  let total = 0;
+
+  if (movies) {
+    const url = `${PG}/movies?${['has_downloads=eq.true', ...q].join('&')}&order=${MOVIE_SORTS[sort].order}&limit=${PAGE_SIZE}&offset=${offset}&select=tmdb_id,title,year,poster_path`;
+    const r = await fetch(url, { headers: { Prefer: 'count=exact' }, signal: AbortSignal.timeout(10000) });
+    if (!r.ok) throw new Error(`movies ${r.status}`);
+    total = totalOf(r.headers.get('content-range'));
+    items = ((await r.json()) || []).filter((x: any) => x.title).map((x: any) => ({
+      t: x.title, img: posterUrl(x.poster_path), href: `/movie/${x.tmdb_id}`, type: 'movie' as const, id: Number(x.tmdb_id), y: x.year || undefined,
+    }));
+  } else if (sort === 'episodes') {
+    // the series with the newest files (same list as the New Episodes row), narrowed by the filters
+    const rr = await fetch(`${PG}/recent_episode_series?order=latest_added.desc&limit=500&select=tmdb_id,title,poster_path,season_number,episode_number,year`, { signal: AbortSignal.timeout(10000) });
+    if (!rr.ok) throw new Error(`recent_episode_series ${rr.status}`);
+    const recent: any[] = (await rr.json()) || [];
+    let allowed: Set<number> | null = null;
+    if (q.length && recent.length) {
+      const sr = await fetch(`${PG}/series_with_downloads?${[`tmdb_id=in.(${recent.map((x) => Number(x.tmdb_id)).join(',')})`, ...q].join('&')}&select=tmdb_id`, { signal: AbortSignal.timeout(10000) });
+      if (!sr.ok) throw new Error(`series_with_downloads ${sr.status}`);
+      allowed = new Set(((await sr.json()) || []).map((x: any) => Number(x.tmdb_id)));
     }
-    items = items.slice(0, TAB_LIMIT);
-    if (!items.length) throw new Error('empty list');
-    tabCache[kind] = { at: Date.now(), items };
-    return items;
-  } catch (e) {
-    if (hit) return hit.items;      // a stale copy beats an empty tab
-    throw e;
+    const list = recent.filter((x) => x.title && (!allowed || allowed.has(Number(x.tmdb_id))));
+    total = list.length;
+    items = list.slice(offset, offset + PAGE_SIZE).map((x: any) => ({
+      t: x.title, img: posterUrl(x.poster_path), href: `/tv/${x.tmdb_id}`, type: 'series' as const, id: Number(x.tmdb_id), y: x.year || undefined,
+      ep: `S${String(x.season_number).padStart(2, '0')}E${String(x.episode_number).padStart(2, '0')}`,
+    }));
+  } else {
+    const url = `${PG}/series_with_downloads?${[...q, `order=${SERIES_SORTS[sort].order}`, `limit=${PAGE_SIZE}`, `offset=${offset}`, 'select=tmdb_id,title,year,poster_path'].join('&')}`;
+    const r = await fetch(url, { headers: { Prefer: 'count=exact' }, signal: AbortSignal.timeout(10000) });
+    if (!r.ok) throw new Error(`series_with_downloads ${r.status}`);
+    total = totalOf(r.headers.get('content-range'));
+    items = ((await r.json()) || []).filter((x: any) => x.title).map((x: any) => ({
+      t: x.title, img: posterUrl(x.poster_path), href: `/tv/${x.tmdb_id}`, type: 'series' as const, id: Number(x.tmdb_id), y: x.year || undefined,
+    }));
   }
+
+  const data = { kind, items, total, page, pageSize: PAGE_SIZE, hasMore: offset + items.length < total, sort, meta: browseMeta(kind) };
+  if (browseCache.size > 300) browseCache.clear();
+  browseCache.set(key, { at: Date.now(), data });
+  return data;
 }
