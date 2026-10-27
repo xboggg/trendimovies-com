@@ -139,14 +139,14 @@
     </section>
 
     <section class="view" id="v-movies">
-      <div class="brand"><h1>MOVIES</h1><span>From the home rows</span></div>
-      <div class="grid" id="movies-grid"></div>
+      <div class="brand"><h1>MOVIES</h1><span>Newest additions first</span></div>
+      <div class="grid" id="movies-grid"><div class="skel" style="grid-column: 1 / -1"></div></div>
       <a class="full" href="/movies/latest">See every new movie on the website</a>
     </section>
 
     <section class="view" id="v-series">
       <div class="brand"><h1>SERIES</h1><span>New episodes first</span></div>
-      <div class="grid" id="series-grid"></div>
+      <div class="grid" id="series-grid"><div class="skel" style="grid-column: 1 / -1"></div></div>
       <a class="full" href="/series/new-episodes">See every new episode on the website</a>
     </section>
 
@@ -244,8 +244,6 @@
         }
         html += '<a class="full" href="/">Open the full website</a>';
         setHtml($('home-body'), html);
-        setHtml($('movies-grid'), grid(items.filter(function (c) { return c.type === 'movie'; })));
-        setHtml($('series-grid'), grid(items.filter(function (c) { return c.type === 'series'; })));
         startHero();
       }
 
@@ -271,12 +269,27 @@
         sync();
       }
 
+      // Movies and Series tabs: 60 titles each, loaded the first time the tab is opened
+      var tabLoaded = {};
+      function loadTab(name) {
+        if (tabLoaded[name]) return;
+        tabLoaded[name] = 'loading';
+        fetch('/api/app/list?kind=' + name).then(function (r) { if (!r.ok) throw new Error('bad'); return r.json(); }).then(function (j) {
+          setHtml($(name + '-grid'), j.items.map(register).map(function (c) { return poster(c); }).join(''));
+          tabLoaded[name] = 'done';
+        }).catch(function () {
+          tabLoaded[name] = '';
+          setHtml($(name + '-grid'), '<p class="empty" style="grid-column: 1 / -1"><b>Could not load</b>Open the tab again to retry.</p>');
+        });
+      }
+
       // tabs
       var tabs = document.querySelectorAll('.tabs button');
       function show(name) {
         document.querySelectorAll('.view').forEach(function (v) { v.classList.toggle('on', v.id === 'v-' + name); });
         tabs.forEach(function (b) { b.setAttribute('aria-selected', b.dataset.view === name ? 'true' : 'false'); });
         if (name === 'list') renderList();
+        if (name === 'movies' || name === 'series') loadTab(name);
         window.scrollTo(0, 0);
       }
       tabs.forEach(function (b) {

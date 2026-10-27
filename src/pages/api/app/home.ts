@@ -4,7 +4,7 @@
  * The data and its rules live in src/lib/appData.ts.
  */
 import type { APIRoute } from 'astro';
-import { getAppData, ROWS, REVIEWS_META, sized, type Card } from '../../../lib/appData';
+import { getAppData, ROWS, REVIEWS_META, MORE_LIMIT, sized, type Card } from '../../../lib/appData';
 
 const RAIL = 12;
 const REVIEW_RAIL = 8;
@@ -28,7 +28,7 @@ export const GET: APIRoute = async () => {
 
     const rows = ROWS.map((r) => {
       const all = d.rows[r.key] || [];
-      return { key: r.key, title: r.title, total: all.length, items: all.slice(0, RAIL) };
+      return { key: r.key, title: r.title, total: Math.min(all.length, MORE_LIMIT), items: all.slice(0, RAIL) };
     }).filter((r) => r.items.length > 0);
 
     return new Response(JSON.stringify({
@@ -36,7 +36,7 @@ export const GET: APIRoute = async () => {
       hero,
       rows,
       reviews: d.reviews.slice(0, REVIEW_RAIL),
-      reviewsTotal: d.reviews.length,
+      reviewsTotal: Math.min(d.reviews.length, MORE_LIMIT),
       reviewsTitle: REVIEWS_META.title,
     }), { status: 200, headers });
   } catch (e) {

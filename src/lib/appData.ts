@@ -14,6 +14,10 @@ const SELF = `http://127.0.0.1:${process.env.PORT || '3000'}`;
 const TTL_MS = 10 * 60 * 1000;
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 const ROW_LIMIT = 60;
+/** A "More" list shows at most this many titles. */
+export const MORE_LIMIT = 30;
+/** The Movies and Series tabs show this many titles. */
+const TAB_LIMIT = 60;
 
 /** Row order on the app home. `heading` = the h2 text on the website home page ('' = built from another source). */
 export const ROWS: Array<{ key: string; title: string; heading: string; seeAll: string }> = [
@@ -145,4 +149,54 @@ export async function getAppData(): Promise<AppData> {
     if (!cache) throw e;           // a stale copy beats an empty app
   }
   return cache!.data;
+}
+
+// ---------------------------------------------------------------------------------------------------------------------------
+// The Movies and Series tabs: the 60 newest titles from OUR OWN database, same sources as the website's home rows
+// "Newly Added Movies" (rpc/recently_added_movies: ordered by the moment a file was really added) and "New Episodes This Week"
+// (recent_episode_series).
+const tabCache: Record<string, { at: number; items: Card[] }> = {};
+
+function posterUrl(p: any): string {
+  if (!p) return '';
+  const v = String(p);
+  return v.startsWith('/images/') ? v : (v.startsWith('http') ? v : `https://image.tmdb.org/t/p/w342${v}`);
+}
+
+export async function getTabList(kind: 'movies' | 'series'): Promise<Card[]> {
+  const hit = tabCache[kind];
+  if (hit && Date.now() - hit.at < TTL_MS) return hit.items;
+  try {
+    let items: Card[] = [];
+    if (kind === 'movies') {
+      const r = await fetch(`${PG}/rpc/recently_added_movies`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ result_limit: TAB_LIMIT, min_year: new Date().getFullYear() - 1 }),
+        signal: AbortSignal.timeout(10000),
+      });
+      if (!r.ok) throw new Error(`recently_added_movies ${r.status}`);
+      const rows: any[] = (await r.json()) || [];
+      items = rows.filter((x) => x.poster_path && x.title).map((x) => ({
+        t: x.title, img: posterUrl(x.poster_path), href: `/movie/${x.tmdb_id}`, type: 'movie' as const, id: Number(x.tmdb_id),
+      }));
+    } else {
+      const r = await fetch(`${PG}/recent_episode_series?order=latest_added.desc&limit=${TAB_LIMIT * 2}`, { signal: AbortSignal.timeout(10000) });
+      if (!r.ok) throw new Error(`recent_episode_series ${r.status}`);
+      const rows: any[] = (await r.json()) || [];
+      const seen = new Set<number>();
+      for (const x of rows) {
+        if (!x.poster_path || !x.title || seen.has(x.tmdb_id)) continue;
+        seen.add(x.tmdb_id);
+        const ep = `S${String(x.season_number).padStart(2, '0')}E${String(x.episode_number).padStart(2, '0')}`;
+        items.push({ t: x.title, img: posterUrl(x.poster_path), href: `/tv/${x.tmdb_id}`, type: 'series', id: Number(x.tmdb_id), ep });
+      }
+    }
+    items = items.slice(0, TAB_LIMIT);
+    if (!items.length) throw new Error('empty list');
+    tabCache[kind] = { at: Date.now(), items };
+    return items;
+  } catch (e) {
+    if (hit) return hit.items;      // a stale copy beats an empty tab
+    throw e;
+  }
 }
