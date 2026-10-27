@@ -20,7 +20,8 @@ Nothing changes for visitors who are not inside Telegram.
 | `src/pages/app.astro` | The `/app` page. Standalone HTML (no site header, footer or ad script). Its styles and scripts are `is:inline` on purpose: Astro scopes normal `<style>` tags, which would not match the elements the script creates. |
 | `src/lib/appData.ts` | Reads the website's own pages and builds the rows. Shared by the two endpoints below. Holds the row list (`ROWS`) and the 10-minute cache. |
 | `src/pages/api/app/home.ts` | The home: hero, the first 12 titles of each row (plus the row's total), the first 8 reviews. |
-| `src/pages/api/app/more.ts` | The full list behind one row (`?row=trending`, `newmovies`, `newep`, `tvtrending`, `action`, `digital`, `reviews`). |
+| `src/pages/api/app/more.ts` | The list behind one row's **More** button (`?row=trending`, `newmovies`, `newep`, `tvtrending`, `action`, `digital`, `reviews`). At most 30 titles. |
+| `src/pages/api/app/list.ts` | The 60 titles behind the **Movies** and **Series** tabs (`?kind=movies` or `series`). |
 | `src/pages/api/app/title.ts` | The Telegram delivery buttons for one movie (`?type=movie&id=<tmdb id>`). |
 | `public/js/tg-miniapp.js` | The bridge. Does nothing outside Telegram. Loaded by `BaseLayout.astro` and by `app.astro`. |
 | `public/js/telegram-web-app.js` | Telegram's own helper script, hosted by this site because the site's security policy only allows its own scripts. |
@@ -31,8 +32,15 @@ Nothing changes for visitors who are not inside Telegram.
 - **Consequence:** it depends on that markup. If a row disappears from the app, the home page markup changed; fix `parseCards()` and the `ROWS` list in `appData.ts`. If nothing at all can be read, the last good copy is served, or the endpoints answer with an error and the page shows "Could not load" with a link to the full website.
 - Digital releases: each `<h2>` on `/digital-releases` is a date and the cards under it release that day. Only today and later are kept, so the app shows real dates ("Tue 27 Oct", "Tomorrow"). "Today" is the server's own local date, not UTC.
 - Reviews come from the `movie_reviews` table (latest 40 published; the home shows 8).
-- A row on the home shows 12 titles. **More** opens the full list (15 to 50 titles per row, 29 for digital releases, 40 reviews) inside the app, with a link to the website's own "see all" page at the bottom.
+- A row on the home shows 12 titles. **More** opens that row's list inside the app, **at most 30 titles** (`MORE_LIMIT` in `appData.ts`), with a link to the website's own "see all" page at the bottom. A row can hold fewer than 30 when the website's own home row has fewer (Trending This Week and Trending TV Series 20, Non-Stop Action 15, Digital Releases 29 at the time of writing).
+- The **Movies** and **Series** tabs hold **60 titles each** (`TAB_LIMIT`), loaded the first time the tab is opened. Movies = the newest additions (`rpc/recently_added_movies`, ordered by the moment a file was really added, current and previous year, the same source as the home row Newly Added Movies). Series = the series with the newest episodes (`recent_episode_series`, one entry per series, with its latest episode number).
 - Everything is cached in memory for 10 minutes.
+
+## Where the hero and the rows come from
+
+- **App hero** (`home.ts`): up to five slides taken from the home rows, in this order: the first title of Trending This Week (a TMDB weekly trending movie), the first title of New Episodes This Week (a series), the second Trending This Week title, the first Trending TV Series title, the first Newly Added Movies title. Titles already used are skipped, so four or five slides show. Slide tags ("Trending", "New episode", ...) are fixed by position.
+- **This is NOT the website's own hero.** The website's hero is built from the top 8 TMDB weekly trending movies plus the top 4 TMDB weekly trending series, interleaved, and is drawn in the browser, so it is not in the page text the app reads.
+- **Row sources on the website:** Trending This Week = TMDB weekly trending movies (global, not our audience); Trending TV Series = TMDB weekly trending series; Newly Added Movies = our database (`rpc/recently_added_movies`); New Episodes This Week = our database (`recent_episode_series`) plus TMDB on-the-air; Non-Stop Action = TMDB discover (action, by popularity, 15 shown); Digital Releases = the dated list on `/digital-releases`.
 
 ## Movie pop-up: the best 1080p and the best 720p
 
