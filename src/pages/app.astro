@@ -603,7 +603,14 @@
       loadSaved();
       saved = saved.filter(function (s) { return s && s.k && s.item; });
       saved.forEach(function (s) { s.item = register(s.item); });
-      fetch('/api/app/home').then(function (r) { if (!r.ok) throw new Error('bad'); return r.json(); }).then(function (j) {
+      // a restart of the site (every deploy) or a slow first answer can fail ONE request: try again quietly, twice, before showing the error
+      function loadHome(left) {
+        return fetch('/api/app/home').then(function (r) { if (!r.ok) throw new Error('bad'); return r.json(); }).catch(function (e) {
+          if (left <= 0) throw e;
+          return new Promise(function (ok) { setTimeout(ok, 1500); }).then(function () { return loadHome(left - 1); });
+        });
+      }
+      loadHome(2).then(function (j) {
         D = j; render(); route();
       }).catch(function () {
         setHtml($('home-body'), '<p class="empty"><b>Could not load</b>Check your connection and try again.</p>' +
