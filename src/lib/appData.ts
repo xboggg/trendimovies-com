@@ -9,6 +9,8 @@
  * The result is cached in memory for 10 minutes; if a refresh fails the last good copy is served.
  */
 
+import { fetchFromTMDB } from './tmdb';
+
 const PG = import.meta.env.PUBLIC_SUPABASE_URL || 'http://localhost:3001';
 const SELF = `http://127.0.0.1:${process.env.PORT || '3000'}`;
 const TTL_MS = 10 * 60 * 1000;
@@ -172,6 +174,40 @@ async function reviewRows(): Promise<Review[]> {
   }));
 }
 
+// Rows that come from TMDB hold fewer than 30 titles on the website itself: TMDB gives 20 per page for trending, and the website
+// cuts the action row at 15. To let a "More" list reach 30, ask TMDB for the next page(s) and APPEND (the first titles stay exactly
+// the website's row; duplicates are skipped; a failure just leaves the row as it was). TMDB answers in 20-120 ms and the site's own
+// TMDB helper caches the pages.
+const TOPUP: Array<{ key: string; endpoint: string; params: Record<string, string>; type: 'movie' | 'series'; pages: number[] }> = [
+  { key: 'trending', endpoint: '/trending/movie/week', params: {}, type: 'movie', pages: [1, 2] },
+  { key: 'tvtrending', endpoint: '/trending/tv/week', params: {}, type: 'series', pages: [1, 2] },
+  { key: 'action', endpoint: '/discover/movie', params: { with_genres: '28', sort_by: 'popularity.desc' }, type: 'movie', pages: [1, 2] },
+];
+
+async function topUp(rows: Record<string, Card[]>): Promise<void> {
+  for (const spec of TOPUP) {
+    const row = rows[spec.key];
+    if (!row || row.length === 0 || row.length >= MORE_LIMIT) continue;     // row missing (markup changed) or already long enough
+    try {
+      const seen = new Set(row.map((c) => c.href));
+      for (const page of spec.pages) {
+        const data: any = await fetchFromTMDB<any>(spec.endpoint, { ...spec.params, page: String(page) });
+        for (const r of (data && data.results) || []) {
+          if (row.length >= MORE_LIMIT) break;
+          const id = Number(r.id);
+          const title = r.title || r.name;
+          if (!id || !title || !r.poster_path) continue;
+          const href = `${spec.type === 'series' ? '/tv/' : '/movie/'}${id}`;
+          if (seen.has(href)) continue;
+          seen.add(href);
+          row.push({ t: String(title), img: `https://image.tmdb.org/t/p/w342${r.poster_path}`, href, type: spec.type, id });
+        }
+        if (row.length >= MORE_LIMIT) break;
+      }
+    } catch (e) { /* keep the row as the website has it */ }
+  }
+}
+
 async function build(): Promise<AppData> {
   const today = localISO();
   const home = await getText(`${SELF}/`);
@@ -183,6 +219,7 @@ async function build(): Promise<AppData> {
   }
   const [digital, reviews] = await Promise.all([digitalRows(today).catch(() => [] as Card[]), reviewRows().catch(() => [] as Review[])]);
   rows.digital = digital;
+  await topUp(rows);
   const total = Object.values(rows).reduce((n, r) => n + r.length, 0);
   if (total === 0) throw new Error('home page markup changed: no cards parsed');
   return { today, rows, reviews, hero: parseHero(home) };
