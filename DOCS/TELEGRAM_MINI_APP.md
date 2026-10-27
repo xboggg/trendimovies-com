@@ -66,7 +66,7 @@ The rules copy the website's own `/movies/latest` page so the app and the site a
 | Source | `movies` table, only titles with files (`has_downloads`) | view `series_with_downloads` (series with at least one active episode file; 6,148 of 6,567 at the time) |
 | **Sort** | Newest added (default, same as the website's Latest Movies page), Top rated, Most popular, Release date | New episodes (default; the series with the newest files, with their episode number), Top rated, Most popular, Newest shows |
 | **Genre** | the website's 18 genres | 14 TV genres (Drama, Comedy, Sci-Fi & Fantasy, Crime, Animation, Action & Adventure, Mystery, Documentary, Family, Reality, Kids, War & Politics, Western, Soap) |
-| **Year** | 2026, 2025, 2024, 2020323, 2010s, Before 2010 | same |
+| **Year** | 2026, 2025, 2024, 2020–23, 2010s, Before 2010 | same |
 | **Language** | English, Indian, Chinese, Japanese, French, Korean, Spanish | same |
 | **7+ rating** | `vote_average >= 7` | same |
 | Extra | **Nigerian** (matched on production country, as on the website, because Nigerian films are tagged English) | **Still running** (status Returning Series or In Production) |
@@ -75,7 +75,7 @@ The rules copy the website's own `/movies/latest` page so the app and the site a
 - Movies store genres as plain names (`["Action"]`), series store them as objects (`[{"id": 18, "name": "Drama"}]`); `browse()` uses the right match for each.
 - With the default series sort (New episodes) the filters narrow the list of series that had files added in the last 7 days, so a narrow filter can return only a few shows.
 - **Search** has its own two filters: **Show** (all / movies / series, sent to the site's search as `type`) and **Year** (applied to the results already returned, using each result's year). Genre is not offered in Search because search results carry no genres.
-- **More lists** (the **More a** buttons) are curated rows and have no filters; they link to the website's own "see all" page.
+- **More lists** (the **More ›** buttons) are curated rows and have no filters; they link to the website's own "see all" page.
 - Each answer is cached in memory for 60 seconds. All queries measured under 200 ms.
 
 ## The episode number on a "New Episodes" card
