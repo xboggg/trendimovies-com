@@ -32,7 +32,8 @@ export const REVIEWS_META = { key: 'reviews', title: 'Movie Reviews', seeAll: '/
 
 export type Card = { t: string; img: string; href: string; type: 'movie' | 'series' | 'request'; id?: number; ep?: string; q?: string; date?: string };
 export type Review = { slug: string; t: string; y: number | null; h: string; rt: string; img: string; href: string };
-export type AppData = { today: string; rows: Record<string, Card[]>; reviews: Review[] };
+export type HeroCard = Card & { tag: string };
+export type AppData = { today: string; rows: Record<string, Card[]>; reviews: Review[]; hero: HeroCard[] };
 
 let cache: { at: number; data: AppData } | null = null;
 
@@ -96,6 +97,51 @@ function sectionsOf(html: string): Record<string, string> {
   return map;
 }
 
+/** Astro writes an island's props as [type, value] pairs (0 = plain value or object, 1 = array). */
+function astroValue(v: any): any {
+  if (Array.isArray(v) && v.length === 2 && typeof v[0] === 'number') {
+    const [t, x] = v;
+    if (t === 0) return x && typeof x === 'object' && !Array.isArray(x) ? Object.fromEntries(Object.entries(x).map(([k, y]) => [k, astroValue(y)])) : x;
+    if (t === 1) return (x as any[]).map(astroValue);
+    return x;
+  }
+  return v;
+}
+
+/**
+ * The website's OWN hero (top 8 TMDB weekly trending movies + top 4 trending series, interleaved, 12 slides) is passed to its hero
+ * component as props, and Astro writes those props into the page. Reading them from there gives the app exactly the website's
+ * hero with no TMDB call. Returns [] if the markup changed (the caller then falls back to a hero built from the rows).
+ */
+function parseHero(home: string): HeroCard[] {
+  try {
+    for (const m of home.matchAll(/<astro-island\b[^>]*>/g)) {
+      const tag = m[0];
+      if (!/component-url="[^"]*Hero/.test(tag)) continue;
+      const pm = tag.match(/\sprops="([^"]*)"/);
+      if (!pm) continue;
+      const props = JSON.parse(decode(pm[1]));
+      const list = astroValue(props.trending);
+      if (!Array.isArray(list)) continue;
+      const out: HeroCard[] = [];
+      for (const it of list) {
+        const title = it && (it.title || it.name);
+        const id = Number(it && it.id);
+        if (!title || !id || !it.poster_path) continue;
+        const series = it.type === 'series' || it.media_type === 'tv';
+        const p = String(it.poster_path);
+        out.push({
+          t: String(title), img: p.startsWith('/images/') ? p : `https://image.tmdb.org/t/p/w500${p}`,
+          href: `${series ? '/tv/' : '/movie/'}${id}`, type: series ? 'series' : 'movie', id,
+          tag: series ? 'Trending series' : 'Trending movie',
+        });
+      }
+      if (out.length) return out;
+    }
+  } catch (e) { /* fall through */ }
+  return [];
+}
+
 async function digitalRows(today: string): Promise<Card[]> {
   const html = await getText(`${SELF}/digital-releases`);
   const out: Card[] = [];
@@ -139,7 +185,7 @@ async function build(): Promise<AppData> {
   rows.digital = digital;
   const total = Object.values(rows).reduce((n, r) => n + r.length, 0);
   if (total === 0) throw new Error('home page markup changed: no cards parsed');
-  return { today, rows, reviews };
+  return { today, rows, reviews, hero: parseHero(home) };
 }
 
 export async function getAppData(): Promise<AppData> {

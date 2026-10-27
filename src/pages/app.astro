@@ -30,7 +30,8 @@
     button:focus-visible, a:focus-visible, input:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
     .app { max-width: 480px; margin: 0 auto; min-height: 100vh; background: var(--bg); position: relative; }
 
-    .brand { display: flex; align-items: baseline; justify-content: space-between; padding: 16px 16px 4px; }
+    .brand { display: flex; align-items: center; justify-content: space-between; padding: 16px 16px 4px; }
+    .brand .logo { height: 40px; width: auto; display: block; }
     .brand h1 { margin: 0; font-family: var(--font-display); font-weight: 400; font-size: 30px; letter-spacing: .04em; color: var(--accent); }
     .brand span { color: var(--muted); font-size: 12.5px; }
 
@@ -129,7 +130,7 @@
 <body>
   <div class="app" id="app">
     <section class="view on" id="v-home">
-      <div class="brand"><h1>TRENDIMOVIES</h1><span>Tap any poster</span></div>
+      <div class="brand"><img class="logo" src="/images/logo-header.png" alt="TrendiMovies" width="678" height="224"><span>Tap any poster</span></div>
       <div id="home-body"><div class="skel"></div></div>
     </section>
 

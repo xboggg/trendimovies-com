@@ -26,6 +26,9 @@ export const GET: APIRoute = async () => {
     pushHero(d.rows.tvtrending?.[0], 'Trending series');
     pushHero(d.rows.newmovies?.[0], 'New movie');
 
+    // The website's own 12-slide hero when it could be read; otherwise the row-based hero built above.
+    const heroOut = d.hero.length >= 4 ? d.hero.map((h) => ({ ...h, img: sized(h.img, 500) })) : hero;
+
     const rows = ROWS.map((r) => {
       const all = d.rows[r.key] || [];
       return { key: r.key, title: r.title, total: Math.min(all.length, MORE_LIMIT), items: all.slice(0, RAIL) };
@@ -33,7 +36,7 @@ export const GET: APIRoute = async () => {
 
     return new Response(JSON.stringify({
       today: d.today,
-      hero,
+      hero: heroOut,
       rows,
       reviews: d.reviews.slice(0, REVIEW_RAIL),
       reviewsTotal: Math.min(d.reviews.length, MORE_LIMIT),
