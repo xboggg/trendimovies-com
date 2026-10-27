@@ -5,7 +5,7 @@
  * through /tgstream/stream/<id> become t.me/<delivery bot>?start=<id>. The two delivery bots are chosen by the parity of the
  * id, exactly as on the website, so a given file always maps to the same bot.
  *
- * The pop-up shows the BEST 1080p and the BEST 720p. "Best" among files of the same resolution:
+ * The pop-up shows the BEST 720p first, then the BEST 1080p (the same order as the movie page). "Best" among files of the same resolution:
  *   1. a file whose language tag is empty beats a tagged one (a dub must never beat the original just for being bigger),
  *   2. then no hard-coded subtitles beats hard-coded,
  *   3. then BluRay beats WEB-DL beats WEBRip beats unknown,
@@ -16,7 +16,8 @@ import type { APIRoute } from 'astro';
 
 const PG = import.meta.env.PUBLIC_SUPABASE_URL || 'http://localhost:3001';
 const DELIVERY_BOTS = ['trendimovies_dl_bot', 'trendimovies_dl2_bot'];
-const RANK: Record<string, number> = { '2160p': 5, '1080p': 4, '720p': 3, '480p': 2, 'hdrip': 1 };
+// order used on the website's movie page: 720p, 1080p, 2160p, then the rest
+const ORDER: Record<string, number> = { '720p': 0, '1080p': 1, '2160p': 2, '480p': 3, 'hdrip': 4 };
 const VARIANT_RANK: Record<string, number> = { bluray: 3, webdl: 2, webrip: 1 };
 const VARIANT_LABEL: Record<string, string> = { bluray: 'BluRay', webdl: 'WEB-DL', webrip: 'WEBRip' };
 
@@ -69,7 +70,7 @@ export const GET: APIRoute = async ({ url }) => {
     }
 
     const best: Link[] = [];
-    for (const res of ['1080p', '720p']) {
+    for (const res of ['720p', '1080p']) {
       const cands = links.filter((l) => l.quality === res);
       if (!cands.length) continue;
       const untagged = cands.filter((l) => !l.lang);
@@ -77,7 +78,7 @@ export const GET: APIRoute = async ({ url }) => {
       best.push(pool.reduce((a, b) => (better(b, a) > 0 ? b : a)));
     }
     const more = links.filter((l) => !best.includes(l))
-      .sort((a, b) => (RANK[b.quality] || 0) - (RANK[a.quality] || 0) || better(b, a));
+      .sort((a, b) => (ORDER[a.quality] ?? 9) - (ORDER[b.quality] ?? 9) || better(b, a));
 
     const out = (l: Link) => ({ quality: l.quality, size: l.size, variant: VARIANT_LABEL[l.variant] || '', lang: l.lang, hard: l.hard, tg: l.tg });
     return new Response(JSON.stringify({ id: tmdb, title: movie.title, year: movie.year, best: best.map(out), more: more.map(out), other, page }), { status: 200, headers });
