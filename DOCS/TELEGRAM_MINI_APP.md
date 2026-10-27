@@ -21,7 +21,7 @@ Nothing changes for visitors who are not inside Telegram.
 | `src/lib/appData.ts` | Reads the website's own pages and builds the rows. Shared by the two endpoints below. Holds the row list (`ROWS`) and the 10-minute cache. |
 | `src/pages/api/app/home.ts` | The home: hero, the first 12 titles of each row (plus the row's total), the first 8 reviews. |
 | `src/pages/api/app/more.ts` | The list behind one row's **More** button (`?row=trending`, `newmovies`, `newep`, `tvtrending`, `action`, `digital`, `reviews`). At most 30 titles. |
-| `src/pages/api/app/list.ts` | The 60 titles behind the **Movies** and **Series** tabs (`?kind=movies` or `series`). |
+| `src/pages/api/app/browse.ts` | The **Movies** and **Series** tabs: 60 titles per page with filters (`?kind=movies` or `series`, optional `genre`, `lang`, `year`, `rating=1`, `nolly=1`, `running=1`, `sort`, `page`). Every value is checked against fixed lists in `appData.ts`; anything else is ignored. |
 | `src/pages/api/app/title.ts` | The Telegram delivery buttons for one movie (`?type=movie&id=<tmdb id>`). |
 | `public/js/tg-miniapp.js` | The bridge. Does nothing outside Telegram. Loaded by `BaseLayout.astro` and by `app.astro`. |
 | `public/js/telegram-web-app.js` | Telegram's own helper script, hosted by this site because the site's security policy only allows its own scripts. |
@@ -33,7 +33,7 @@ Nothing changes for visitors who are not inside Telegram.
 - Digital releases: each `<h2>` on `/digital-releases` is a date and the cards under it release that day. Only today and later are kept, so the app shows real dates ("Tue 27 Oct", "Tomorrow"). "Today" is the server's own local date, not UTC.
 - Reviews come from the `movie_reviews` table (latest 40 published; the home shows 8).
 - A row on the home shows 12 titles. **More** opens that row's list inside the app, **at most 30 titles** (`MORE_LIMIT` in `appData.ts`), with a link to the website's own "see all" page at the bottom. A row can hold fewer than 30 when the website's own home row has fewer (Trending This Week and Trending TV Series 20, Non-Stop Action 15, Digital Releases 29 at the time of writing).
-- The **Movies** and **Series** tabs hold **60 titles each** (`TAB_LIMIT`), loaded the first time the tab is opened. Movies = the newest additions (`rpc/recently_added_movies`, ordered by the moment a file was really added, current and previous year, the same source as the home row Newly Added Movies). Series = the series with the newest episodes (`recent_episode_series`, one entry per series, with its latest episode number).
+- The **Movies** and **Series** tabs show **60 titles per page** with a **Show more** button and a filter bar (see "Filters" below). The first page loads when the tab is first opened.
 - Everything is cached in memory for 10 minutes.
 
 ## Where the hero and the rows come from
@@ -57,6 +57,27 @@ Every other file (other resolutions, 4K, HDRip, the runners-up) is listed under 
 
 Series do not have a pop-up: tapping a series opens its normal page, which has the season and episode picker with the same Telegram buttons (episodes have far more Telegram links than movies).
 
+## Filters (Movies, Series, Search)
+
+The rules copy the website's own `/movies/latest` page so the app and the site agree. **Quality is deliberately not a filter** (on the site it only matters when a file is delivered on Telegram, where the pop-up offers 720p and 1080p).
+
+| | Movies | Series |
+|---|---|---|
+| Source | `movies` table, only titles with files (`has_downloads`) | view `series_with_downloads` (series with at least one active episode file; 6,148 of 6,567 at the time) |
+| **Sort** | Newest added (default, same as the website's Latest Movies page), Top rated, Most popular, Release date | New episodes (default; the series with the newest files, with their episode number), Top rated, Most popular, Newest shows |
+| **Genre** | the website's 18 genres | 14 TV genres (Drama, Comedy, Sci-Fi & Fantasy, Crime, Animation, Action & Adventure, Mystery, Documentary, Family, Reality, Kids, War & Politics, Western, Soap) |
+| **Year** | 2026, 2025, 2024, 2020323, 2010s, Before 2010 | same |
+| **Language** | English, Indian, Chinese, Japanese, French, Korean, Spanish | same |
+| **7+ rating** | `vote_average >= 7` | same |
+| Extra | **Nigerian** (matched on production country, as on the website, because Nigerian films are tagged English) | **Still running** (status Returning Series or In Production) |
+
+- The rating sort requires a vote floor (movies 200 votes, series 100); without it the top of the list is titles with no votes at a meaningless 10.0.
+- Movies store genres as plain names (`["Action"]`), series store them as objects (`[{"id": 18, "name": "Drama"}]`); `browse()` uses the right match for each.
+- With the default series sort (New episodes) the filters narrow the list of series that had files added in the last 7 days, so a narrow filter can return only a few shows.
+- **Search** has its own two filters: **Show** (all / movies / series, sent to the site's search as `type`) and **Year** (applied to the results already returned, using each result's year). Genre is not offered in Search because search results carry no genres.
+- **More lists** (the **More a** buttons) are curated rows and have no filters; they link to the website's own "see all" page.
+- Each answer is cached in memory for 60 seconds. All queries measured under 200 ms.
+
 ## The episode number on a "New Episodes" card
 
 The New Episodes row (website home, `/series/new-episodes`, and the app) reads the database view `recent_episode_series`: one entry per series that had a file added in the last 7 days. Since 2026-10-27 the number shown is the **highest episode that received a file in those 7 days** (before, it was the episode whose file was added last, so a batch of older episodes made a finished season show e.g. S01E04 when E08 was there; 99 of 195 shows were affected). The order of the row is unchanged (by the time of the newest file). A show whose only file this week is an old episode still shows that episode: the label means "newest episode that got a file this week", not "newest aired episode".
@@ -67,7 +88,7 @@ The New Episodes row (website home, `/series/new-episodes`, and the app) reads t
 - Tap a **series**, a **review** or a not-yet-released title: opens the normal page. The Telegram Back button returns to `/app`.
 - **More**: opens at address `#more=<row>`, a history entry of its own, so Telegram's Back button (and the arrow in the page) closes it and returns to the previous tab. It can also be opened directly by that address.
 - **Search** uses the site's `/api/search`.
-- **Movies** and **Series** tabs list the titles from the home rows and link to the full lists on the website.
+- **Movies** and **Series** tabs: filter bar, 60 per page, Show more. They also link to the full lists on the website.
 - **My List** is stored in the phone's `localStorage` only, so it is a per-device convenience. Every storage call is wrapped in try/catch.
 
 ## The bridge (`tg-miniapp.js`)
