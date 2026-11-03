@@ -35,7 +35,7 @@ const [response1, response2] = await Promise.all([
   })
 ]);
 
-const allSeries = [...(response1.results || []), ...(response2.results || [])]
+const allSeries = Array.from(new Map([...(response1.results || []), ...(response2.results || [])].map((x: any) => [x.id, x])).values())
   .filter((s: any) => s.poster_path && !s.adult);
 const series = allSeries.slice(0, 30);
 const totalPages = Math.min(Math.ceil((response1.total_pages || 1) / 2), 250);

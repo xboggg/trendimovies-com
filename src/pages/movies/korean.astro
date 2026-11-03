@@ -25,7 +25,7 @@ const [response1, response2] = await Promise.all([
   })
 ]);
 
-const allMovies = [...(response1.results || []), ...(response2.results || [])];
+const allMovies = Array.from(new Map([...(response1.results || []), ...(response2.results || [])].map((x: any) => [x.id, x])).values());
 const movies = allMovies.slice(0, 30);
 const totalPages = Math.min(Math.ceil((response1.total_pages || 1) / 2), 100);
 
