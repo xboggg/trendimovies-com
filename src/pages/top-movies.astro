@@ -1,6 +1,7 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
 import topMoviesData from '../data/top_movies_by_year.json';
+import { readFileSync } from 'node:fs';
 
 type Entry = {
   rank: number;
@@ -34,6 +35,16 @@ const selectedYear = (requestedYear && years.includes(parseInt(requestedYear, 10
   : years[0];
 
 let movies = (data.by_year[String(selectedYear)] || []).slice();
+
+// 2026 only: a daily job (refresh_top_movies_2026.py) writes a fresh box-office list. Anything wrong with the file -> keep the static list above.
+if (selectedYear === 2026) {
+  try {
+    const fresh = JSON.parse(readFileSync('/var/lib/trendimovies/top_movies_2026.json', 'utf-8'));
+    if (Array.isArray(fresh.entries) && fresh.entries.length >= 30) movies = fresh.entries.slice();
+  } catch (e) {
+    // file missing or unreadable: static list stays
+  }
+}
 
 // Live overlay: ask PostgREST which of these tmdb_ids actually exist in our
 // movies table with has_downloads = true, then override the JSON's frozen
