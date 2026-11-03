@@ -90,12 +90,12 @@ const topMovie = movies[0];
 
 // Cinematic poster-collage OG banner (1200×630) via /api/og.png
 const _ogPosters = movies.filter((m: any) => m.poster_path).slice(0, 5).map((m: any) => m.poster_path).join('|');
-const ogImage = `/api/og.png?type=digital&posters=${encodeURIComponent(_ogPosters)}&accent=${encodeURIComponent('#fbbf24')}&eyebrow=${encodeURIComponent('TOP RATED ' + selectedYear)}&eyebrowEmoji=${encodeURIComponent('🏆')}&headline=${encodeURIComponent('Top Movies of ' + selectedYear)}&subtitle=${encodeURIComponent("The highest-rated films of the year — ranked")}&ogurl=${encodeURIComponent('trendimovies.com/top-movies')}`;
+const ogImage = `/api/og.png?type=digital&posters=${encodeURIComponent(_ogPosters)}&accent=${encodeURIComponent('#fbbf24')}&eyebrow=${encodeURIComponent('BOX OFFICE ' + selectedYear)}&eyebrowEmoji=${encodeURIComponent('🏆')}&headline=${encodeURIComponent('Top Movies of ' + selectedYear)}&subtitle=${encodeURIComponent("The biggest films of the year at the box office — ranked")}&ogurl=${encodeURIComponent('trendimovies.com/top-movies')}`;
 
-const pageTitle = `Top Movies of ${selectedYear} — Highest Rated | TrendiMovies`;
+const pageTitle = `Top Movies of ${selectedYear} — Biggest at the Box Office | TrendiMovies`;
 const pageDescription = topMovie
-  ? `The ${movies.length} highest-rated movies of ${selectedYear}, ranked — led by #1 ${topMovie.title}. Discover the year's best films and watch in HD on TrendiMovies.`
-  : `The highest-rated movies of ${selectedYear}, ranked. Discover the year's best films and watch in HD on TrendiMovies.`;
+  ? `The ${movies.length} biggest movies of ${selectedYear} at the box office, ranked — led by #1 ${topMovie.title}. Discover the year's best films and watch in HD on TrendiMovies.`
+  : `The biggest movies of ${selectedYear} at the box office, ranked. Discover the year's best films and watch in HD on TrendiMovies.`;
 
 function posterUrl(path: string | null): string {
   if (!path) return '/images/no-poster.svg';
@@ -122,7 +122,7 @@ function movieHref(m: Entry): string {
         Top Movies
       </h1>
       <p class="mt-2 text-sm md:text-base" style="color: var(--text-secondary);">
-        The highest rated movies, year by year. Click any title to watch, download, or request.
+        The biggest movies at the box office, year by year. Click any title to watch, download, or request.
       </p>
     </div>
 
