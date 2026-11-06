@@ -64,7 +64,7 @@
   <div class="scrim" on:click={closeSheet}></div>
   <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="ts-h" inert={!open}>
     <div class="hd">
-      <h2 id="ts-h">Trailer{#if title}<small> · {title}</small>{/if}</h2>
+      <h2 id="ts-h">Trailer{#if title}<small>{' · ' + title}</small>{/if}</h2>
       <button type="button" class="x" bind:this={closeBtn} on:click={closeSheet} aria-label="Close"><X size={20} /></button>
     </div>
     <div class="body">

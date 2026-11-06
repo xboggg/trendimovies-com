@@ -11,6 +11,12 @@
   export let imdbId: string | null = null;
   export let releaseDate: string | null = null;
   export let title: string = '';
+  // For a series: type="tv" and the chosen season and episode.
+  export let type: 'movie' | 'tv' = 'movie';
+  export let season: number = 1;
+  export let episode: number = 1;
+  // The movie page opens it from #stream in the address; the series page does not.
+  export let hashOpen: boolean = true;
 
   let open = false;
   let sheet: HTMLElement;
@@ -59,7 +65,7 @@
     window.addEventListener('tm:stream', onOpen);
     window.addEventListener('popstate', onPop);
     window.addEventListener('keydown', onKey);
-    if (location.hash === '#stream') openSheet();
+    if (hashOpen && location.hash === '#stream') openSheet();
     return () => {
       window.removeEventListener('tm:stream', onOpen);
       window.removeEventListener('popstate', onPop);
@@ -74,12 +80,12 @@
   <div class="scrim" on:click={closeSheet}></div>
   <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="ss-h" bind:this={sheet} inert={!open}>
     <div class="hd">
-      <h2 id="ss-h">Stream{#if title}<small> · {title}</small>{/if}</h2>
+      <h2 id="ss-h">Stream{#if title}<small>{' · ' + title}</small>{/if}</h2>
       <button type="button" class="x" bind:this={closeBtn} on:click={closeSheet} aria-label="Close"><X size={20} /></button>
     </div>
     <div class="body">
       {#if open}
-        <VideoPlayer {tmdbId} {imdbId} type="movie" {releaseDate} />
+        <VideoPlayer {tmdbId} {imdbId} {type} {season} {episode} {releaseDate} />
       {/if}
     </div>
   </div>

@@ -65,15 +65,18 @@ export function parseSpec(name: string): FileSpec {
 // ids are the numbers at the end of /tgstream/stream/<id> links.
 export function lookupSpecs(ids: number[]): Map<number, FileSpec> {
   const out = new Map<number, FileSpec>();
-  const list = [...new Set(ids.filter(n => Number.isInteger(n) && n > 0))].slice(0, 200);
+  const list = [...new Set(ids.filter(n => Number.isInteger(n) && n > 0))].slice(0, 4000);
   if (list.length === 0) return out;
   let db: Database.Database | null = null;
   try {
     db = new Database(CATALOG_PATH, { readonly: true, fileMustExist: true });
-    const rows = db
-      .prepare(`SELECT id, file_name FROM movies WHERE id IN (${list.map(() => '?').join(',')})`)
-      .all(...list) as { id: number; file_name: string }[];
-    for (const r of rows) if (r.file_name) out.set(r.id, parseSpec(r.file_name));
+    for (let i = 0; i < list.length; i += 400) {
+      const part = list.slice(i, i + 400);
+      const rows = db
+        .prepare(`SELECT id, file_name FROM movies WHERE id IN (${part.map(() => '?').join(',')})`)
+        .all(...part) as { id: number; file_name: string }[];
+      for (const r of rows) if (r.file_name) out.set(r.id, parseSpec(r.file_name));
+    }
   } catch (e) {
     console.error('file specs lookup failed:', (e as Error).message);
   } finally {

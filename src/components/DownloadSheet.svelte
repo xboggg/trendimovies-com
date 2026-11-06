@@ -31,6 +31,12 @@
   export let links: DownloadLink[] = [];
   export let subtitles: SubtitleLink[] = [];
   export let originalTitle: string = '';
+  // The series page shows which episode these files are for.
+  export let heading: string = 'Available Downloads';
+  export let subheading: string = '';
+  export let hashOpen: boolean = true;
+  // "movie" on the movie page, "show" on the series page (used in one sentence).
+  export let noun: string = 'movie';
 
   const ORDER: Record<string, number> = { '720p': 0, '1080p': 1, '2160p': 2, hdrip: 3 };
 
@@ -185,7 +191,7 @@
     window.addEventListener('tm:downloads', onOpen);
     window.addEventListener('popstate', onPop);
     window.addEventListener('keydown', onKey);
-    if (location.hash === '#download') openSheet();
+    if (hashOpen && location.hash === '#download') openSheet();
     return () => {
       window.removeEventListener('tm:downloads', onOpen);
       window.removeEventListener('popstate', onPop);
@@ -201,14 +207,14 @@
   <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="ds-h" bind:this={sheet} inert={!open}>
     <div class="grab" aria-hidden="true"></div>
     <div class="hd">
-      <h2 id="ds-h">Available Downloads</h2>
+      <h2 id="ds-h">{heading}{#if subheading}<small>{' · ' + subheading}</small>{/if}</h2>
       <button type="button" class="x" bind:this={closeBtn} on:click={closeSheet} aria-label="Close"><X size={20} /></button>
     </div>
 
     <div class="scroll">
       {#if links.length > 0 || subtitles.length > 0}
         {#if showOriginal}
-          <p class="note"><Globe size={14} /><span>Original title: <b>{originalTitle}</b>. The downloaded file may use this title. It is the same movie.</span></p>
+          <p class="note"><Globe size={14} /><span>Original title: <b>{originalTitle}</b>. The downloaded file may use this title. It is the same {noun}.</span></p>
         {/if}
 
         {#if links.length > 0}
@@ -306,7 +312,8 @@
   @media (prefers-reduced-motion: reduce) { .sheet, .scrim { animation: none; } }
   .grab { width: 44px; height: 4px; border-radius: 4px; background: #3a4154; margin: 9px auto 0; flex: none; }
   .hd { display: flex; align-items: center; justify-content: space-between; padding: 12px 20px 8px; flex: none; }
-  .hd h2 { margin: 0; font-family: 'Bricolage Grotesque', Inter, sans-serif; font-weight: 700; font-size: 22px; }
+  .hd h2 { margin: 0; font-family: 'Bricolage Grotesque', Inter, sans-serif; font-weight: 700; font-size: 22px; min-width: 0; }
+  .hd small { font-weight: 500; color: #98a1b4; font-size: 14px; margin-left: 4px; }
   .x { appearance: none; background: none; border: 0; color: #98a1b4; cursor: pointer; width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; }
   .x:hover { color: #fff; background: #1a1f2b; }
   .scroll { overflow-y: auto; padding: 0 20px 14px; overscroll-behavior: contain; }

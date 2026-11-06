@@ -1,19 +1,27 @@
 import type { APIRoute } from 'astro';
+import Database from 'better-sqlite3';
 import { readFileSync, writeFileSync, mkdirSync } from 'fs';
 
-// IMDb rating and Rotten Tomatoes score for the movie page, from OMDb
-// (omdbapi.com, one key in OMDB_API_KEY). Every film is asked for at most
-// once a week: answers are kept in memory and in a small file, so visitors
-// never wait on OMDb and the free daily limit is never close. With no key,
-// or if OMDb is down, the answer is simply "nothing" and the page shows only
-// the scores it already has.
+// IMDb rating and Rotten Tomatoes score for the movie and series pages.
+//
+// IMDb: read from a local copy of IMDb's free ratings file
+// (/opt/trendimovies/cache/imdb_ratings.db, rebuilt weekly by
+// /opt/trendimovies/imdb/build_ratings.py). No daily limit, works for every
+// title IMDb has rated.
+//
+// Rotten Tomatoes: only OMDb (omdbapi.com, key in OMDB_API_KEY) has it. The
+// free key allows about 1000 questions a day, so: an answer is kept for 30
+// days, a "limit reached" or network failure is NEVER stored (it just pauses
+// questions until the limit resets at midnight UTC), and search-engine bots
+// are answered from what is already stored and never spend the allowance.
 const KEY = process.env.OMDB_API_KEY || (import.meta as any).env?.OMDB_API_KEY || '';
 const FILE = '/opt/trendimovies/cache/omdb-ratings.json';
-const WEEK = 7 * 24 * 3600 * 1000;
-const RETRY = 6 * 3600 * 1000;
+const IMDB_DB = '/opt/trendimovies/cache/imdb_ratings.db';
+const KEEP = 30 * 24 * 3600 * 1000;
 
-type Entry = { at: number; imdb: { rating: number; votes: number } | null; rt: number | null; ok: boolean };
+type Entry = { at: number; rt: number | null; ok: boolean };
 let cache: Record<string, Entry> | null = null;
+let pausedUntil = 0;
 
 function load(): Record<string, Entry> {
   if (cache) return cache;
@@ -27,21 +35,40 @@ function save() {
   } catch (e) {}
 }
 
-const headers = { 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=3600' };
-
-export const GET: APIRoute = async ({ params }) => {
-  const id = String(params.imdb || '');
-  if (!/^tt\d{6,10}$/.test(id)) {
-    return new Response(JSON.stringify({ imdb: null, rt: null }), { status: 400, headers });
+function imdbScore(id: string): { rating: number; votes: number } | null {
+  let db: Database.Database | null = null;
+  try {
+    db = new Database(IMDB_DB, { readonly: true, fileMustExist: true });
+    const row = db.prepare('SELECT rating, votes FROM r WHERE tconst = ?').get(id) as { rating: number; votes: number } | undefined;
+    return row ? { rating: row.rating, votes: row.votes } : null;
+  } catch (e) {
+    return null;
+  } finally {
+    try { db?.close(); } catch (e) {}
   }
+}
+
+function nextMidnightUtc(): number {
+  const d = new Date();
+  return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() + 1, 0, 5, 0);
+}
+
+export const GET: APIRoute = async ({ params, request }) => {
+  const id = String(params.imdb || '');
+  const json = (body: unknown, maxAge: number, status = 200) =>
+    new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json', 'Cache-Control': `public, max-age=${maxAge}` } });
+  if (!/^tt\d{6,10}$/.test(id)) return json({ imdb: null, rt: null }, 3600, 400);
+
+  const imdb = imdbScore(id);
   const c = load();
   const hit = c[id];
-  if (hit && Date.now() - hit.at < (hit.ok ? WEEK : RETRY)) {
-    return new Response(JSON.stringify({ imdb: hit.imdb, rt: hit.rt }), { headers });
-  }
-  if (!KEY) return new Response(JSON.stringify({ imdb: null, rt: null }), { headers });
+  // Old failed lookups (ok:false) are ignored; only real answers count.
+  if (hit && hit.ok && Date.now() - hit.at < KEEP) return json({ imdb, rt: hit.rt }, 3600);
 
-  let entry: Entry = { at: Date.now(), imdb: null, rt: null, ok: false };
+  const ua = request.headers.get('user-agent') || '';
+  const isBot = /bot|crawl|spider|slurp|headless|lighthouse|facebookexternalhit|preview/i.test(ua);
+  if (!KEY || isBot || Date.now() < pausedUntil) return json({ imdb, rt: null }, 600);
+
   try {
     const ctl = new AbortController();
     const t = setTimeout(() => ctl.abort(), 6000);
@@ -49,21 +76,20 @@ export const GET: APIRoute = async ({ params }) => {
     clearTimeout(t);
     const d: any = await res.json();
     if (d && d.Response === 'True') {
-      const rating = parseFloat(d.imdbRating);
-      const votes = parseInt(String(d.imdbVotes || '').replace(/,/g, ''), 10);
       const rtRow = (d.Ratings || []).find((r: any) => r.Source === 'Rotten Tomatoes');
       const rt = rtRow ? parseInt(String(rtRow.Value), 10) : NaN;
-      entry = {
-        at: Date.now(),
-        imdb: isFinite(rating) ? { rating, votes: isFinite(votes) ? votes : 0 } : null,
-        rt: isFinite(rt) ? rt : null,
-        ok: true,
-      };
+      const entry: Entry = { at: Date.now(), rt: isFinite(rt) ? rt : null, ok: true };
+      c[id] = entry;
+      save();
+      return json({ imdb, rt: entry.rt }, 3600);
+    }
+    if (d && /limit/i.test(String(d.Error || ''))) pausedUntil = nextMidnightUtc();
+    else if (d && /not found|incorrect/i.test(String(d.Error || ''))) {
+      c[id] = { at: Date.now(), rt: null, ok: true };
+      save();
     }
   } catch (e) {
     console.error('OMDb lookup failed:', (e as Error).message);
   }
-  c[id] = entry;
-  save();
-  return new Response(JSON.stringify({ imdb: entry.imdb, rt: entry.rt }), { headers });
+  return json({ imdb, rt: null }, 600);
 };
