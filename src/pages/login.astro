@@ -50,6 +50,9 @@ if (sessionToken) {
               placeholder="Enter your password"
             />
           </div>
+          <div class="text-right -mt-2">
+            <button type="button" id="forgotLink" class="text-sm underline" style="color: var(--text-secondary);">Forgot password?</button>
+          </div>
           <div id="loginError" class="hidden text-red-500 text-sm"></div>
           <button
             type="submit"
@@ -58,6 +61,38 @@ if (sessionToken) {
           >
             Login
           </button>
+        </form>
+
+        <!-- Forgot password Form -->
+        <form id="forgotForm" class="space-y-5 hidden">
+          <h2 class="text-lg font-semibold" style="color: var(--text-primary);">Forgot your password?</h2>
+          <p class="text-sm" style="color: var(--text-secondary);">Type the email you signed up with. We will email you a link to choose a new password.</p>
+          <div>
+            <label class="block text-sm font-medium mb-2" style="color: var(--text-secondary);" for="forgotEmail">Email</label>
+            <input
+              id="forgotEmail"
+              type="email"
+              name="email"
+              required
+              autocomplete="email"
+              class="w-full px-4 py-3 rounded-lg transition-all focus:outline-none focus:ring-2 focus:ring-red-500"
+              style="background: var(--bg-tertiary); color: var(--text-primary); border: 1px solid var(--border-color);"
+              placeholder="Enter your email"
+            />
+          </div>
+          <div id="forgotError" class="hidden text-red-500 text-sm" role="alert"></div>
+          <div id="forgotDone" class="hidden rounded-lg p-3 text-sm" style="background: rgba(34,197,94,0.1); border: 1px solid rgba(34,197,94,0.35); color: var(--text-primary);" role="status">
+            Check your email. If there is an account for that address, we sent a link. It works for 1 hour. Look in Spam or Junk if you do not see it.
+          </div>
+          <button
+            id="forgotSubmit"
+            type="submit"
+            class="w-full py-3 rounded-lg font-semibold text-white transition-all hover:opacity-90 disabled:opacity-50"
+            style="background: linear-gradient(135deg, #dc2626, #991b1b);"
+          >
+            Send me the link
+          </button>
+          <button type="button" id="forgotBack" class="w-full text-sm underline" style="color: var(--text-secondary);">Back to login</button>
         </form>
 
         <!-- Signup Form -->
@@ -138,6 +173,7 @@ if (sessionToken) {
   const signupForm = document.getElementById('signupForm') as HTMLFormElement;
   const loginError = document.getElementById('loginError');
   const signupError = document.getElementById('signupError');
+  const forgotForm = document.getElementById('forgotForm') as HTMLFormElement;
 
   // Tab switching
   loginTab?.addEventListener('click', () => {
@@ -145,6 +181,7 @@ if (sessionToken) {
     signupTab?.classList.remove('tab-active');
     loginForm?.classList.remove('hidden');
     signupForm?.classList.add('hidden');
+    forgotForm?.classList.add('hidden');
   });
 
   signupTab?.addEventListener('click', () => {
@@ -152,6 +189,7 @@ if (sessionToken) {
     loginTab?.classList.remove('tab-active');
     signupForm?.classList.remove('hidden');
     loginForm?.classList.add('hidden');
+    forgotForm?.classList.add('hidden');
   });
 
   // Login form
@@ -252,5 +290,55 @@ if (sessionToken) {
       btn.disabled = false;
       btn.textContent = 'Create Account';
     }
+  });
+  // Forgot password
+  const forgotLink = document.getElementById('forgotLink');
+  const forgotBack = document.getElementById('forgotBack');
+  const forgotError = document.getElementById('forgotError');
+  const forgotDone = document.getElementById('forgotDone');
+  const forgotSubmit = document.getElementById('forgotSubmit') as HTMLButtonElement | null;
+
+  function showForgot() {
+    loginForm?.classList.add('hidden');
+    signupForm?.classList.add('hidden');
+    forgotForm?.classList.remove('hidden');
+    const typed = (loginForm?.querySelector('input[name="email"]') as HTMLInputElement | null)?.value;
+    const box = document.getElementById('forgotEmail') as HTMLInputElement | null;
+    if (box && typed && !box.value) box.value = typed;
+    box?.focus();
+  }
+  forgotLink?.addEventListener('click', showForgot);
+  forgotBack?.addEventListener('click', () => {
+    forgotForm?.classList.add('hidden');
+    loginForm?.classList.remove('hidden');
+  });
+  if (new URLSearchParams(location.search).get('forgot')) showForgot();
+
+  forgotForm?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    forgotError?.classList.add('hidden');
+    forgotDone?.classList.add('hidden');
+    const email = String(new FormData(forgotForm).get('email') || '').trim();
+    if (forgotSubmit) { forgotSubmit.disabled = true; forgotSubmit.textContent = 'Sending...'; }
+    try {
+      const res = await fetch('/api/auth/forgot-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        forgotDone?.classList.remove('hidden');
+        if (forgotSubmit) forgotSubmit.textContent = 'Send it again';
+      } else if (forgotError) {
+        forgotError.textContent = data.error || 'Something went wrong. Please try again.';
+        forgotError.classList.remove('hidden');
+        if (forgotSubmit) forgotSubmit.textContent = 'Send me the link';
+      }
+    } catch (err) {
+      if (forgotError) { forgotError.textContent = 'No connection. Please try again.'; forgotError.classList.remove('hidden'); }
+      if (forgotSubmit) forgotSubmit.textContent = 'Send me the link';
+    }
+    if (forgotSubmit) forgotSubmit.disabled = false;
   });
 </script>

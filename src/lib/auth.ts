@@ -20,7 +20,7 @@ try {
 }
 
 // Generate a short-lived JWT for PostgREST write operations
-function getAuthHeaders(): Record<string, string> {
+export function getAuthHeaders(): Record<string, string> {
   if (!JWT_SECRET) return { 'Content-Type': 'application/json' };
   const token = jwt.sign({ role: 'web_auth' }, JWT_SECRET, { expiresIn: '5m' });
   return {
@@ -69,7 +69,7 @@ export async function createUser(email: string, password: string, displayName?: 
 
   try {
     // Check if email already exists
-    const existingRes = await fetch(`${POSTGREST_URL}/users?email=eq.${encodeURIComponent(normalisedEmail)}`);
+    const existingRes = await fetch(`${POSTGREST_URL}/users?email=eq.${encodeURIComponent(normalisedEmail)}`, { headers: getAuthHeaders() });
     const existing = await existingRes.json();
 
     // PostgREST answers with an OBJECT on error, and `undefined > 0` is false,
@@ -122,7 +122,7 @@ export async function createUser(email: string, password: string, displayName?: 
 export async function loginUser(email: string, password: string, ipAddress?: string, userAgent?: string): Promise<{ success: boolean; user?: any; session?: string; error?: string }> {
   try {
     // Find user by email
-    const res = await fetch(`${POSTGREST_URL}/users?email=eq.${encodeURIComponent(email.toLowerCase().trim())}`);
+    const res = await fetch(`${POSTGREST_URL}/users?email=eq.${encodeURIComponent(email.toLowerCase().trim())}`, { headers: getAuthHeaders() });
     const users = await res.json();
 
     if (users.length === 0) {
@@ -191,7 +191,7 @@ export async function validateSession(sessionToken: string): Promise<{ valid: bo
       return { valid: false };
     }
 
-    const res = await fetch(`${POSTGREST_URL}/user_sessions?session_token=eq.${sessionToken}&select=*,users(*)`);
+    const res = await fetch(`${POSTGREST_URL}/user_sessions?session_token=eq.${sessionToken}&select=*,users(*)`, { headers: getAuthHeaders() });
     const sessions = await res.json();
 
     if (sessions.length === 0) {
@@ -240,7 +240,7 @@ export async function logoutUser(sessionToken: string): Promise<boolean> {
 // Get user's watchlist
 export async function getWatchlist(userId: number): Promise<any[]> {
   try {
-    const res = await fetch(`${POSTGREST_URL}/watchlist?user_id=eq.${userId}&order=added_at.desc`);
+    const res = await fetch(`${POSTGREST_URL}/watchlist?user_id=eq.${userId}&order=added_at.desc`, { headers: getAuthHeaders() });
     return await res.json();
   } catch (error) {
     console.error('Get watchlist error:', error);
@@ -333,7 +333,7 @@ export async function removeFromWatched(userId: number, contentType: 'movie' | '
 // Get user's favorites
 export async function getFavorites(userId: number): Promise<any[]> {
   try {
-    const res = await fetch(`${POSTGREST_URL}/favorites?user_id=eq.${userId}&order=added_at.desc`);
+    const res = await fetch(`${POSTGREST_URL}/favorites?user_id=eq.${userId}&order=added_at.desc`, { headers: getAuthHeaders() });
     return await res.json();
   } catch (error) {
     console.error('Get favorites error:', error);
@@ -400,7 +400,7 @@ export async function addToHistory(userId: number, contentType: 'movie' | 'serie
 // Get user's watch history
 export async function getWatchHistory(userId: number, limit: number = 20): Promise<any[]> {
   try {
-    const res = await fetch(`${POSTGREST_URL}/watch_history?user_id=eq.${userId}&order=watched_at.desc&limit=${limit}`);
+    const res = await fetch(`${POSTGREST_URL}/watch_history?user_id=eq.${userId}&order=watched_at.desc&limit=${limit}`, { headers: getAuthHeaders() });
     return await res.json();
   } catch (error) {
     console.error('Get history error:', error);
@@ -411,7 +411,7 @@ export async function getWatchHistory(userId: number, limit: number = 20): Promi
 // Check if item is in watchlist
 export async function isInWatchlist(userId: number, contentType: 'movie' | 'series', tmdbId: number): Promise<boolean> {
   try {
-    const res = await fetch(`${POSTGREST_URL}/watchlist?user_id=eq.${userId}&content_type=eq.${contentType}&tmdb_id=eq.${tmdbId}`);
+    const res = await fetch(`${POSTGREST_URL}/watchlist?user_id=eq.${userId}&content_type=eq.${contentType}&tmdb_id=eq.${tmdbId}`, { headers: getAuthHeaders() });
     const items = await res.json();
     return items.length > 0;
   } catch (error) {
@@ -422,7 +422,7 @@ export async function isInWatchlist(userId: number, contentType: 'movie' | 'seri
 // Check if item is in favorites
 export async function isInFavorites(userId: number, contentType: 'movie' | 'series', tmdbId: number): Promise<boolean> {
   try {
-    const res = await fetch(`${POSTGREST_URL}/favorites?user_id=eq.${userId}&content_type=eq.${contentType}&tmdb_id=eq.${tmdbId}`);
+    const res = await fetch(`${POSTGREST_URL}/favorites?user_id=eq.${userId}&content_type=eq.${contentType}&tmdb_id=eq.${tmdbId}`, { headers: getAuthHeaders() });
     const items = await res.json();
     return items.length > 0;
   } catch (error) {
