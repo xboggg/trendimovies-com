@@ -1,11 +1,14 @@
 ---
 import BaseLayout from '../../layouts/BaseLayout.astro';
 import MovieJsonLd from '../../components/MovieJsonLd.astro';
-import VideoPlayer from '../../components/VideoPlayer.svelte';
-import DownloadSection from '../../components/DownloadSection.svelte';
+import Ratings from '../../components/Ratings.svelte';
+import StreamSheet from '../../components/StreamSheet.svelte';
+import TrailerSheet from '../../components/TrailerSheet.svelte';
+import { lookupSpecs } from '../../lib/file-specs';
+import DownloadSheet from '../../components/DownloadSheet.svelte';
 import Comments from '../../components/Comments.svelte';
 import ContentRow from '../../components/ContentRow.svelte';
-import UserActions from '../../components/UserActions.svelte';
+import MovieActions from '../../components/MovieActions.svelte';
 import { getMovieDetails, transformMovieData } from '../../lib/tmdb';
 import { supabase } from '../../lib/supabase';
 import { Star, Clock, Calendar, Globe, Play } from 'lucide-svelte';
@@ -170,6 +173,15 @@ const downloadLinks = (rawLinks || []).map((link: any) => ({
   source: link.source === 'telegram' ? 1 : link.source === 'cinematika' ? 2 : undefined,
 }));
 
+// File details (WEBRip / BluRay, x265, audio ...) for the Download pop-up,
+// read from the real file names. Fails quietly to "no details".
+const _specIds = downloadLinks.map((l: any) => {
+  const m = String(l.url || '').match(/\/tgstream\/stream\/(\d+)/);
+  return m ? parseInt(m[1], 10) : 0;
+});
+const _specs = lookupSpecs(_specIds);
+const downloadLinksWithSpecs = downloadLinks.map((l: any, i: number) => ({ ...l, spec: _specs.get(_specIds[i]) || null }));
+
 // Fetch subtitle links
 const { data: subtitleLinks } = internalId ? await supabase
   .from('subtitle_links')
@@ -211,6 +223,18 @@ function formatDate(dateStr: string | null): string {
 function formatMoney(amount: number | null): string {
   if (!amount) return 'N/A';
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(amount);
+}
+
+function formatShortMoney(amount: number | null): string {
+  if (!amount) return '';
+  return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', notation: 'compact', maximumFractionDigits: 1 }).format(amount);
+}
+
+function shortParts(n: number): { v: string; s: string } {
+  if (n >= 1e9) return { v: (n / 1e9).toFixed(1), s: 'B' };
+  if (n >= 1e6) return { v: (n / 1e6).toFixed(1), s: 'M' };
+  if (n >= 1e3) return { v: (n / 1e3).toFixed(1), s: 'K' };
+  return { v: String(n), s: '' };
 }
 
 const LANGUAGES: Record<string, string> = {
@@ -257,6 +281,7 @@ const ogImage = movie.backdrop_path?.startsWith('/images/')
 const ogTitle = `${movie.title} ${ogYear}`.trim();
 ---
 
+
 <BaseLayout
   title={ogTitle}
   description={ogDescription}
@@ -264,299 +289,651 @@ const ogTitle = `${movie.title} ${ogYear}`.trim();
   type="video.movie"
 >
   <MovieJsonLd movie={movie} tmdbId={tmdbId} />
-  <!-- Backdrop Header -->
-  <!-- force-dark: the title and details use var(--text-*) and sit on the
-       backdrop photo, and the content runs past the bottom of that photo
-       onto the page itself. In light mode they were dark-on-photo and the
-       gradient faded to white. The banner keeps the dark palette; the page
-       below it stays light. -->
-  <section class="relative force-dark">
-    <div class="absolute inset-0 h-[300px] md:h-[500px]">
-      <img
-        src={getBackdropUrl(movie.backdrop_path)}
-        alt={movie.title}
-        width="1280"
-        height="720"
-        class="w-full h-full object-cover"
-      />
-      <div class="absolute inset-0 bg-gradient-to-t from-[var(--bg-primary)] via-[var(--bg-primary)]/80 to-transparent"></div>
-    </div>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,700;12..96,800&family=JetBrains+Mono:wght@500&display=swap" />
 
-    <div class="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8 pb-8 md:pb-12">
-      <div class="flex flex-col md:flex-row gap-5 md:gap-8">
-        <div class="flex-shrink-0 w-48 md:w-64 mx-auto md:mx-0">
-          <img
-            src={getPosterUrl(movie.poster_path)}
-            alt={movie.title}
-            width="500"
-            height="750"
-            class="w-full rounded-lg shadow-2xl"
-          />
-        </div>
+  <!-- Cinema page (redesign, Nov 2026). The data code above is unchanged: same
+       title, description, JSON-LD and share image as the old page. Every
+       section of the old page is still here, now inside five tabs. All five
+       tab panels are in the HTML (the script below only shows one at a time),
+       so search engines still read the whole page. -->
+  <div class="cinema force-dark" id="cinema">
+    <script is:inline>document.getElementById("cinema").classList.add("anim")</script>
+    <noscript><style>.reveal{opacity:1!important;transform:none!important}</style></noscript>
+    <section class="top">
+      <div class="bdw">
+      {movie.backdrop_path ? (
+        <img class="bd" src={getBackdropUrl(movie.backdrop_path)} alt="" width="1280" height="720" fetchpriority="high" />
+      ) : (
+        <img class="bd bd-poster" src={getPosterUrl(movie.poster_path)} alt="" width="500" height="750" />
+      )}
+      </div>
+      {movie.trailer_key && (
+        <div class="vid" id="vid" data-key={movie.trailer_key} aria-hidden="true"><div class="vframe"></div></div>
+      )}
+      <div class="l warm"></div>
+      <div class="l vig"></div>
+      <div class="l grain"></div>
+      <div class="l fade"></div>
 
-        <div class="flex-1">
-          <h1 class="text-2xl md:text-4xl lg:text-5xl font-bold mb-2 md:mb-4" style="color: var(--text-primary);">
-            {movie.title}
-            {movie.year && <span class="text-xl md:text-2xl font-normal" style="color: var(--text-secondary);"> ({movie.year})</span>}
-          </h1>
-
-          {movie.original_title && movie.original_title.trim().toLowerCase() !== movie.title.trim().toLowerCase() && (
-            <p class="-mt-1 mb-3 md:mb-4 text-sm md:text-base" style="color: var(--text-secondary);">
-              Original title: <span style="color: var(--text-primary);">{movie.original_title}</span>
-            </p>
-          )}
-
-          {movie.tagline && (
-            <p class="text-base md:text-lg italic mb-3 md:mb-4" style="color: var(--text-secondary);">
-              "{movie.tagline}"
-            </p>
-          )}
-
-          <div class="flex flex-wrap items-center gap-3 md:gap-4 mb-4 md:mb-6 text-sm" style="color: var(--text-secondary);">
-            <div class="flex items-center gap-1">
-              <Star size={16} class="text-yellow-400" fill="currentColor" />
-              <span class="font-semibold" style="color: var(--text-primary);">{movie.vote_average.toFixed(1)}</span>
-              <span class="text-xs md:text-sm">({movie.vote_count} votes)</span>
-            </div>
-            {movie.runtime && (
-              <div class="flex items-center gap-1">
-                <Clock size={16} />
-                <span>{formatRuntime(movie.runtime)}</span>
-              </div>
+      {movie.trailer_key && (
+        <button type="button" class="vmute" id="vmute" aria-label="Turn the trailer sound on" aria-pressed="false">
+          <svg class="i-off" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H3v6h3l5 4z"/><path d="m22 9-6 6M16 9l6 6"/></svg>
+          <svg class="i-on" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H3v6h3l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7M18.5 5.5a9 9 0 0 1 0 13"/></svg>
+        </button>
+      )}
+      <div class={`wrap layout${movie.trailer_key ? ' has-vid' : ''}`}>
+        <div class="head">
+          <img class="pst" src={getPosterUrl(movie.poster_path)} alt={`${movie.title} poster`} width="500" height="750" />
+          <div class="info">
+            <h1 class="t">
+              {movie.title}
+              {movie.year && <span class="yr">({movie.year})</span>}
+            </h1>
+            {movie.original_title && movie.original_title.trim().toLowerCase() !== movie.title.trim().toLowerCase() && (
+              <p class="orig">Original title: <span>{movie.original_title}</span></p>
             )}
-            {movie.release_date && (
-              <div class="flex items-center gap-1">
-                <Calendar size={16} />
-                <span>{formatDate(movie.release_date)}</span>
-              </div>
-            )}
-            <div class="flex items-center gap-1">
-              <Globe size={16} />
+            {movie.tagline && <p class="tag">"{movie.tagline}"</p>}
+            <div class="meta">
+              <span class="star"><Star size={14} fill="currentColor" /> {movie.vote_average.toFixed(1)} <small>({movie.vote_count})</small></span>
+              {movie.runtime && <span>{formatRuntime(movie.runtime)}</span>}
+              {movie.release_date && <span>{formatDate(movie.release_date)}</span>}
               <span>{getLanguageName(movie.original_language)}</span>
             </div>
+            {movie.genres && movie.genres.length > 0 && (
+              <div class="chips">
+                {movie.genres.map((genre: any) => (
+                  <a href={`/genre/${genre.name.toLowerCase().replace(/\s+/g, '-')}`} class="chip">{genre.name}</a>
+                ))}
+              </div>
+            )}
           </div>
+        </div>
 
-          {movie.genres && movie.genres.length > 0 && (
-            <div class="flex flex-wrap gap-2 mb-4 md:mb-6">
-              {movie.genres.map((genre: any) => (
-                <a
-                  href={`/genre/${genre.name.toLowerCase().replace(/\s+/g, '-')}`}
-                  class="genre-chip"
-                >
-                  {genre.name}
-                </a>
-              ))}
-            </div>
+        <div class="side">
+          <img class="pst-big" src={getPosterUrl(movie.poster_path)} alt="" width="500" height="750" loading="lazy" />
+          <div class="cta">
+            <button type="button" class="btn amber" data-go="download">Download</button>
+            <button type="button" class="btn mint" data-go="stream">Stream</button>
+            {movie.trailer_key && (
+              <button type="button" class="btn ghost" data-go="trailer">&#9654; Trailer</button>
+            )}
+          </div>
+          {subtitleLinks && subtitleLinks.length > 0 && (
+            <button type="button" class="subrow" data-go="download">
+              <span>Subtitles <small>({subtitleLinks.length} {subtitleLinks.length === 1 ? 'file' : 'files'})</small></span>
+              <span aria-hidden="true">›</span>
+            </button>
           )}
-
-          <!-- User Actions -->
-          <UserActions
+          <MovieActions
             client:load
             contentType="movie"
             tmdbId={movie.tmdb_id}
             title={movie.title}
             posterPath={movie.poster_path}
           />
-          <div class="mb-4 md:mb-6">
-            <h3 class="font-semibold mb-1.5 md:mb-2" style="color: var(--text-primary);">Synopsis</h3>
-            <p class="leading-relaxed text-sm md:text-base" style="color: var(--text-primary); opacity: 0.85;">
-              {movie.overview || 'No synopsis available.'}
-            </p>
+        </div>
+
+        <div class="main">
+          <div class="tabsbar" id="tabsbar">
+            <div class="tabs" role="tablist" aria-label="Movie sections">
+              <button type="button" role="tab" id="tab-overview" aria-controls="panel-overview" aria-selected="true" data-tab="overview">Overview</button>
+              {movie.cast_data && movie.cast_data.length > 0 && (
+                <button type="button" role="tab" id="tab-cast" aria-controls="panel-cast" aria-selected="false" tabindex="-1" data-tab="cast">Cast</button>
+              )}
+            </div>
+            <button type="button" class="minidl" id="minidl" data-go="download" tabindex="-1" aria-hidden="true">Download</button>
           </div>
 
-          <div class="grid grid-cols-2 gap-3 md:gap-4">
-            {directors.length > 0 && (
-              <div>
-                <h4 class="text-sm font-semibold" style="color: var(--text-muted);">Director</h4>
-                <p style="color: var(--text-primary);">{directors.map((d: any) => d.name).join(', ')}</p>
+          <div class="panels" id="panels">
+            <!-- Overview -->
+            <div class="panel" id="panel-overview" role="tabpanel" aria-labelledby="tab-overview" data-panel="overview">
+              <section class="blk reveal" style="--d:0">
+                <h2 class="sec">The story</h2>
+                <p class="story" id="story">{movie.overview || 'No synopsis available.'}</p>
+                <button type="button" class="more" id="storymore" aria-expanded="false" hidden>Read more</button>
+              </section>
+
+              <section class="blk reveal" style="--d:1">
+                <h2 class="sec">How it&apos;s rated</h2>
+                <Ratings
+                  client:visible
+                  tmdbScore={movie.vote_average}
+                  tmdbVotes={movie.vote_count}
+                  imdbId={movie.imdb_id}
+                  rtFallback={movieReview?.rt_score && isFinite(parseInt(movieReview.rt_score)) ? parseInt(movieReview.rt_score) : null}
+                />
+              </section>
+
+              <section class="facts reveal" style="--d:1">
+                <div class="fcards">
+                  {directors.length > 0 && (<div class="fc"><span>Director</span><b>{directors.map((d: any) => d.name).join(', ')}</b></div>)}
+                  {writers.length > 0 && (<div class="fc"><span>Writers</span><b>{writers.slice(0, 3).map((w: any) => w.name).join(', ')}</b></div>)}
+                  {movie.release_date && (<div class="fc"><span>Released</span><b>{formatDate(movie.release_date)}</b></div>)}
+                  {movie.runtime && (<div class="fc"><span>Runtime</span><b>{formatRuntime(movie.runtime)}</b></div>)}
+                  <div class="fc"><span>Language</span><b>{getLanguageName(movie.original_language)}</b></div>
+                  <div class="fc"><span>Status</span><b>{movie.status}</b></div>
+                </div>
+              </section>
+
+              {(movie.budget > 0 || movie.revenue > 0) && (
+                <section class="money reveal" style="--d:2">
+                  <h2 class="sec">Box office</h2>
+                  {movie.budget > 0 && (
+                    <div class="bar"><div class="bl"><span>Budget</span><b data-count={shortParts(movie.budget).v} data-dec="1" data-pre="$" data-suf={shortParts(movie.budget).s}>{formatShortMoney(movie.budget)}</b></div>
+                      <div class="track"><i class="fill b" style={`--w:${Math.max(4, Math.round(movie.budget / Math.max(movie.budget, movie.revenue || 0) * 100))}%`}></i></div></div>
+                  )}
+                  {movie.revenue > 0 && (
+                    <div class="bar"><div class="bl"><span>Revenue</span><b data-count={shortParts(movie.revenue).v} data-dec="1" data-pre="$" data-suf={shortParts(movie.revenue).s}>{formatShortMoney(movie.revenue)}</b></div>
+                      <div class="track"><i class="fill r" style={`--w:${Math.max(4, Math.round(movie.revenue / Math.max(movie.budget || 0, movie.revenue) * 100))}%`}></i></div></div>
+                  )}
+                  {movie.budget > 0 && movie.revenue > 0 && (movie.revenue >= movie.budget ? (
+                      <p class="ret"><span data-count={(movie.revenue / movie.budget).toFixed(1)} data-dec="1" data-pre="Earned " data-suf="&times; its budget">Earned {(movie.revenue / movie.budget).toFixed(1)}&times; its budget</span></p>
+                    ) : (
+                      <p class="ret">Earned {Math.round(movie.revenue / movie.budget * 100)}% of its budget</p>
+                    ))}
+                </section>
+              )}
+
+              {movie.production_companies && movie.production_companies.length > 0 && (
+                <section class="blk reveal" style="--d:2">
+                  <h2 class="sec">Made by</h2>
+                  <div class="pchips">
+                    {movie.production_companies.slice(0, 4).map((c: any) => (<span class="pc">{c.name}</span>))}
+                  </div>
+                </section>
+              )}
+
+              {movie.cast_data && movie.cast_data.length > 0 && (
+                <section class="blk reveal" style="--d:2">
+                  <div class="rowhd"><h2 class="sec">Top cast</h2><button type="button" class="seeall" data-go="cast">See all</button></div>
+                  <div class="strip">
+                    {movie.cast_data.slice(0, 8).map((actor: any) => (
+                      <a href={`/person/${actor.id}`} class="sc">
+                        <img src={getProfileUrl(actor.profile_path)} alt={actor.name} loading="lazy" width="64" height="64" />
+                        <span class="cn">{actor.name}</span>
+                        <span class="cc">{actor.character}</span>
+                      </a>
+                    ))}
+                  </div>
+                </section>
+              )}
+
+              {movieReview && (
+                <a href={`/review/${movieReview.slug}`} class="ban reveal" style={`--a:${movieReview.accent || '#ff6a55'};--d:3`}>
+                  <div class="ban-tag">⭐ TrendiMovies Review</div>
+                  <div class="ban-h">{movieReview.headline}</div>
+                  {movieReview.deck && <div class="ban-dk">{movieReview.deck}</div>}
+                  <div class="ban-row">
+                    {movieReview.rt_score && <span class="ban-chip rt">🍅 {movieReview.rt_score}</span>}
+                    {movieReview.box_office && <span class="ban-chip mo">{movieReview.box_office}</span>}
+                    {movieReview.verdict && <span class="ban-vd">“{movieReview.verdict}”</span>}
+                  </div>
+                  <span class="ban-go">Read the full review <i aria-hidden="true">→</i></span>
+                </a>
+              )}
+
+              {relatedPost && (
+                <a href={`/blog/${relatedPost.slug}`} class="ban reveal" style={`--a:${relatedPost.accent || '#f6b93b'};--d:4`}>
+                  <div class="ban-tag">📝 TrendiMovies Blog</div>
+                  <div class="ban-h">{relatedPost.title}</div>
+                  {relatedPost.deck && <div class="ban-dk">{relatedPost.deck}</div>}
+                  <span class="ban-go">Read the post <i aria-hidden="true">→</i></span>
+                </a>
+              )}
+            </div>
+
+            <!-- Cast -->
+            {movie.cast_data && movie.cast_data.length > 0 && (
+              <div class="panel" id="panel-cast" role="tabpanel" aria-labelledby="tab-cast" data-panel="cast" hidden>
+                <h2 class="sec">Starring</h2>
+                <div class="cast">
+                  {movie.cast_data.slice(0, 12).map((actor: any) => (
+                    <a href={`/person/${actor.id}`} class="cm">
+                      <img src={getProfileUrl(actor.profile_path)} alt={actor.name} loading="lazy" width="96" height="96" />
+                      <span class="cn">{actor.name}</span>
+                      <span class="cc">{actor.character}</span>
+                    </a>
+                  ))}
+                </div>
               </div>
             )}
-            {writers.length > 0 && (
-              <div>
-                <h4 class="text-sm font-semibold" style="color: var(--text-muted);">Writers</h4>
-                <p style="color: var(--text-primary);">{writers.slice(0, 3).map((w: any) => w.name).join(', ')}</p>
-              </div>
-            )}
+
           </div>
         </div>
       </div>
-    </div>
-  </section>
+    </section>
 
-  <!-- Video Player -->
-  <section class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-    <h2 class="text-2xl font-bold mb-4 flex items-center gap-2" style="color: var(--text-primary);">
-      <Play size={24} />
-      Watch Now
-    </h2>
-    <VideoPlayer
+    <DownloadSheet
+      client:load
+      links={downloadLinksWithSpecs}
+      subtitles={subtitleLinks || []}
+      originalTitle={movie.original_title && movie.original_title.trim().toLowerCase() !== movie.title.trim().toLowerCase() ? movie.original_title : ''}
+    />
+
+    <StreamSheet
       client:load
       tmdbId={movie.tmdb_id}
       imdbId={movie.imdb_id}
-      type="movie"
       releaseDate={movie.release_date}
-    />
-  </section>
-
-  <!-- Adsterra Banner 320x50 -->
-  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 flex justify-center">
-    <script is:inline>
-      atOptions = {
-        'key' : '72e8a3ac047110fa65f71d101343d2fd',
-        'format' : 'iframe',
-        'height' : 50,
-        'width' : 320,
-        'params' : {}
-      };
-    </script>
-    <script is:inline src="https://www.highperformanceformat.com/72e8a3ac047110fa65f71d101343d2fd/invoke.js"></script>
-  </div>
-
-  <!-- Downloads Section -->
-  <section class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-    <DownloadSection
-      client:load
-      links={downloadLinks || []}
-      subtitles={subtitleLinks || []}
-      contentId={tmdbId}
-      contentType="movie"
       title={movie.title}
-      originalTitle={movie.original_title || ''}
     />
-  </section>
+    {movie.trailer_key && (
+      <TrailerSheet client:load videoKey={movie.trailer_key} title={movie.title} />
+    )}
 
-  {movieReview && (
-    <section class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-8">
-      <a href={`/review/${movieReview.slug}`} class="rv-banner" style={`--a:${movieReview.accent || '#dc2626'}`}>
-        <div class="rv-banner-left">
-          <div class="rv-banner-tag">⭐ TrendiMovies Review</div>
-          <div class="rv-banner-h">{movieReview.headline}</div>
-          {movieReview.deck && <div class="rv-banner-deck">{movieReview.deck}</div>}
-          <div class="rv-banner-meta">
-            {movieReview.rt_score && <span class="rv-banner-chip rt">🍅 {movieReview.rt_score}</span>}
-            {movieReview.box_office && <span class="rv-banner-chip mo">{movieReview.box_office}</span>}
-            {movieReview.verdict && <span class="rv-banner-verdict">“{movieReview.verdict}”</span>}
-          </div>
-        </div>
-        <span class="rv-banner-cta">Read the full review →</span>
-      </a>
-    </section>
-  )}
-
-  {relatedPost && (
-    <section class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-8">
-      <a href={`/blog/${relatedPost.slug}`} class="rv-banner" style={`--a:${relatedPost.accent || '#f59e0b'}`}>
-        <div class="rv-banner-left">
-          <div class="rv-banner-tag">📝 TrendiMovies Blog</div>
-          <div class="rv-banner-h">{relatedPost.title}</div>
-          {relatedPost.deck && <div class="rv-banner-deck">{relatedPost.deck}</div>}
-        </div>
-        <span class="rv-banner-cta">Read the post →</span>
-      </a>
-    </section>
-  )}
-
-  <!-- Cast -->
-  {movie.cast_data && movie.cast_data.length > 0 && (
-    <section class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      <h2 class="text-2xl font-bold mb-4" style="color: var(--text-primary);">Cast</h2>
-      <div class="flex gap-4 overflow-x-auto hide-scrollbar pb-4">
-        {movie.cast_data.slice(0, 12).map((actor: any) => (
-          <a href={`/person/${actor.id}`} class="flex-shrink-0 w-32 text-center group">
-            <img
-              src={getProfileUrl(actor.profile_path)}
-              alt={actor.name}
-              class="w-24 h-24 rounded-full mx-auto object-cover mb-2 transition-transform group-hover:scale-105"
-            />
-            <p class="font-medium text-sm line-clamp-1 group-hover:underline" style="color: var(--text-primary);">{actor.name}</p>
-            <p class="text-xs line-clamp-1" style="color: var(--text-secondary);">{actor.character}</p>
-          </a>
-        ))}
-      </div>
-    </section>
-  )}
-
-  <!-- Trailer -->
-  {movie.trailer_key && (
-    <section class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      <h2 class="text-2xl font-bold mb-4" style="color: var(--text-primary);">Trailer</h2>
-      <div class="video-container rounded-lg overflow-hidden">
-        <iframe
-          src={`https://www.youtube.com/embed/${movie.trailer_key}`}
-          allowfullscreen
-          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-          title="Trailer"
-        ></iframe>
-      </div>
-    </section>
-  )}
-
-  <!-- Details -->
-  <section class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-    <h2 class="text-2xl font-bold mb-4" style="color: var(--text-primary);">Details</h2>
-    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 p-6 rounded-lg" style="background-color: var(--bg-card);">
-      <div>
-        <h4 class="text-sm font-semibold" style="color: var(--text-muted);">Original Title</h4>
-        <p style="color: var(--text-primary);">{movie.original_title || movie.title}</p>
-      </div>
-      <div>
-        <h4 class="text-sm font-semibold" style="color: var(--text-muted);">Status</h4>
-        <p style="color: var(--text-primary);">{movie.status}</p>
-      </div>
-      <div>
-        <h4 class="text-sm font-semibold" style="color: var(--text-muted);">Budget</h4>
-        <p style="color: var(--text-primary);">{formatMoney(movie.budget)}</p>
-      </div>
-      <div>
-        <h4 class="text-sm font-semibold" style="color: var(--text-muted);">Revenue</h4>
-        <p style="color: var(--text-primary);">{formatMoney(movie.revenue)}</p>
-      </div>
-      {movie.production_companies && movie.production_companies.length > 0 && (
-        <div class="col-span-2">
-          <h4 class="text-sm font-semibold" style="color: var(--text-muted);">Production</h4>
-          <p style="color: var(--text-primary);">{movie.production_companies.slice(0, 3).map((c: any) => c.name).join(', ')}</p>
-        </div>
-      )}
+    <!-- Adsterra Banner 320x50 -->
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 flex justify-center">
+      <script is:inline>
+        atOptions = {
+          'key' : '72e8a3ac047110fa65f71d101343d2fd',
+          'format' : 'iframe',
+          'height' : 50,
+          'width' : 320,
+          'params' : {}
+        };
+      </script>
+      <script is:inline src="https://www.highperformanceformat.com/72e8a3ac047110fa65f71d101343d2fd/invoke.js"></script>
     </div>
-  </section>
 
-  <!-- Similar Movies -->
-  {similar.length > 0 && (
-    <ContentRow
-      client:visible
-      title="You May Also Like"
-      items={similar}
-    />
-  )}
-  <section class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-    <Comments client:visible contentType="movie" contentId={tmdbId} />
-  </section>
+    <!-- Similar Movies -->
+    {similar.length > 0 && (
+      <ContentRow
+        client:visible
+        title="You May Also Like"
+        items={similar}
+      />
+    )}
+    <section class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <Comments client:visible contentType="movie" contentId={tmdbId} />
+    </section>
+  </div>
 </BaseLayout>
 
+<script>
+  // Tabs: show one panel at a time. Plain script, no framework, so nothing
+  // here can disagree with the server-rendered HTML.
+  const root = document.getElementById('cinema');
+  if (root) {
+    const tabs = Array.from(root.querySelectorAll<HTMLButtonElement>('[role="tab"]'));
+    const panels = Array.from(root.querySelectorAll<HTMLElement>('[data-panel]'));
+    const bar = document.getElementById('tabsbar');
+    const mini = document.getElementById('minidl');
+    const names = tabs.map(t => t.dataset.tab as string);
+    const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const headerH = () => (window.innerWidth >= 1024 ? 80 : 64);
+
+    function show(name: string, scroll: boolean) {
+      if (name === 'download') { window.dispatchEvent(new CustomEvent('tm:downloads')); return; }
+      if (name === 'stream' || name === 'trailer') { window.dispatchEvent(new CustomEvent('tm:' + name)); return; }
+      if (!names.includes(name)) name = 'overview';
+      tabs.forEach(t => {
+        const on = t.dataset.tab === name;
+        t.setAttribute('aria-selected', on ? 'true' : 'false');
+        t.tabIndex = on ? 0 : -1;
+      });
+      panels.forEach(p => { p.hidden = p.dataset.panel !== name; });
+      try { history.replaceState(null, '', name === 'overview' ? location.pathname + location.search : '#' + name); } catch (e) {}
+      if (scroll && bar) {
+        const y = bar.getBoundingClientRect().top + window.scrollY - headerH();
+        if (y < window.scrollY || window.innerWidth < 900) window.scrollTo({ top: Math.max(0, y), behavior: reduce ? 'auto' : 'smooth' });
+      }
+    }
+
+    tabs.forEach((t, i) => {
+      t.addEventListener('click', () => show(t.dataset.tab as string, true));
+      t.addEventListener('keydown', e => {
+        if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
+        const next = tabs[(i + (e.key === 'ArrowRight' ? 1 : tabs.length - 1)) % tabs.length];
+        next.focus();
+        show(next.dataset.tab as string, false);
+      });
+    });
+    root.querySelectorAll<HTMLElement>('[data-go]').forEach(b => b.addEventListener('click', () => show(b.dataset.go as string, true)));
+
+
+    // The small Download button appears in the tab bar once the top is scrolled away.
+    const top = root.querySelector('.top .head');
+    if (top && mini && 'IntersectionObserver' in window) {
+      new IntersectionObserver(([en]) => {
+        const out = !en.isIntersecting && en.boundingClientRect.top < 0;
+        mini.classList.toggle('on', out);
+        mini.tabIndex = out ? 0 : -1;
+        mini.setAttribute('aria-hidden', out ? 'false' : 'true');
+      }, { rootMargin: '-80px 0px 0px 0px' }).observe(top);
+    }
+
+
+    // Trailer video in the top. Starts muted a moment after the page has
+    // loaded; skipped on Data Saver, on 2G, and for people who asked their
+    // phone for less motion. If YouTube does not start playing within 9
+    // seconds the video is removed and the backdrop picture stays.
+    const vid = document.getElementById('vid');
+    const vmute = document.getElementById('vmute') as HTMLButtonElement | null;
+    const vkey = vid?.dataset.key;
+    const conn: any = (navigator as any).connection;
+    const saver = !!conn && (conn.saveData || /(^|-)2g$/.test(conn.effectiveType || ''));
+    if (vid && vkey && !saver && !reduce) {
+      const mountVideo = () => {
+        const holder = vid.querySelector('.vframe');
+        if (!holder) return;
+        const f = document.createElement('iframe');
+        f.src = 'https://www.youtube.com/embed/' + vkey + '?autoplay=1&mute=1&controls=0&loop=1&playlist=' + vkey +
+          '&playsinline=1&modestbranding=1&rel=0&iv_load_policy=3&disablekb=1&fs=0&enablejsapi=1&origin=' + encodeURIComponent(location.origin);
+        f.title = 'Trailer preview';
+        f.allow = 'autoplay; encrypted-media';
+        f.setAttribute('sandbox', 'allow-scripts allow-same-origin allow-presentation');
+        f.setAttribute('aria-hidden', 'true');
+        f.tabIndex = -1;
+        holder.appendChild(f);
+        const send = (obj: object) => { try { f.contentWindow?.postMessage(JSON.stringify(obj), '*'); } catch (e) {} };
+        const cmd = (func: string) => send({ event: 'command', func, args: [] });
+        // The Stream and Trailer pop-ups have their own sound: pause this one.
+        window.addEventListener('tm:stream', () => cmd('pauseVideo'));
+        window.addEventListener('tm:trailer', () => cmd('pauseVideo'));
+        f.addEventListener('load', () => send({ event: 'listening', id: 1 }));
+        let playing = false;
+        window.addEventListener('message', ev => {
+          if (ev.source !== f.contentWindow) return;
+          let d: any = ev.data;
+          if (typeof d === 'string') { try { d = JSON.parse(d); } catch (e) { return; } }
+          if (d && d.event === 'onError') { f.remove(); return; } // this trailer cannot be embedded: keep the backdrop picture
+          const st = d && d.info && typeof d.info === 'object' ? d.info.playerState : d && d.event === 'onStateChange' ? d.info : undefined;
+          if (st === 1 && !playing) {
+            playing = true;
+            vid.classList.add('on');
+            vmute?.classList.add('on');
+          }
+        });
+        setTimeout(() => { if (!playing) { f.remove(); } }, 9000);
+        let muted = true;
+        vmute?.addEventListener('click', () => {
+          muted = !muted;
+          cmd(muted ? 'mute' : 'unMute');
+          vmute.setAttribute('aria-pressed', muted ? 'false' : 'true');
+          vmute.setAttribute('aria-label', muted ? 'Turn the trailer sound on' : 'Turn the trailer sound off');
+          vmute.classList.toggle('sound', !muted);
+        });
+        // Pause the picture when the top is scrolled out of view.
+        const hero = root.querySelector('.top');
+        if (hero && 'IntersectionObserver' in window) {
+          new IntersectionObserver(([en]) => { if (playing) cmd(en.isIntersecting ? 'playVideo' : 'pauseVideo'); }, { threshold: 0.15 }).observe(hero);
+        }
+        document.addEventListener('visibilitychange', () => { if (playing) cmd(document.hidden ? 'pauseVideo' : 'playVideo'); });
+      };
+      const kick = () => setTimeout(mountVideo, 1200);
+      if (document.readyState === 'complete') kick(); else window.addEventListener('load', kick, { once: true });
+    }
+
+
+    // Overview: sections rise in as they scroll into view, numbers count up,
+    // a long story folds to a few lines with a Read more button. All of it is
+    // decoration: the full text is already in the page, and if this script
+    // ever fails the safety timer shows everything.
+    const items = Array.from(root.querySelectorAll<HTMLElement>('.reveal'));
+    const count = (el: HTMLElement) => {
+      el.querySelectorAll<HTMLElement>('[data-count]').forEach(n => {
+        const to = parseFloat(n.dataset.count || '0'), dec = parseInt(n.dataset.dec || '0', 10);
+        if (reduce || !isFinite(to)) return;
+        const t0 = performance.now();
+        const tick = (t: number) => {
+          const k = Math.min(1, (t - t0) / 900);
+          n.textContent = (n.dataset.pre || '') + (to * (1 - Math.pow(1 - k, 3))).toFixed(dec) + (n.dataset.suf || '');
+          if (k < 1) requestAnimationFrame(tick);
+        };
+        requestAnimationFrame(tick);
+      });
+    };
+    const reveal = (el: HTMLElement) => { if (!el.classList.contains('in')) { el.classList.add('in'); count(el); } };
+    if (reduce || !('IntersectionObserver' in window)) items.forEach(reveal);
+    else {
+      const io = new IntersectionObserver(es => es.forEach(en => { if (en.isIntersecting) { reveal(en.target as HTMLElement); io.unobserve(en.target); } }), { threshold: 0.12 });
+      items.forEach(i => io.observe(i));
+      setTimeout(() => items.forEach(reveal), 4000);
+    }
+    const story = document.getElementById('story');
+    const more = document.getElementById('storymore') as HTMLButtonElement | null;
+    if (story && more) {
+      story.classList.add('clamp');
+      if (story.scrollHeight > story.clientHeight + 4) {
+        more.hidden = false;
+        more.addEventListener('click', () => {
+          const open = story.classList.toggle('clamp') === false;
+          more.textContent = open ? 'Show less' : 'Read more';
+          more.setAttribute('aria-expanded', open ? 'true' : 'false');
+        });
+      } else story.classList.remove('clamp');
+    }
+
+    const start = location.hash.replace('#', '');
+    if (start && names.includes(start)) show(start, false);
+  }
+</script>
+
 <style>
-  .rv-banner{display:flex;align-items:center;justify-content:space-between;gap:24px;flex-wrap:wrap;
-    background:linear-gradient(135deg,color-mix(in srgb,var(--a) 16%,transparent),rgba(255,255,255,.02));
-    border:1px solid color-mix(in srgb,var(--a) 30%,rgba(255,255,255,.08));border-radius:20px;padding:24px 28px;
-    text-decoration:none;transition:transform .2s,border-color .2s;box-shadow:0 16px 40px rgba(0,0,0,.3)}
-  .rv-banner:hover{transform:translateY(-2px);border-color:color-mix(in srgb,var(--a) 60%,transparent)}
-  .rv-banner-left{min-width:0}
-  .rv-banner-tag{color:var(--a);font-weight:800;letter-spacing:2px;font-size:12px;text-transform:uppercase;margin-bottom:8px}
-  .rv-banner-h{font-size:24px;font-weight:800;color:#fff;line-height:1.15;margin-bottom:6px}
-  .rv-banner-deck{color:#c3c0cc;font-size:15px;line-height:1.5;margin-bottom:12px;max-width:60ch}
-  .rv-banner-meta{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
-  .rv-banner-chip{font-weight:700;font-size:13px;padding:5px 12px;border-radius:100px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12)}
-  .rv-banner-chip.rt{color:#22c55e}.rv-banner-chip.mo{color:#f59e0b}
-  .rv-banner-verdict{font-style:italic;color:#e9e7ee;font-size:14px}
-  .rv-banner-cta{color:var(--a);font-weight:800;font-size:16px;white-space:nowrap;flex:none}
-  /* Light mode: this promo card is a pale tint of the review accent, and
-     its heading, deck and verdict were written white for a dark page --
-     so on a light movie page the headline vanished into the card. */
-  :global(html:not(.dark)) .rv-banner-h{color:#14121a}
-  :global(html:not(.dark)) .rv-banner-deck,
-  :global(html:not(.dark)) .rv-banner-verdict{color:#4a4654}
-  :global(html:not(.dark)) .rv-banner-chip{
-    background:rgba(20,15,30,.05);border-color:rgba(20,15,30,.14)}
-  :global(html:not(.dark)) .rv-banner-chip.rt{color:#0b7a5e}
-  :global(html:not(.dark)) .rv-banner-chip.mo{color:#8a5a00}
-  @media(max-width:640px){.rv-banner{flex-direction:column;align-items:flex-start}.rv-banner-h{font-size:20px}}
+  .cinema {
+    --ink: #0b0d12; --panel: #141821; --panel2: #1a1f2b; --pl: #262c3b;
+    --tx: #eef0f5; --mu: #98a1b4; --am: #f6b93b; --mint: #39d3b2; --red: #ff6a55;
+    background: var(--ink); color: var(--tx);
+    margin-top: -4rem; /* the backdrop runs up behind the fixed site header */
+    font-family: Inter, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  }
+  @media (min-width: 1024px) { .cinema { margin-top: -5rem; } }
+  .wrap { max-width: 1240px; margin: 0 auto; padding: 0 16px; }
+
+  /* ---- the cinematic top ---- */
+  .top { position: relative; isolation: isolate; overflow: hidden; padding-top: 4rem; }
+  @media (min-width: 1024px) { .top { padding-top: 5rem; } }
+  .top > .l, .top > .bdw { position: absolute; left: 0; right: 0; top: 0; z-index: 0; pointer-events: none; }
+  .bdw { height: 560px; overflow: hidden; }
+  .bd { display: block; width: 100%; height: 560px; object-fit: cover; object-position: 60% 10%; filter: saturate(0.8) contrast(1.07) brightness(0.95); }
+  .bd-poster { filter: blur(34px) saturate(1.5) brightness(0.72); transform: scale(1.7); object-position: center; }
+  .l { height: 560px; }
+  .warm { background: linear-gradient(125deg, rgba(246,185,59,.26), rgba(255,106,85,.1) 52%, transparent 80%); mix-blend-mode: soft-light; }
+  .vig { background: radial-gradient(120% 90% at 50% 30%, transparent 40%, rgba(0,0,0,.5)); }
+  .grain {
+    opacity: .09; mix-blend-mode: overlay;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+  .fade {
+    background:
+      linear-gradient(to top, rgb(11,13,18) 0%, rgba(11,13,18,.97) 8%, rgba(11,13,18,.9) 17%, rgba(11,13,18,.76) 28%, rgba(11,13,18,.56) 40%, rgba(11,13,18,.34) 53%, rgba(11,13,18,.16) 67%, rgba(11,13,18,.05) 82%, rgba(11,13,18,0) 100%),
+      linear-gradient(to bottom, rgba(11,13,18,.72), rgba(11,13,18,0) 20%);
+  }
+
+  /* ---- layout: phone is one column, desktop has poster on the left ---- */
+  .layout { position: relative; z-index: 2; display: grid; grid-template-columns: minmax(0, 1fr); padding-top: 70px; }
+  .main { display: contents; }
+  .head { order: 1; display: flex; gap: 13px; align-items: flex-end; }
+  .side { order: 2; padding: 16px 0 6px; }
+  .tabsbar { order: 3; }
+  .panels { order: 4; }
+  .pst { width: 96px; height: 144px; border-radius: 11px; object-fit: cover; flex: none; border: 2px solid rgba(255,255,255,.16); box-shadow: 0 14px 34px rgba(0,0,0,.65); }
+  .pst-big { display: none; }
+  .info { min-width: 0; }
+  .t { font-family: 'Bricolage Grotesque', Inter, sans-serif; font-weight: 800; letter-spacing: -.02em; line-height: 1.04; font-size: 28px; margin: 0 0 6px; text-shadow: 0 2px 18px rgba(0,0,0,.6); text-wrap: balance; }
+  .yr { font-weight: 500; color: #cfd4e0; font-size: .6em; margin-left: 6px; }
+  .orig { margin: 0 0 4px; font-size: 13px; color: #b9c0cf; }
+  .orig span { color: var(--tx); }
+  .tag { margin: 0 0 8px; font-style: italic; color: #b9c0cf; font-size: 14px; }
+  .meta { display: flex; flex-wrap: wrap; gap: 3px 10px; color: #b9c0cf; font-size: 12.5px; align-items: center; }
+  .star { color: var(--am); font-weight: 600; display: inline-flex; align-items: center; gap: 4px; }
+  .star small { color: #98a1b4; font-weight: 400; }
+  .chips { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 10px; }
+  .chip { padding: 3px 9px; border-radius: 999px; background: rgba(20,24,33,.7); border: 1px solid rgba(255,255,255,.14); font-size: 12px; color: var(--tx); backdrop-filter: blur(6px); text-decoration: none; }
+  .chip:hover { border-color: var(--am); }
+  .cta { display: flex; gap: 8px; margin-bottom: 10px; }
+  .btn { flex: 1; appearance: none; border: 0; cursor: pointer; font: inherit; font-weight: 700; border-radius: 13px; min-height: 46px; color: var(--ink); }
+  .btn.amber { background: var(--am); }
+  .btn.mint { background: var(--mint); }
+  .btn.ghost { background: rgba(20,24,33,.72); color: var(--tx); border: 1px solid rgba(255,255,255,.2); backdrop-filter: blur(6px); }
+  .btn:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+
+  @media (min-width: 900px) {
+    .layout { grid-template-columns: 260px minmax(0, 1fr); column-gap: 28px; padding-top: 90px; align-items: start; }
+    .side { order: 0; grid-column: 1; grid-row: 1 / span 2; padding-top: 0; }
+    .head { order: 0; grid-column: 2; grid-row: 1; }
+    .main { display: block; grid-column: 2; grid-row: 2; min-width: 0; }
+    .pst { display: none; }
+    .pst-big { display: block; width: 100%; height: auto; border-radius: 12px; box-shadow: 0 14px 34px rgba(0,0,0,.6); border: 2px solid rgba(255,255,255,.14); margin-bottom: 12px; }
+    .cta { flex-direction: column; }
+    .t { font-size: 42px; }
+  }
+
+
+  /* ---- trailer video in the top ---- */
+  .vid { position: absolute; left: 0; right: 0; top: 4rem; height: calc(100vw * 9 / 16); overflow: hidden; z-index: 0; pointer-events: none; opacity: 0; transition: opacity 0.9s ease;
+    -webkit-mask-image: linear-gradient(to bottom, #000 62%, transparent); mask-image: linear-gradient(to bottom, #000 62%, transparent); }
+  .vid.on { opacity: 1; }
+  /* a little zoom so the black side bars some trailers carry are cropped away */
+  .vframe { position: absolute; inset: 0; transform: scale(1.17); }
+  .vframe :global(iframe) { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
+  .layout.has-vid { padding-top: calc(100vw * 9 / 16 - 46px); }
+  .vmute { display: none; position: absolute; z-index: 3; right: 16px; top: calc(4rem + 100vw * 9 / 16 - 54px); width: 44px; height: 44px; border-radius: 50%; align-items: center; justify-content: center;
+    appearance: none; cursor: pointer; color: var(--tx); background: rgba(11,13,18,.6); backdrop-filter: blur(6px); border: 1px solid rgba(255,255,255,.22); }
+  .vmute.on { display: flex; }
+  .vmute .i-on { display: none; } .vmute.sound .i-on { display: block; } .vmute.sound .i-off { display: none; }
+  .vmute:focus-visible { outline: 2px solid var(--am); outline-offset: 2px; }
+  .subrow { width: 100%; display: flex; align-items: center; justify-content: space-between; appearance: none; cursor: pointer; font: inherit; font-weight: 600; color: var(--tx); margin: 0 0 10px; padding: 12px 16px; border-radius: 14px; background: rgba(20,24,33,.72); backdrop-filter: blur(6px); border: 1px solid rgba(255,255,255,.14); }
+  .subrow small { color: var(--mu); font-weight: 500; }
+  .subrow:hover { border-color: rgba(255,255,255,.34); }
+  @media (min-width: 900px) {
+    .vid { top: 0; height: 560px; -webkit-mask-image: linear-gradient(to bottom, #000 55%, transparent); mask-image: linear-gradient(to bottom, #000 55%, transparent); }
+    .vframe { inset: auto; left: 50%; top: 50%; width: max(100%, 995px); aspect-ratio: 16 / 9; transform: translate(-50%, -50%) scale(1.17); }
+    .layout.has-vid { padding-top: 90px; }
+    .vmute { right: 24px; top: 500px; }
+  }
+
+
+  /* ---- Overview ---- */
+  .cinema.anim .reveal { opacity: 0; transform: translateY(16px); transition: opacity .6s ease, transform .6s cubic-bezier(.2,.8,.2,1); transition-delay: calc(var(--d, 0) * 90ms); }
+  .cinema.anim .reveal.in { opacity: 1; transform: none; }
+  @media (prefers-reduced-motion: reduce) { .cinema.anim .reveal { opacity: 1; transform: none; transition: none; } }
+  .blk { margin: 0 0 22px; }
+  .sec { display: flex; align-items: center; gap: 10px; }
+  .sec::before { content: ''; width: 4px; height: 16px; border-radius: 4px; background: linear-gradient(var(--am), var(--red)); }
+  .story { font-size: 16px; line-height: 1.7; color: #d4d8e2; max-width: 68ch; margin: 0; }
+  .story::first-letter { font-family: 'Bricolage Grotesque', Inter, sans-serif; font-weight: 800; font-size: 2.3em; line-height: .9; float: left; margin: 4px 8px 0 0; color: var(--am); }
+  .story.clamp { display: -webkit-box; -webkit-line-clamp: 5; -webkit-box-orient: vertical; overflow: hidden; }
+  @media (min-width: 900px) { .story.clamp { -webkit-line-clamp: 8; } }
+  .more { appearance: none; background: none; border: 0; padding: 8px 0 0; cursor: pointer; font: inherit; font-weight: 700; font-size: 13.5px; color: var(--am); }
+  .more:focus-visible, .seeall:focus-visible { outline: 2px solid var(--am); outline-offset: 3px; border-radius: 6px; }
+
+  .facts { display: block; margin: 0 0 22px; }
+  .gauge { position: relative; width: 132px; height: 132px; margin: 0 auto; display: grid; place-items: center; }
+  .gauge svg { position: absolute; inset: 0; width: 100%; height: 100%; transform: rotate(-90deg); }
+  .gauge circle { fill: none; stroke-width: 6; stroke-linecap: round; }
+  .g-bg { stroke: #1d2230; }
+  .g-fg { stroke: var(--gc, var(--am)); stroke-dasharray: 100; stroke-dashoffset: 100; filter: drop-shadow(0 0 6px color-mix(in srgb, var(--gc, var(--am)) 60%, transparent)); transition: stroke-dashoffset 1.3s cubic-bezier(.2,.8,.2,1) .2s; }
+  .gauge[data-tone="hi"] { --gc: var(--mint); } .gauge[data-tone="mid"] { --gc: var(--am); } .gauge[data-tone="lo"] { --gc: var(--red); }
+  .facts.in .g-fg, .cinema:not(.anim) .g-fg { stroke-dashoffset: calc(100 - var(--v) * 100); }
+  .g-in { text-align: center; line-height: 1; }
+  .g-in b { font-family: 'Bricolage Grotesque', Inter, sans-serif; font-weight: 800; font-size: 34px; }
+  .g-in small { display: block; margin-top: 4px; color: var(--mu); font-size: 11px; }
+  .g-cap { position: absolute; left: 0; right: 0; bottom: -20px; text-align: center; font-size: 11.5px; color: var(--mu); }
+  .fcards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  .fc { background: linear-gradient(160deg, rgba(255,255,255,.045), rgba(255,255,255,.015)); border: 1px solid var(--pl); border-radius: 14px; padding: 10px 12px; min-width: 0; transition: border-color .2s, transform .2s; }
+  .fc:hover { border-color: #3a4158; transform: translateY(-2px); }
+  .fc span { display: block; font-family: 'JetBrains Mono', ui-monospace, monospace; font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: var(--mu); margin-bottom: 3px; }
+  .fc b { font-weight: 600; font-size: 14px; line-height: 1.3; overflow-wrap: anywhere; }
+  @media (min-width: 900px) { .fcards { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+
+  .money { margin: 0 0 22px; padding: 14px 16px 12px; border: 1px solid var(--pl); border-radius: 16px; background: var(--panel); }
+  .bar + .bar { margin-top: 12px; }
+  .bl { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 6px; font-size: 13px; }
+  .bl span { color: var(--mu); } .bl b { font-family: 'JetBrains Mono', ui-monospace, monospace; font-size: 14px; }
+  .track { height: 10px; border-radius: 10px; background: #1d2230; overflow: hidden; }
+  .fill { display: block; height: 100%; width: 0; border-radius: 10px; transition: width 1.2s cubic-bezier(.2,.8,.2,1) .3s; }
+  .fill.b { background: linear-gradient(90deg, #5f6b86, #8b97b3); }
+  .fill.r { background: linear-gradient(90deg, var(--mint), #7af0d6); box-shadow: 0 0 14px rgba(57,211,178,.45); }
+  .money.in .fill, .cinema:not(.anim) .fill { width: var(--w); }
+  .ret { margin: 12px 0 0; font-size: 12.5px; color: var(--mint); font-weight: 600; }
+
+  .pchips { display: flex; flex-wrap: wrap; gap: 8px; }
+  .pc { padding: 6px 12px; border-radius: 999px; font-size: 13px; background: var(--panel2); border: 1px solid var(--pl); color: #c8cdd9; }
+
+  .rowhd { display: flex; align-items: center; justify-content: space-between; }
+  .rowhd .sec { margin: 0 0 8px; }
+  .seeall { appearance: none; background: none; border: 0; cursor: pointer; font: inherit; font-weight: 700; font-size: 13px; color: var(--am); padding: 4px 0; }
+  .strip { display: flex; gap: 12px; overflow-x: auto; scrollbar-width: none; margin: 0 -16px; padding: 4px 16px 6px; scroll-snap-type: x proximity; }
+  .strip::-webkit-scrollbar { display: none; }
+  .sc { flex: none; width: 72px; text-align: center; text-decoration: none; color: var(--tx); scroll-snap-align: start; }
+  .sc img { width: 64px; height: 64px; border-radius: 50%; object-fit: cover; display: block; margin: 0 auto 6px; background: var(--panel2); border: 2px solid var(--pl); transition: border-color .2s, transform .25s; }
+  .sc:hover img { border-color: var(--am); transform: scale(1.06); }
+  .sc .cn { display: block; font-size: 11.5px; line-height: 1.2; } .sc .cc { display: block; font-size: 10.5px; color: var(--mu); line-height: 1.2; }
+  @media (min-width: 900px) { .strip { margin: 0; padding-inline: 0; } .sc { width: 88px; } .sc img { width: 76px; height: 76px; } }
+
+  /* review and blog cards: a glow in the card's own colour and a slow shine */
+  .ban { position: relative; overflow: hidden; padding: 16px 18px; border-radius: 18px; background: linear-gradient(135deg, color-mix(in srgb, var(--a) 16%, transparent), rgba(255,255,255,.02)); box-shadow: 0 14px 40px rgba(0,0,0,.35), inset 0 0 0 1px color-mix(in srgb, var(--a) 22%, transparent); transition: transform .25s, box-shadow .25s, border-color .25s; }
+  .ban::after { content: ''; position: absolute; top: 0; bottom: 0; left: -60%; width: 40%; background: linear-gradient(100deg, transparent, rgba(255,255,255,.1), transparent); transform: skewX(-18deg); animation: shine 5.5s ease-in-out 1.2s infinite; pointer-events: none; }
+  @keyframes shine { 0%, 62% { left: -60%; } 100% { left: 130%; } }
+  @media (prefers-reduced-motion: reduce) { .ban::after { animation: none; } }
+  .ban:hover { transform: translateY(-3px); box-shadow: 0 20px 48px rgba(0,0,0,.45), 0 0 30px color-mix(in srgb, var(--a) 25%, transparent); }
+  .ban-go i { display: inline-block; font-style: normal; transition: transform .25s; }
+  .ban:hover .ban-go i { transform: translateX(5px); }
+
+
+  /* bars: grow in with a sweep of light, then a soft pulse */
+  .fill { position: relative; overflow: hidden; transition: width 1.7s cubic-bezier(.2,.8,.2,1) .3s; }
+  .fill::after { content: ''; position: absolute; top: 0; bottom: 0; left: -40%; width: 40%; background: linear-gradient(100deg, transparent, rgba(255,255,255,.55), transparent); opacity: 0; }
+  .money.in .fill::after { animation: sweep 1.6s ease-out 1.1s 1; }
+  @keyframes sweep { 0% { left: -40%; opacity: 1; } 100% { left: 120%; opacity: 1; } }
+  .money.in .fill.r { animation: pulse 2.4s ease-in-out 2.8s 2; }
+  @keyframes pulse { 50% { box-shadow: 0 0 22px rgba(57,211,178,.75); } }
+  .ret { opacity: 0; transform: translateY(6px); transition: opacity .6s ease 1.5s, transform .6s ease 1.5s; }
+  .money.in .ret, .cinema:not(.anim) .ret { opacity: 1; transform: none; }
+
+  /* cards, chips and cast photos arrive one after another */
+  .cinema.anim .fc, .cinema.anim .pc, .cinema.anim .sc { opacity: 0; transform: translateY(12px) scale(.97); }
+  .cinema.anim .in .fc, .cinema.anim .in .pc, .cinema.anim .in .sc, .cinema.anim .fc.in, .cinema.anim .pc.in, .cinema.anim .sc.in { opacity: 1; transform: none; transition: opacity .55s ease, transform .55s cubic-bezier(.2,.8,.2,1); }
+  .fcards > :nth-child(1), .pchips > :nth-child(1), .strip > :nth-child(1) { transition-delay: .05s !important; }
+  .fcards > :nth-child(2), .pchips > :nth-child(2), .strip > :nth-child(2) { transition-delay: .12s !important; }
+  .fcards > :nth-child(3), .pchips > :nth-child(3), .strip > :nth-child(3) { transition-delay: .19s !important; }
+  .fcards > :nth-child(4), .pchips > :nth-child(4), .strip > :nth-child(4) { transition-delay: .26s !important; }
+  .fcards > :nth-child(5), .strip > :nth-child(5) { transition-delay: .33s !important; }
+  .fcards > :nth-child(6), .strip > :nth-child(6) { transition-delay: .40s !important; }
+  .strip > :nth-child(7) { transition-delay: .47s !important; }
+  .strip > :nth-child(8) { transition-delay: .54s !important; }
+  .cinema.anim .in .fc:hover { transform: translateY(-2px); transition-delay: 0s !important; }
+  @media (prefers-reduced-motion: reduce) { .cinema.anim .fc, .cinema.anim .pc, .cinema.anim .sc, .ret { opacity: 1; transform: none; transition: none; } .money.in .fill::after, .money.in .fill.r { animation: none; } }
+
+  /* ---- tabs ---- */
+  .tabsbar { position: sticky; top: 64px; z-index: 30; background: rgba(11,13,18,.72); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); border-bottom: 1px solid var(--pl); display: flex; align-items: center; margin-top: 18px; }
+  @media (min-width: 1024px) { .tabsbar { top: 80px; } }
+  .tabs { display: flex; gap: 2px; overflow-x: auto; scrollbar-width: none; flex: 1; }
+  .tabs::-webkit-scrollbar { display: none; }
+  .tabs button { appearance: none; background: none; border: 0; border-bottom: 2px solid transparent; color: var(--mu); font: inherit; font-weight: 600; font-size: 14px; padding: 12px 8px; cursor: pointer; white-space: nowrap; }
+  .tabs button[aria-selected="true"] { color: var(--tx); border-bottom-color: var(--am); }
+  .tabs button:focus-visible { outline: 2px solid var(--am); outline-offset: -2px; }
+  .minidl { display: none; flex: none; margin-left: 6px; appearance: none; border: 0; cursor: pointer; font: inherit; font-weight: 700; font-size: 12.5px; border-radius: 10px; padding: 7px 12px; background: var(--am); color: var(--ink); }
+  .minidl.on { display: none; }
+  @media (min-width: 900px) { .minidl.on { display: block; } }
+
+  .panels { min-width: 0; padding: 16px 0 24px; touch-action: pan-y; }
+  .panel[hidden] { display: none; }
+  .sec { font-family: 'Bricolage Grotesque', Inter, sans-serif; font-weight: 700; font-size: 16px; margin: 0 0 8px; }
+  .story { color: #c8cdd9; line-height: 1.6; margin: 0 0 16px; max-width: 70ch; }
+  .kv { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 7px 18px; margin: 0 0 18px; font-size: 14px; }
+  .kv dt { color: var(--mu); }
+  .kv dd { margin: 0; }
+  .note { display: flex; align-items: flex-start; gap: 8px; margin: 0 0 12px; padding: 9px 12px; border-radius: 12px; font-size: 12.5px; color: #c8cdd9; border: 1px solid rgba(246,185,59,.32); background: rgba(246,185,59,.06); }
+  .note b { color: var(--tx); }
+
+  .ban { display: block; border: 1px solid color-mix(in srgb, var(--a) 42%, transparent); background: color-mix(in srgb, var(--a) 8%, transparent); border-radius: 14px; padding: 12px 14px; margin: 0 0 12px; text-decoration: none; }
+  .ban:hover { border-color: var(--a); }
+  .ban-tag { font-family: 'JetBrains Mono', ui-monospace, monospace; font-size: 10px; letter-spacing: .12em; color: var(--a); text-transform: uppercase; margin-bottom: 4px; }
+  .ban-h { font-family: 'Bricolage Grotesque', Inter, sans-serif; font-weight: 700; font-size: 17px; line-height: 1.2; color: #fff; margin-bottom: 4px; }
+  .ban-dk { color: var(--mu); font-size: 13px; margin-bottom: 8px; max-width: 60ch; }
+  .ban-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; }
+  .ban-chip { font-weight: 700; font-size: 12px; padding: 3px 10px; border-radius: 999px; background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.12); }
+  .ban-chip.rt { color: #22c55e; } .ban-chip.mo { color: #f59e0b; }
+  .ban-vd { font-style: italic; color: #e9e7ee; font-size: 13px; }
+  .ban-go { color: var(--a); font-weight: 700; font-size: 13px; }
+
+  .cast { display: flex; flex-wrap: wrap; gap: 16px 12px; }
+  .cm { width: 84px; text-align: center; text-decoration: none; color: var(--tx); }
+  .cm img { width: 84px; height: 84px; border-radius: 50%; object-fit: cover; display: block; margin: 0 auto 6px; background: var(--panel2); }
+  .cn { display: block; font-size: 12px; line-height: 1.2; }
+  .cc { display: block; font-size: 11px; color: var(--mu); line-height: 1.2; }
+  .cm:hover .cn { text-decoration: underline; }
+  @media (min-width: 900px) { .cm { width: 104px; } .cm img { width: 104px; height: 104px; } }
 </style>

@@ -283,6 +283,53 @@ export async function removeFromWatchlist(userId: number, contentType: 'movie' |
   }
 }
 
+// Get the films/series a user has marked as watched
+export async function getWatched(userId: number): Promise<any[]> {
+  try {
+    const res = await fetch(`${POSTGREST_URL}/watched?user_id=eq.${userId}&order=added_at.desc`, { headers: getAuthHeaders() });
+    const rows = await res.json();
+    return Array.isArray(rows) ? rows : [];
+  } catch (error) {
+    console.error('Get watched error:', error);
+    return [];
+  }
+}
+
+// Mark as watched
+export async function addToWatched(userId: number, contentType: 'movie' | 'series', tmdbId: number, title: string, posterPath: string): Promise<boolean> {
+  try {
+    const res = await fetch(`${POSTGREST_URL}/watched`, {
+      method: 'POST',
+      headers: getAuthHeadersWithPrefer('resolution=ignore-duplicates'),
+      body: JSON.stringify({
+        user_id: userId,
+        content_type: contentType,
+        tmdb_id: tmdbId,
+        title,
+        poster_path: posterPath
+      })
+    });
+    return res.ok;
+  } catch (error) {
+    console.error('Add to watched error:', error);
+    return false;
+  }
+}
+
+// Unmark as watched
+export async function removeFromWatched(userId: number, contentType: 'movie' | 'series', tmdbId: number): Promise<boolean> {
+  try {
+    const res = await fetch(`${POSTGREST_URL}/watched?user_id=eq.${userId}&content_type=eq.${contentType}&tmdb_id=eq.${tmdbId}`, {
+      method: 'DELETE',
+      headers: getAuthHeaders()
+    });
+    return res.ok;
+  } catch (error) {
+    console.error('Remove from watched error:', error);
+    return false;
+  }
+}
+
 // Get user's favorites
 export async function getFavorites(userId: number): Promise<any[]> {
   try {
