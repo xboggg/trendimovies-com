@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount, tick } from 'svelte';
-  import { Download, Magnet, FileText, X, Globe } from 'lucide-svelte';
+  import { Download, Magnet, FileText, X, Globe, Flag } from 'lucide-svelte';
 
   // The movie page's Download pop-up: a sheet that slides up from the bottom
   // (centred window on a big screen). Same links, sizes, language tags and
@@ -111,6 +111,32 @@
     .map(l => ({ l, torrent: l.source === 'torrent' || l.type === 'torrent', lang: languageLabel(l), mb: parseMb(l.file_size), tg: telegramUrl(l) }))
     .sort((a, b) => (ORDER[a.l.quality] ?? 4) - (ORDER[b.l.quality] ?? 4));
   $: bestId = rows.find(r => !r.torrent)?.l.id;
+
+  // "Report a problem" on a file: one tap on a reason sends it to /api/report-file.
+  const REPORT_REASONS: [string, string][] = [
+    ['wont_open', "Won't open or download"],
+    ['wrong_film', 'Wrong film or episode'],
+    ['bad_quality', 'Bad picture or quality'],
+    ['no_sound', 'No sound or wrong language'],
+    ['other', 'Something else'],
+  ];
+  let reportFor: number | null = null;
+  let reportState: Record<number, 'sending' | 'done' | 'error'> = {};
+  async function sendReport(linkId: number, reason: string) {
+    reportState = { ...reportState, [linkId]: 'sending' };
+    try {
+      const res = await fetch('/api/report-file', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ linkId, reason }),
+      });
+      const d = await res.json().catch(() => ({}));
+      reportState = { ...reportState, [linkId]: d && d.success ? 'done' : 'error' };
+    } catch (e) {
+      reportState = { ...reportState, [linkId]: 'error' };
+    }
+    if (reportState[linkId] === 'done') reportFor = null;
+  }
 
   let audio = '';
   let quality = '';
@@ -268,6 +294,17 @@
                     <a class="btn dl" class:solo={!r.tg} href={r.l.url} download target="_blank" rel="noopener"><Download size={15} /> Direct</a>
                   {/if}
                 </div>
+                {#if !r.torrent}
+                  <div class="rp">
+                    {#if reportState[r.l.id] === 'done'}
+                      <span class="rp-ok">Thanks. We will check this file.</span>
+                    {:else}
+                      <button type="button" class="rp-btn" on:click={() => (reportFor = r.l.id)}>
+                        <Flag size={13} /> Report a problem
+                      </button>
+                    {/if}
+                  </div>
+                {/if}
               </li>
             {/each}
           </ul>
@@ -288,6 +325,20 @@
       {/if}
     </div>
     <p class="foot">Pick a quality, then Telegram (fastest) or Direct.</p>
+
+    {#if reportFor !== null}
+      <!-- svelte-ignore a11y-click-events-have-key-events a11y-no-static-element-interactions -->
+      <div class="rpm-scrim" on:click|self={() => (reportFor = null)}>
+        <div class="rpm" role="dialog" aria-modal="true" aria-labelledby="rpm-h">
+          <h3 id="rpm-h">What is wrong with this file?</h3>
+          {#each REPORT_REASONS as [code, label]}
+            <button type="button" class="rp-opt" disabled={reportState[reportFor] === 'sending'} on:click={() => sendReport(reportFor ?? 0, code)}>{label}</button>
+          {/each}
+          {#if reportState[reportFor] === 'error'}<span class="rp-err">Could not send. Please try again.</span>{/if}
+          <button type="button" class="rp-cancel" on:click={() => (reportFor = null)}>Cancel</button>
+        </div>
+      </div>
+    {/if}
   </div>
 </div>
 
@@ -356,6 +407,20 @@
   .btn.solo { flex: 1 1 0; }
   .specs { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 11px; }
   .sp { font-family: 'JetBrains Mono', ui-monospace, monospace; font-size: 11px; color: #c8cdd9; background: #1a1f2b; border: 1px solid #262c3b; border-radius: 8px; padding: 3px 9px; }
+  .rp { margin-top: 8px; }
+  .rp-btn { appearance: none; background: none; border: 0; cursor: pointer; font: inherit; font-size: 12.5px; color: #98a1b4; display: inline-flex; align-items: center; gap: 6px; padding: 8px 2px; min-height: 36px; }
+  .rp-btn:hover { color: #eef0f5; }
+  .rp-btn:focus-visible, .rp-opt:focus-visible { outline: 2px solid #f6b93b; outline-offset: 2px; }
+  .rpm-scrim { position: absolute; inset: 0; z-index: 5; display: flex; align-items: center; justify-content: center; padding: 16px; background: rgba(5, 7, 10, 0.6); border-radius: inherit; }
+  .rpm { width: 100%; max-width: 340px; display: flex; flex-direction: column; gap: 8px; background: #181c26; border: 1px solid #2a3142; border-radius: 20px; padding: 18px; box-shadow: 0 20px 50px rgba(0, 0, 0, 0.55); }
+  .rpm h3 { margin: 0 0 4px; font-family: 'Bricolage Grotesque', Inter, sans-serif; font-size: 18px; font-weight: 700; }
+  .rp-cancel { appearance: none; cursor: pointer; font: inherit; font-size: 13px; color: #98a1b4; background: none; border: 0; padding: 10px; min-height: 40px; }
+  .rp-cancel:hover { color: #fff; }
+  .rp-opt { appearance: none; cursor: pointer; font: inherit; font-size: 14px; text-align: left; color: #eef0f5; background: #1a1f2b; border: 1px solid #262c3b; border-radius: 14px; padding: 11px 14px; min-height: 44px; }
+  .rp-opt:hover:not([disabled]) { border-color: #f6b93b; }
+  .rp-opt[disabled] { opacity: 0.6; cursor: default; }
+  .rp-ok { font-size: 12.5px; color: #39d3b2; }
+  .rp-err { flex-basis: 100%; font-size: 12.5px; color: #ff8a7a; }
   .nosub { margin: 18px 0 0; font-size: 12.5px; color: #98a1b4; }
   .btn:hover { filter: brightness(1.08); }
   .note { display: flex; align-items: flex-start; gap: 8px; margin: 4px 0 0; padding: 9px 12px; border-radius: 12px; font-size: 12.5px; color: #c8cdd9; border: 1px solid rgba(246, 185, 59, 0.32); background: rgba(246, 185, 59, 0.06); }

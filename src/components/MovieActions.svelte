@@ -122,8 +122,8 @@
   .act:hover:not(:disabled) { border-color: rgba(255, 255, 255, 0.34); }
   .act:disabled { opacity: 0.6; cursor: not-allowed; }
   .act:focus-visible { outline: 2px solid #f6b93b; outline-offset: 2px; }
-  .act.on { color: #f6b93b; border-color: rgba(246, 185, 59, 0.55); background: rgba(246, 185, 59, 0.1); }
-  .act.seen.on { color: #39d3b2; border-color: rgba(57, 211, 178, 0.55); background: rgba(57, 211, 178, 0.1); }
-  .act.like.on { color: #ff6a55; border-color: rgba(255, 106, 85, 0.55); background: rgba(255, 106, 85, 0.1); }
+  .act.on { color: #0b0d12; border-color: #f6b93b; background: #f6b93b; }
+  .act.seen.on { color: #04211b; border-color: #39d3b2; background: #39d3b2; }
+  .act.like.on { color: #2a0b06; border-color: #ff6a55; background: #ff6a55; }
   .note { min-height: 1.2em; margin: 6px 0 0; font-size: 12px; color: #98a1b4; text-align: center; }
 </style>

@@ -1,6 +1,7 @@
 ---
 import BaseLayout from '../../layouts/BaseLayout.astro';
 import MovieCard from '../../components/MovieCard.svelte';
+import ListingView from '../../components/ListingView.svelte';
 import { discoverTV } from '../../lib/tmdb';
 
 // Get query params
@@ -102,11 +103,7 @@ const ogImage = `/api/og.png?type=digital`
 
     <!-- Series Grid -->
     {series.length > 0 ? (
-      <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 lg:grid-cols-6 gap-4">
-        {series.map(show => (
-          <MovieCard client:visible item={transformToItem(show)} />
-        ))}
-      </div>
+      <ListingView client:load items={series.map((show: any) => transformToItem(show))} gridClass="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 lg:grid-cols-6 gap-4" />
     ) : (
       <div class="text-center py-16">
         <p style="color: var(--text-secondary);">No popular series found</p>

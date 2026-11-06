@@ -1,0 +1,261 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import ListingView from '../components/ListingView.svelte';
+import { JUST_ADDED_TABS, getJustAddedAll, isJustAddedTab } from '../lib/just-added';
+import { getAuthHeaders } from '../lib/auth';
+
+// "Just Added" page: what we added most recently. Tabs for Movies / Series /
+// Anime / Asian, the same filters as /movies/latest, and a Grid | List switch.
+// Plain links and a plain GET form, so every view is a real, shareable URL and
+// the page still works with JS blocked. No title count on purpose: the
+// numbers move all day and are not worth showing.
+const POSTGREST_URL = 'http://localhost:3001';
+const params = Astro.url.searchParams;
+const tabParam = params.get('tab');
+const tab = isJustAddedTab(tabParam) ? tabParam : 'movie';
+const page = Math.max(1, parseInt(params.get('page') || '1') || 1);
+const perPage = 30;
+
+const GENRES = ['Action','Adventure','Animation','Comedy','Crime','Documentary','Drama',
+                'Family','Fantasy','History','Horror','Music','Mystery','Romance',
+                'Science Fiction','Thriller','War','Western'];
+const LANGS: Record<string, { label: string; codes: string[] }> = {
+  en:      { label: 'English',  codes: ['en'] },
+  indian:  { label: 'Indian',   codes: ['hi','ta','ml','te','kn','bn','mr','pa','gu'] },
+  chinese: { label: 'Chinese',  codes: ['zh','cn'] },
+  japanese:{ label: 'Japanese', codes: ['ja'] },
+  french:  { label: 'French',   codes: ['fr'] },
+  korean:  { label: 'Korean',   codes: ['ko'] },
+  spanish: { label: 'Spanish',  codes: ['es'] },
+};
+const SORTS: Record<string, { label: string; order: string }> = {
+  newest:   { label: 'Newest added', order: 'created_at.desc' },
+  rated:    { label: 'Top rated',    order: 'vote_average.desc' },
+  popular:  { label: 'Most popular', order: 'popularity.desc' },
+  released: { label: 'Release date', order: 'release_date.desc' },
+};
+// Shows have no popularity figure here, so they get three sorts.
+const SORT_KEYS = tab === 'movie' ? Object.keys(SORTS) : ['newest', 'rated', 'released'];
+
+const YEAR_MAX = new Date().getFullYear();
+const YEAR_MIN = 1950;
+const YEAR_OPTIONS = Array.from({ length: YEAR_MAX - YEAR_MIN + 1 }, (_, i) => YEAR_MAX - i);
+const yearParam = (k: string) => {
+  const v = parseInt(params.get(k) || '', 10);
+  return Number.isInteger(v) && v >= YEAR_MIN && v <= YEAR_MAX ? v : null;
+};
+const fGenre = GENRES.includes(params.get('genre') || '') ? (params.get('genre') as string) : '';
+const fLang = LANGS[params.get('lang') || ''] ? (params.get('lang') as string) : '';
+let fYearFrom = yearParam('yf');
+let fYearTo = yearParam('yt');
+if (fYearFrom !== null && fYearTo !== null && fYearFrom > fYearTo) [fYearFrom, fYearTo] = [fYearTo, fYearFrom];
+const fRated = params.get('rating') === '7';
+const fNolly = tab === 'movie' && params.get('from') === 'ng';
+const fSort = SORT_KEYS.includes(params.get('sort') || '') ? (params.get('sort') as string) : 'newest';
+const hasFilters = !!(fGenre || fLang || fYearFrom !== null || fYearTo !== null || fRated || fNolly) || fSort !== 'newest';
+
+let items: any[] = [];
+let totalPages = 1;
+
+if (tab === 'movie') {
+  // Same query as /movies/latest.
+  const q: string[] = ['has_downloads=eq.true'];
+  if (fGenre) q.push(`genres=cs.${encodeURIComponent(JSON.stringify([fGenre]))}`);
+  if (fLang) q.push(`original_language=in.(${LANGS[fLang].codes.join(',')})`);
+  if (fYearFrom !== null) q.push(`year=gte.${fYearFrom}`);
+  if (fYearTo !== null) q.push(`year=lte.${fYearTo}`);
+  if (fRated) q.push('vote_average=gte.7');
+  if (fNolly) q.push(`production_countries=cs.${encodeURIComponent(JSON.stringify(['NG']))}`);
+  if (fSort === 'rated') q.push('vote_count=gte.200');
+  try {
+    const res = await fetch(
+      `${POSTGREST_URL}/movies?${q.join('&')}&order=${SORTS[fSort].order}&limit=${perPage}&offset=${(page - 1) * perPage}` +
+      `&select=tmdb_id,title,year,poster_path,vote_average,overview`,
+      { headers: { ...getAuthHeaders(), 'Accept-Profile': 'public', 'Prefer': 'count=exact' } }
+    );
+    if (res.ok) {
+      const cr = res.headers.get('content-range');
+      const total = cr ? parseInt(cr.split('/')[1]) : 0;
+      totalPages = Math.max(1, Math.ceil(total / perPage));
+      items = (await res.json()).map((m: any) => ({
+        id: m.tmdb_id, tmdb_id: m.tmdb_id, title: m.title, poster_path: m.poster_path,
+        overview: m.overview, vote_average: m.vote_average || 0, year: m.year, type: 'movie' as const, has_downloads: true,
+      }));
+    }
+  } catch (e) { items = []; }
+} else {
+  let list = await getJustAddedAll(tab);
+  if (fGenre) list = list.filter((i: any) => (i._genres || []).includes(fGenre));
+  if (fLang) list = list.filter((i: any) => LANGS[fLang].codes.includes(i._lang));
+  if (fYearFrom !== null) list = list.filter((i: any) => i.year && i.year >= (fYearFrom as number));
+  if (fYearTo !== null) list = list.filter((i: any) => i.year && i.year <= (fYearTo as number));
+  if (fRated) list = list.filter((i: any) => i.vote_average >= 7);
+  if (fSort === 'rated') list = [...list].filter((i: any) => i.vote_average > 0).sort((a: any, b: any) => b.vote_average - a.vote_average);
+  else if (fSort === 'released') list = [...list].sort((a: any, b: any) => (b.year || 0) - (a.year || 0));
+  totalPages = Math.max(1, Math.ceil(list.length / perPage));
+  items = list.slice((page - 1) * perPage, page * perPage);
+}
+
+// Keep every active choice when moving between tabs / pages.
+function link(overrides: Record<string, string | null>) {
+  const cur: Record<string, string> = {
+    tab: tab === 'movie' ? '' : tab, genre: fGenre, lang: fLang,
+    yf: fYearFrom !== null ? String(fYearFrom) : '', yt: fYearTo !== null ? String(fYearTo) : '',
+    rating: fRated ? '7' : '', from: fNolly ? 'ng' : '', sort: fSort === 'newest' ? '' : fSort,
+  };
+  Object.assign(cur, overrides as any);
+  const p = new URLSearchParams();
+  for (const [k, v] of Object.entries(cur)) if (v) p.set(k, v as string);
+  const qs = p.toString();
+  return `/just-added${qs ? '?' + qs : ''}`;
+}
+const pageLink = (n: number) => { const b = link({}); return b.includes('?') ? `${b}&page=${n}` : `${b}?page=${n}`; };
+// Changing tab keeps the other choices, except ones a tab does not have.
+const tabLink = (k: string) => link({ tab: k === 'movie' ? '' : k, from: k === 'movie' && fNolly ? 'ng' : '', sort: k !== 'movie' && (fSort === 'popular') ? '' : (fSort === 'newest' ? '' : fSort) });
+
+const tabLong = JUST_ADDED_TABS.find(t => t.key === tab)?.long || 'Movies';
+---
+
+<BaseLayout
+  title="Just Added — New Movies, Series, Anime & Asian | TrendiMovies"
+  description="Fresh on TrendiMovies: the newest movies, TV shows, anime and Asian titles just added and ready to stream or download in HD."
+  noIndex={hasFilters || tab !== 'movie' || page > 1}
+>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500;700&display=swap" />
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <h1 class="text-3xl font-bold mb-4" style="color: var(--text-primary);">Just Added</h1>
+
+    <nav class="ja-tabs" aria-label="Just Added sections">
+      {JUST_ADDED_TABS.map(t => (
+        <a href={tabLink(t.key)} class={`ja-tab ${t.key === tab ? 'on' : ''}`} aria-current={t.key === tab ? 'page' : undefined}>{t.label}</a>
+      ))}
+    </nav>
+
+    <form class="tmf" method="get" action="/just-added" id="tmf">
+      {tab !== 'movie' && <input type="hidden" name="tab" value={tab} />}
+      <label class="tmf__f">
+        <span>Genre</span>
+        <select name="genre">
+          <option value="">All genres</option>
+          {GENRES.map(g => <option value={g} selected={fGenre === g}>{g}</option>)}
+        </select>
+      </label>
+      <div class="tmf__f" role="group" aria-labelledby="tmf-year-l">
+        <span id="tmf-year-l">Year</span>
+        <div class="tmf__range">
+          <select name="yf" aria-label="From year" data-nosubmit>
+            <option value="">From</option>
+            {YEAR_OPTIONS.map(y => <option value={y} selected={fYearFrom === y}>{y}</option>)}
+          </select>
+          <span class="tmf__to" aria-hidden="true">–</span>
+          <select name="yt" aria-label="To year">
+            <option value="">To</option>
+            {YEAR_OPTIONS.map(y => <option value={y} selected={fYearTo === y}>{y}</option>)}
+          </select>
+        </div>
+      </div>
+      <label class="tmf__f">
+        <span>Language</span>
+        <select name="lang">
+          <option value="">Any language</option>
+          {Object.entries(LANGS).map(([k, v]) => <option value={k} selected={fLang === k}>{v.label}</option>)}
+        </select>
+      </label>
+      <label class="tmf__f">
+        <span>Sort</span>
+        <select name="sort">
+          {SORT_KEYS.map(k => <option value={k} selected={fSort === k}>{SORTS[k].label}</option>)}
+        </select>
+      </label>
+      <div class="tmf__toggles">
+        <label class={`tmf__t ${fRated ? 'is-on' : ''}`}>
+          <input type="checkbox" name="rating" value="7" checked={fRated} /> ★ 7+
+        </label>
+        {tab === 'movie' && (
+          <label class={`tmf__t ${fNolly ? 'is-on' : ''}`}>
+            <input type="checkbox" name="from" value="ng" checked={fNolly} /> Nollywood
+          </label>
+        )}
+        <button type="submit" class="tmf__go">Apply</button>
+        {hasFilters && <a href={tab === 'movie' ? '/just-added' : `/just-added?tab=${tab}`} class="tmf__clear">Clear</a>}
+      </div>
+    </form>
+
+    {items.length > 0 ? (
+      <ListingView client:load items={items} />
+    ) : (
+      <div class="text-center py-16">
+        <p class="mb-3" style="color: var(--text-primary); font-weight:600;">
+          {hasFilters ? 'Nothing matches those filters' : `No ${tabLong.toLowerCase()} added just now`}
+        </p>
+        <p class="text-sm mb-5" style="color: var(--text-secondary);">
+          {hasFilters ? 'Try removing one. The combination may be too narrow.' : 'Please check again soon, or try another tab.'}
+        </p>
+        {hasFilters && <a href={tab === 'movie' ? '/just-added' : `/just-added?tab=${tab}`} class="tmf__go" style="display:inline-block;text-decoration:none;">Clear all filters</a>}
+      </div>
+    )}
+
+    {totalPages > 1 && (
+      <div class="flex justify-center items-center mt-8 gap-2">
+        {page > 1 && (
+          <a href={pageLink(page - 1)} class="px-4 py-2 rounded-lg transition-colors hover:opacity-80"
+             style="background-color: var(--bg-card); color: var(--text-primary); border: 1px solid var(--border);">Previous</a>
+        )}
+        <span class="px-4 py-2" style="color: var(--text-secondary);">Page {page} of {totalPages.toLocaleString()}</span>
+        {page < totalPages && (
+          <a href={pageLink(page + 1)} class="px-4 py-2 rounded-lg transition-colors hover:opacity-80"
+             style="background-color: var(--bg-card); color: var(--text-primary); border: 1px solid var(--border);">Next</a>
+        )}
+      </div>
+    )}
+  </div>
+</BaseLayout>
+
+<style>
+  /* Same pill tabs as the home row (mono type, filled marker on the chosen tab). */
+  .ja-tabs { display: flex; gap: 2px; width: fit-content; max-width: 100%; padding: 4px; margin: 0 0 18px; overflow-x: auto; scrollbar-width: none; border-radius: 999px; border: 1px solid var(--border); background: var(--bg-card); }
+  .ja-tabs::-webkit-scrollbar { display: none; }
+  .ja-tab { flex: none; white-space: nowrap; text-decoration: none; font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; padding: 9px 16px; min-height: 40px; display: inline-flex; align-items: center; border-radius: 999px; color: var(--text-secondary); transition: color .2s, background .2s; }
+  .ja-tab:hover:not(.on) { color: var(--text-primary); }
+  .ja-tab.on { background: var(--accent); color: #fff; font-weight: 700; box-shadow: 0 4px 14px color-mix(in srgb, var(--accent) 45%, transparent); }
+
+  .tmf { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px 14px; padding: 12px 14px; margin-bottom: 18px; border-radius: 12px; background: var(--bg-card); border: 1px solid var(--border); }
+  .tmf__f { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+  .tmf__f > span { font-size: 10.5px; letter-spacing: .085em; text-transform: uppercase; color: var(--text-secondary); }
+  .tmf select {
+    appearance: none; -webkit-appearance: none; padding: 7px 30px 7px 11px; min-width: 150px; max-width: 100%;
+    font-size: 13.5px; font-family: inherit; color: var(--text-primary); background-color: transparent;
+    background-image: linear-gradient(45deg, transparent 50%, currentColor 50%), linear-gradient(135deg, currentColor 50%, transparent 50%);
+    background-position: calc(100% - 15px) 52%, calc(100% - 10px) 52%; background-size: 5px 5px, 5px 5px; background-repeat: no-repeat;
+    border: 1px solid var(--border); border-radius: 8px; cursor: pointer;
+  }
+  .tmf select option { background: var(--bg-card); color: var(--text-primary); }
+  .tmf__range { display: flex; align-items: center; gap: 6px; }
+  .tmf__range select { min-width: 92px; }
+  .tmf__to { color: var(--text-secondary); font-size: 13px; }
+  .tmf select:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .tmf__toggles { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-left: auto; }
+  .tmf__t { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 999px; font-size: 13px; color: var(--text-secondary); border: 1px solid var(--border); cursor: pointer; user-select: none; }
+  .tmf__t input { accent-color: var(--accent); margin: 0; }
+  .tmf__t.is-on { background: var(--accent); color: #111; border-color: var(--accent); font-weight: 600; }
+  .tmf__go { padding: 7px 16px; border-radius: 8px; font-size: 13px; font-weight: 600; color: #111; background: var(--accent); border: 0; cursor: pointer; }
+  .tmf__clear { padding: 7px 12px; font-size: 13px; color: var(--text-secondary); border-bottom: 1px dashed var(--border); }
+  @media (max-width: 640px) {
+    .tmf { gap: 9px 10px; padding: 11px 12px; }
+    .tmf__f { flex: 1 1 calc(50% - 5px); }
+    .tmf select { min-width: 0; width: 100%; }
+    .tmf__range select { min-width: 0; flex: 1 1 0; }
+    .tmf__toggles { margin-left: 0; width: 100%; }
+    .tmf__go { margin-left: auto; }
+  }
+</style>
+
+<script>
+  // Progressive enhancement only: without JS the Apply button still works.
+  const tmf = document.getElementById('tmf');
+  if (tmf) tmf.addEventListener('change', (e) => {
+    const t = e.target as HTMLElement | null;
+    if (t && t.hasAttribute('data-nosubmit')) return;
+    (tmf as HTMLFormElement).submit();
+  });
+</script>

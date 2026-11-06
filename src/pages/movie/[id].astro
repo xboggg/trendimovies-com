@@ -5,6 +5,7 @@ import Ratings from '../../components/Ratings.svelte';
 import StreamSheet from '../../components/StreamSheet.svelte';
 import TrailerSheet from '../../components/TrailerSheet.svelte';
 import { lookupSpecs } from '../../lib/file-specs';
+import { getCollection } from '../../lib/collection';
 import DownloadSheet from '../../components/DownloadSheet.svelte';
 import Comments from '../../components/Comments.svelte';
 import ContentRow from '../../components/ContentRow.svelte';
@@ -251,6 +252,11 @@ function getLanguageName(code: string): string {
 const directors = (movie.crew_data || []).filter((c: any) => c.job === 'Director');
 const writers = (movie.crew_data || []).filter((c: any) => ['Writer', 'Screenplay'].includes(c.job));
 
+// "Part of a series of films": the other films in this film's collection.
+const collection = tmdbData?.belongs_to_collection?.id
+  ? await getCollection(tmdbData.belongs_to_collection.id, tmdbId)
+  : null;
+
 // Transform similar movies for ContentRow
 const similar = (tmdbData?.similar?.results || []).slice(0, 12).map((m: any) => ({
   id: m.id,
@@ -454,6 +460,29 @@ const ogTitle = `${movie.title} ${ogYear}`.trim();
                         <span class="cc">{actor.character}</span>
                       </a>
                     ))}
+                  </div>
+                </section>
+              )}
+
+              {collection && (
+                <section class="blk reveal" style="--d:2">
+                  <h2 class="sec">Part of {/^the /i.test(collection.name) ? '' : 'the '}{collection.name} series</h2>
+                  <div class="parts">
+                    {collection.parts.map((p) => {
+                      const inner = (
+                        <>
+                          <img src={getPosterUrl(p.poster_path)} alt={`${p.title} poster`} loading="lazy" width="150" height="225" />
+                          <span class="pt">{p.title}</span>
+                          <span class="py">{p.year || ''}</span>
+                          <span class={`pb ${p.isCurrent ? 'here' : p.inLibrary ? 'have' : 'no'}`}>{p.isCurrent ? 'You are here' : p.inLibrary ? 'In our library' : 'Not added yet'}</span>
+                        </>
+                      );
+                      return p.isCurrent ? (
+                        <div class="part cur">{inner}</div>
+                      ) : (
+                        <a class="part" href={`/movie/${p.tmdb_id}`}>{inner}</a>
+                      );
+                    })}
                   </div>
                 </section>
               )}
@@ -859,6 +888,18 @@ const ogTitle = `${movie.title} ${ogYear}`.trim();
   .sc { flex: none; width: 72px; text-align: center; text-decoration: none; color: var(--tx); scroll-snap-align: start; }
   .sc img { width: 64px; height: 64px; border-radius: 50%; object-fit: cover; display: block; margin: 0 auto 6px; background: var(--panel2); border: 2px solid var(--pl); transition: border-color .2s, transform .25s; }
   .sc:hover img { border-color: var(--am); transform: scale(1.06); }
+  .parts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px 10px; }
+  @media (min-width: 560px) { .parts { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+  @media (min-width: 900px) { .parts { grid-template-columns: repeat(5, minmax(0, 1fr)); } }
+  .part { display: flex; flex-direction: column; gap: 3px; text-decoration: none; color: var(--tx); min-width: 0; }
+  .part img { width: 100%; aspect-ratio: 2 / 3; object-fit: cover; border-radius: 12px; background: var(--panel2); border: 2px solid var(--pl); display: block; transition: border-color .2s, transform .25s; }
+  a.part:hover img { border-color: var(--am); transform: translateY(-2px); }
+  .part.cur img { border-color: var(--am); }
+  .part .pt { font-size: 12.5px; line-height: 1.25; font-weight: 600; margin-top: 4px; overflow-wrap: anywhere; }
+  .part .py { font-size: 11.5px; color: var(--mu); }
+  .part .pb { align-self: flex-start; font-family: 'JetBrains Mono', ui-monospace, monospace; font-size: 10px; letter-spacing: .03em; padding: 2px 7px; border-radius: 7px; border: 1px solid var(--pl); color: var(--mu); }
+  .part .pb.have { color: #39d3b2; border-color: rgba(57,211,178,.35); background: rgba(57,211,178,.12); }
+  .part .pb.here { color: #f6b93b; border-color: rgba(246,185,59,.4); background: rgba(246,185,59,.12); }
   .sc .cn { display: block; font-size: 11.5px; line-height: 1.2; } .sc .cc { display: block; font-size: 10.5px; color: var(--mu); line-height: 1.2; }
   @media (min-width: 900px) { .strip { margin: 0; padding-inline: 0; } .sc { width: 88px; } .sc img { width: 76px; height: 76px; } }
 

@@ -1,6 +1,7 @@
 ---
 import BaseLayout from '../../layouts/BaseLayout.astro';
 import MovieCard from '../../components/MovieCard.svelte';
+import ListingView from '../../components/ListingView.svelte';
 import { getOnTheAirTVPaginated, getTVDetails } from '../../lib/tmdb';
 
 const POSTGREST_URL = import.meta.env.PUBLIC_SUPABASE_URL || 'http://localhost:3001';
@@ -105,11 +106,7 @@ const shows = merged.length % cols === 0 ? merged : merged.slice(0, Math.floor(m
 
     <!-- Series Grid -->
     {shows.length > 0 ? (
-      <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 lg:grid-cols-6 gap-4">
-        {shows.map(show => (
-          <MovieCard client:visible item={show} />
-        ))}
-      </div>
+      <ListingView client:load items={shows.map((show: any) => show)} gridClass="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 lg:grid-cols-6 gap-4" />
     ) : (
       <div class="text-center py-16">
         <p style="color: var(--text-secondary);">No new episodes airing this week</p>

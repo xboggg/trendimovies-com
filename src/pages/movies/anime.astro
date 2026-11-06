@@ -1,6 +1,7 @@
 ---
 import BaseLayout from '../../layouts/BaseLayout.astro';
 import MovieCard from '../../components/MovieCard.svelte';
+import ListingView from '../../components/ListingView.svelte';
 import { discoverMovies } from '../../lib/tmdb';
 
 // Get query params
@@ -56,11 +57,7 @@ function transformToItem(movie: any) {
     </div>
 
     {movies.length > 0 ? (
-      <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4 mb-8">
-        {movies.map(movie => (
-          <MovieCard item={transformToItem(movie)} />
-        ))}
-      </div>
+      <ListingView client:load items={movies.map((movie: any) => transformToItem(movie))} gridClass="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4 mb-8" />
     ) : (
       <div class="text-center py-16">
         <p class="text-lg" style="color: var(--text-muted);">No anime movies found</p>

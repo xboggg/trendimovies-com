@@ -1,6 +1,7 @@
 ---
 import BaseLayout from '../../layouts/BaseLayout.astro';
 import MovieCard from '../../components/MovieCard.svelte';
+import ListingView from '../../components/ListingView.svelte';
 import { discoverTV } from '../../lib/tmdb';
 
 // Get page number
@@ -51,11 +52,7 @@ function transformToItem(show: any) {
     </div>
 
     {series.length > 0 ? (
-      <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4 md:gap-6">
-        {series.map((show: any) => (
-          <MovieCard client:visible item={transformToItem(show)} />
-        ))}
-      </div>
+      <ListingView client:load items={series.map((show: any) => transformToItem(show))} gridClass="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4 md:gap-6" />
     ) : (
       <div class="text-center py-12" style="color: var(--text-secondary);">
         <p>No ongoing series found.</p>

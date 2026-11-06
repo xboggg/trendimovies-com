@@ -7,6 +7,8 @@ import Collections from '../components/Collections.svelte';
 import PickYourMood from '../components/PickYourMood.svelte';
 import ContinueWatching from '../components/ContinueWatching.svelte';
 import TrendingNowRow from '../components/TrendingNowRow.svelte';
+import JustAddedRow from '../components/JustAddedRow.svelte';
+import { JUST_ADDED_TABS, getJustAdded } from '../lib/just-added';
 import { getTrendingMovies, getNowPlayingMovies, getPopularMovies, getTopRatedMovies, getTrendingTV, getPopularTV, getOnTheAirTV, discoverMovies, getMovieDetails, getMovieGenres, getTVDetails, searchMovies, fetchFromTMDB } from '../lib/tmdb';
 import { getCache as _getCache, setCache as _setCache } from '../lib/cache';
 import { readFileSync as _readFileSync } from 'node:fs';
@@ -450,6 +452,17 @@ const _reelFallbackIds = digitalReleaseItems.length === 0
   : new Set();
 const latestAdditionsRowItems = latestAdditionItems.filter((m: any) => !_reelFallbackIds.has(m.id));
 
+// "Just Added" row: Movie / TV Show / Anime / Asian. The Movie tab is the list
+// the home page has always had; the other tabs come from lib/just-added.ts.
+// Any failure leaves that tab empty, and an empty tab is not shown.
+const _jaOthers = await Promise.all(
+  JUST_ADDED_TABS.filter(t => t.key !== 'movie').map(t => getJustAdded(t.key).catch(() => [] as any[]))
+);
+const justAddedTabs = [
+  { key: 'movie', label: 'Movie', items: latestAdditionsRowItems },
+  ...JUST_ADDED_TABS.filter(t => t.key !== 'movie').map((t, i) => ({ key: t.key, label: t.label, items: _jaOthers[i] })),
+];
+
 // "Trending Now" — real most-viewed movies (rpc/top_viewed_movies). The RPC's
 // poster_path/year can be stale (e.g. dead .webp posters, wrong year), so we
 // enrich each row against the movies table (fresh poster/year) by tmdb_id.
@@ -781,15 +794,9 @@ try {
     <!-- Newly Added Movies (from our database - movies with downloads).
          Now the SINGLE latest-additions section (merged from the old
          "Just Dropped" reel + "More Just Added" row). -->
-    {latestAdditionsRowItems.length > 0 && (
+    {justAddedTabs.some(t => t.items.length > 0) && (
       <div class="order-2">
-        <ContentRow
-          client:load
-          title="Newly Added Movies"
-          items={latestAdditionsRowItems}
-          seeAllLink="/movies/latest"
-          autoScroll={false}
-        />
+        <JustAddedRow client:load tabs={justAddedTabs} />
       </div>
     )}
   </div>
