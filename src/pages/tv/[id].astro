@@ -758,10 +758,15 @@ const latestLabel = latestEp ? `Play S${String(latestEp.season).padStart(2, '0')
           if (typeof d === 'string') { try { d = JSON.parse(d); } catch (e) { return; } }
           if (d && d.event === 'onError') { f.remove(); return; } // this trailer cannot be embedded: keep the backdrop picture
           const st = d && d.info && typeof d.info === 'object' ? d.info.playerState : d && d.event === 'onStateChange' ? d.info : undefined;
-          if (st === 1 && !playing) {
+          if (st === 1) {
             playing = true;
             vid.classList.add('on');
             vmute?.classList.add('on');
+          } else if (playing && (st === 2 || st === 0 || st === 5)) {
+            // YouTube draws its own title bar and big play buttons whenever the picture is
+            // paused; hide the picture then so only our backdrop shows, and bring it back
+            // when it plays again.
+            vid.classList.remove('on');
           }
         });
         setTimeout(() => { if (!playing) { f.remove(); } }, 9000);
@@ -902,7 +907,7 @@ const latestLabel = latestEp ? `Play S${String(latestEp.season).padStart(2, '0')
 
   /* ---- trailer video in the top ---- */
   .vid { position: absolute; left: 0; right: 0; top: 4rem; height: calc(100vw * 9 / 16); overflow: hidden; z-index: 0; pointer-events: none; opacity: 0; transition: opacity 0.9s ease;
-    -webkit-mask-image: linear-gradient(to bottom, #000 62%, transparent); mask-image: linear-gradient(to bottom, #000 62%, transparent); }
+    -webkit-mask-image: linear-gradient(to bottom, transparent, #000 18%, #000 62%, transparent); mask-image: linear-gradient(to bottom, transparent, #000 18%, #000 62%, transparent); }
   .vid.on { opacity: 1; }
   /* a little zoom so the black side bars some trailers carry are cropped away */
   .vframe { position: absolute; inset: 0; transform: scale(1.17); }
