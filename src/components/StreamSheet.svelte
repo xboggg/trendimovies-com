@@ -59,6 +59,13 @@
     }
   }
 
+  // Move the sheet to the page root so it sits above the site header
+  // (inside the page it was trapped under the header by its parent layers).
+  function portal(node: HTMLElement) {
+    document.body.appendChild(node);
+    return { destroy() { node.remove(); } };
+  }
+
   onMount(() => {
     const onOpen = () => openSheet();
     const onPop = () => { if (open && !(history.state && history.state.tmSheet)) finishClose(); };
@@ -75,7 +82,7 @@
   });
 </script>
 
-<div class="ss" class:open aria-hidden={!open}>
+<div class="ss" class:open aria-hidden={!open} use:portal>
   <!-- svelte-ignore a11y-click-events-have-key-events a11y-no-static-element-interactions -->
   <div class="scrim" on:click={closeSheet}></div>
   <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="ss-h" bind:this={sheet} inert={!open}>
