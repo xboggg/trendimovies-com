@@ -102,6 +102,12 @@
     setTimeout(() => (flash = ''), 1300);
   }
 
+  // The latest episode has its own card at the top, so in the list it is a short line that points up.
+  function toLatest() {
+    const el = document.querySelector(".lat");
+    if (el) el.scrollIntoView({ behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "center" });
+  }
+
   let reduce = false;
   let stripEl: HTMLElement;
   // keep the chosen season in view in the row of seasons
@@ -172,6 +178,15 @@
       {@const files = filesOf(ep)}
       {@const quals = qualitiesOf(ep)}
       {@const up = isUpcoming(ep)}
+      {@const isLatest = !!(latest && latestEp && latest.season === activeSeason && latest.episode === ep.episode_number)}
+      {#if isLatest}
+      <li class="ep slim" id={`ep-${activeSeason}-${ep.episode_number}`} class:flash={flash === `${activeSeason}-${ep.episode_number}`}>
+        <button type="button" class="slimb" on:click={toLatest} aria-label={`Episode ${ep.episode_number} is the latest episode. Go to its card at the top`}>
+          <span class="sen">E{ep.episode_number}</span>
+          <span class="stx"><b>{ep.name || `Episode ${ep.episode_number}`}</b><i>Latest episode. Stream and Download are in the card at the top ↑</i></span>
+        </button>
+      </li>
+      {:else}
       <li class="ep" class:flash={flash === `${activeSeason}-${ep.episode_number}`} id={`ep-${activeSeason}-${ep.episode_number}`}
           in:fly={{ y: reduce ? 0 : 14, duration: reduce ? 0 : 320, delay: reduce ? 0 : Math.min(i, 8) * 45 }}>
         <button type="button" class="still" on:click={() => !up && stream(activeSeason, ep.episode_number)} disabled={up} aria-label={`Stream episode ${ep.episode_number}`}>
@@ -201,6 +216,7 @@
           </button>
         </div>
       </li>
+      {/if}
     {/each}
   </ul>
 
@@ -263,6 +279,13 @@
   .eps { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }
   .ep { display: grid; grid-template-columns: 124px minmax(0, 1fr); gap: 4px 12px; padding: 12px; background: #141821; border: 1px solid #262c3b; border-radius: 16px; transition: border-color .25s, box-shadow .25s; }
   .ep:hover { border-color: #3a4158; }
+  .ep.slim { display: block; padding: 0; border-color: #4a3f1f; background: #17160f; }
+  .slimb { appearance: none; width: 100%; display: flex; align-items: center; gap: 12px; padding: 12px; background: transparent; border: 0; color: inherit; text-align: left; cursor: pointer; font: inherit; }
+  .sen { flex: none; font-family: 'JetBrains Mono', ui-monospace, monospace; font-size: 11px; font-weight: 700; padding: 4px 8px; border-radius: 6px; background: rgba(246, 185, 59, 0.16); color: #f6b93b; }
+  .stx { min-width: 0; display: grid; gap: 2px; }
+  .stx b { font-size: 15px; font-weight: 700; color: #eef0f5; }
+  .stx i { font-style: normal; font-size: 12.5px; color: #98a1b4; }
+  .slimb:focus-visible { outline: 2px solid #f6b93b; outline-offset: -2px; border-radius: 16px; }
   .ep.flash { border-color: #f6b93b; box-shadow: 0 0 0 3px rgba(246, 185, 59, 0.2); }
   .still { grid-row: 1; position: relative; appearance: none; border: 0; padding: 0; cursor: pointer; border-radius: 11px; overflow: hidden; aspect-ratio: 16 / 9; align-self: start; background: #1a1f2b; }
   .still:disabled { cursor: default; opacity: 0.7; }

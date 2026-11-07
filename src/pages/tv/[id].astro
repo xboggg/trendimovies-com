@@ -673,7 +673,7 @@ const latestLabel = latestEp ? `Play S${String(latestEp.season).padStart(2, '0')
   // here can disagree with the server-rendered HTML.
   const root = document.getElementById('cinema');
   if (root) {
-    const tabs = Array.from(root.querySelectorAll<HTMLButtonElement>('[role="tab"]'));
+    const tabs = Array.from(root.querySelectorAll<HTMLButtonElement>('[role="tab"][data-tab]'));
     const panels = Array.from(root.querySelectorAll<HTMLElement>('[data-panel]'));
     const bar = document.getElementById('tabsbar');
     const mini = document.getElementById('minidl');
