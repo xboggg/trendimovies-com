@@ -57,7 +57,7 @@
     try {
       if (inWatchlist) {
         await fetch(`/api/user/watchlist?contentType=${contentType}&tmdbId=${tmdbId}`, {
-          method: 'DELETE'
+          method: 'DELETE', headers: { 'Content-Type': 'application/json' }
         });
         inWatchlist = false;
       } else {
@@ -86,7 +86,7 @@
     try {
       if (inFavorites) {
         await fetch(`/api/user/favorites?contentType=${contentType}&tmdbId=${tmdbId}`, {
-          method: 'DELETE'
+          method: 'DELETE', headers: { 'Content-Type': 'application/json' }
         });
         inFavorites = false;
       } else {

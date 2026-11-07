@@ -51,7 +51,7 @@
     const on = kind === 'watchlist' ? inWatchlist : kind === 'watched' ? inWatched : inFavorites;
     try {
       if (on) {
-        await fetch(`/api/user/${kind}?contentType=${contentType}&tmdbId=${tmdbId}`, { method: 'DELETE' });
+        await fetch(`/api/user/${kind}?contentType=${contentType}&tmdbId=${tmdbId}`, { method: 'DELETE', headers: { 'Content-Type': 'application/json' } });
       } else {
         await fetch(`/api/user/${kind}`, {
           method: 'POST',
