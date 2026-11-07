@@ -211,6 +211,13 @@
     else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
   }
 
+  // Move the sheet to the page root so it sits above the page and the site header
+  // (inside the episode list it was trapped under the rest of the page).
+  function portal(node: HTMLElement) {
+    document.body.appendChild(node);
+    return { destroy() { node.remove(); } };
+  }
+
   onMount(() => {
     const onOpen = () => openSheet();
     const onPop = () => { if (open && !(history.state && history.state.tmSheet)) finishClose(); };
@@ -227,7 +234,7 @@
   });
 </script>
 
-<div class="ds" class:open aria-hidden={!open}>
+<div class="ds" class:open aria-hidden={!open} use:portal>
   <!-- svelte-ignore a11y-click-events-have-key-events a11y-no-static-element-interactions -->
   <div class="scrim" on:click={closeSheet}></div>
   <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="ds-h" bind:this={sheet} inert={!open}>
