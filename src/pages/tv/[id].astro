@@ -906,14 +906,14 @@ const latestLabel = latestEp ? `Play S${String(latestEp.season).padStart(2, '0')
 
 
   /* ---- trailer video in the top ---- */
-  .vid { position: absolute; left: 0; right: 0; top: 4rem; height: calc(100vw * 9 / 16); overflow: hidden; z-index: 0; pointer-events: none; opacity: 0; transition: opacity 0.9s ease;
-    -webkit-mask-image: linear-gradient(to bottom, transparent, #000 18%, #000 62%, transparent); mask-image: linear-gradient(to bottom, transparent, #000 18%, #000 62%, transparent); }
+  .vid { position: absolute; left: 0; right: 0; top: 0; height: 560px; overflow: hidden; z-index: 0; pointer-events: none; opacity: 0; transition: opacity 0.9s ease;
+    -webkit-mask-image: linear-gradient(to bottom, #000 55%, transparent); mask-image: linear-gradient(to bottom, #000 55%, transparent); }
   .vid.on { opacity: 1; }
   /* a little zoom so the black side bars some trailers carry are cropped away */
-  .vframe { position: absolute; inset: 0; transform: scale(1.17); }
+  .vframe { position: absolute; left: 50%; top: 50%; width: max(100%, 1160px); aspect-ratio: 16 / 9; transform: translate(-50%, -50%) scale(1.17); }
   .vframe :global(iframe) { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
   .layout.has-vid { padding-top: calc(100vw * 9 / 16 - 46px); }
-  .vmute { display: none; position: absolute; z-index: 3; right: 16px; top: calc(4rem + 100vw * 9 / 16 - 54px); width: 44px; height: 44px; border-radius: 50%; align-items: center; justify-content: center;
+  .vmute { display: none; position: absolute; z-index: 3; right: 16px; top: calc(4rem + 14px); width: 44px; height: 44px; border-radius: 50%; align-items: center; justify-content: center;
     appearance: none; cursor: pointer; color: var(--tx); background: rgba(11,13,18,.6); backdrop-filter: blur(6px); border: 1px solid rgba(255,255,255,.22); }
   .vmute.on { display: flex; }
   .vmute .i-on { display: none; } .vmute.sound .i-on { display: block; } .vmute.sound .i-off { display: none; }

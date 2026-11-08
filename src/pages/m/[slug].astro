@@ -19,6 +19,11 @@ if (error || !movie) {
   return Astro.redirect('/404');
 }
 
+// One movie page only: old /m/ links go to the normal movie page.
+if (movie.tmdb_id) {
+  return Astro.redirect('/movie/' + movie.tmdb_id, 301);
+}
+
 // Fetch download links and similar movies in parallel
 const [downloadResult, similarResult] = await Promise.all([
   supabase

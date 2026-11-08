@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount, tick } from 'svelte';
-  import { Download, Magnet, FileText, X, Globe, Flag } from 'lucide-svelte';
+  import { Download, Magnet, FileText, X, Globe, Flag, Check } from 'lucide-svelte';
 
   // The movie page's Download pop-up: a sheet that slides up from the bottom
   // (centred window on a big screen). Same links, sizes, language tags and
@@ -169,6 +169,23 @@
     return q === '2160p' ? '4K' : q === 'hdrip' ? 'HD' : q;
   }
 
+  // The quality tiles: a colour, a short label, a plain note and the size.
+  function tileKey(q: string): string {
+    return q === '720p' ? 'a' : q === '1080p' ? 'b' : q === '2160p' ? 'c' : 'd';
+  }
+  function tileLabel(q: string): string {
+    return q === '720p' ? 'HD' : q === '1080p' ? 'FULL HD' : q === '2160p' ? 'ULTRA HD' : q === '480p' ? 'SMALL' : 'OLDER';
+  }
+  function tileNote(q: string): string {
+    return q === '720p' ? 'Small file, saves data' : q === '1080p' ? 'Sharper picture' : q === '2160p' ? 'Biggest and sharpest' : q === '480p' ? 'Smallest file, softer picture' : 'Older quality';
+  }
+  $: tileSizes = Object.fromEntries(qualities.map(([q]) => {
+    const list = byAudio.filter(r => r.l.quality === q && r.l.file_size);
+    if (!list.length) return [q, ''];
+    const small = [...list].sort((a, b) => a.mb - b.mb)[0];
+    return [q, list.length > 1 ? 'from ' + small.l.file_size : small.l.file_size];
+  }));
+
   let open = false;
   let sheet: HTMLElement;
   let closeBtn: HTMLButtonElement;
@@ -261,9 +278,14 @@
           {/if}
 
           <div class="lbl">Quality</div>
-          <div class="chips">
+          <div class="tiles" class:odd={qualities.length % 2 === 1} class:many={qualities.length > 2}>
             {#each qualities as [q, n]}
-              <button type="button" class="chip" class:on={quality === q} aria-pressed={quality === q} on:click={() => (quality = q)}>{q} <small>({n})</small></button>
+              <button type="button" class="tile t-{tileKey(q)}" class:on={quality === q} aria-pressed={quality === q} on:click={() => (quality = q)}>
+                <span class="ck" aria-hidden="true"><Check size={14} strokeWidth={3} /></span>
+                <span class="tlb">{tileLabel(q)}</span>
+                <b>{q === 'hdrip' ? 'HDRip' : stubSmall(q)}</b>
+                <span class="tsub"><small>{tileNote(q)}</small><span class="tgb">{tileSizes[q] || ''}</span></span>
+              </button>
             {/each}
           </div>
 
@@ -435,4 +457,47 @@
   .foot { margin: 0; padding: 10px 20px 12px; text-align: center; font-size: 12px; font-style: italic; color: #98a1b4; border-top: 1px solid #1f2430; flex: none; }
   .empty { text-align: center; padding: 34px 12px; color: #98a1b4; }
   .empty p { margin: 8px 0 0; }
+  /* ---- Aurora Glass look ---- */
+  .sheet { background: rgba(18, 20, 34, 0.72); border-color: rgba(255, 255, 255, 0.22); backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px); overflow: hidden; }
+  .sheet::before { content: ''; position: absolute; z-index: 0; width: 260px; height: 260px; right: -90px; top: 90px; border-radius: 50%; background: radial-gradient(circle, rgba(255, 120, 190, 0.42), transparent 70%); filter: blur(10px); pointer-events: none; }
+  .sheet::after { content: ''; position: absolute; z-index: 0; width: 240px; height: 240px; left: -90px; bottom: 30px; border-radius: 50%; background: radial-gradient(circle, rgba(70, 220, 210, 0.38), transparent 70%); filter: blur(10px); pointer-events: none; }
+  .sheet > .grab, .sheet > .hd, .sheet > .scroll, .sheet > .foot { position: relative; z-index: 1; }
+  .grab { background: rgba(255, 255, 255, 0.35); }
+  .hd h2 { color: #fff; }
+  .x { background: rgba(255, 255, 255, 0.1); border: 1px solid rgba(255, 255, 255, 0.18); color: #d6dcf2; }
+  .lbl { color: #b9c0da; }
+  .tiles { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 0 0 4px; padding-top: 4px; }
+  .tiles.odd .tile:last-child { grid-column: 1 / -1; }
+  .tile {
+    appearance: none; font: inherit; cursor: pointer; position: relative; overflow: hidden; text-align: left; color: #fff;
+    border: 2px solid rgba(255, 255, 255, 0.22); border-radius: 20px; padding: 14px 14px 13px; min-height: 116px;
+    display: grid; align-content: space-between; opacity: 0.62; filter: saturate(0.8);
+    transition: opacity 0.2s, transform 0.2s, filter 0.2s, box-shadow 0.2s;
+  }
+  .tile.t-a { background: linear-gradient(150deg, rgba(120, 255, 225, 0.42), rgba(60, 160, 255, 0.28)); }
+  .tile.t-b { background: linear-gradient(150deg, rgba(255, 190, 110, 0.42), rgba(255, 90, 160, 0.3)); }
+  .tile.t-c { background: linear-gradient(150deg, rgba(170, 130, 255, 0.45), rgba(90, 80, 255, 0.3)); }
+  .tile.t-d { background: linear-gradient(150deg, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0.06)); }
+  .tile.on { opacity: 1; filter: none; transform: translateY(-3px); border-color: rgba(255, 255, 255, 0.95); box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.12), 0 14px 34px rgba(80, 200, 255, 0.35); }
+  .tiles.many .tile { min-height: 96px; padding: 11px 12px 10px; }
+  .tiles.many .tile b { font-size: 26px; }
+  .tile:focus-visible { outline: 2px solid #f6b93b; outline-offset: 2px; }
+  .tlb { font-family: 'JetBrains Mono', ui-monospace, monospace; font-size: 10px; letter-spacing: 0.12em; font-weight: 700; opacity: 0.85; }
+  .tile b { font-family: 'Bricolage Grotesque', Inter, sans-serif; font-size: 32px; font-weight: 800; line-height: 1; }
+  .tsub small { display: block; font-size: 12.5px; font-weight: 600; opacity: 0.85; }
+  .tgb { font-family: 'JetBrains Mono', ui-monospace, monospace; font-weight: 700; font-size: 13.5px; }
+  .ck { position: absolute; top: 10px; right: 10px; width: 24px; height: 24px; border-radius: 50%; background: #fff; color: #14202e; display: none; place-items: center; }
+  .tile.on .ck { display: grid; }
+  .chip { background: rgba(255, 255, 255, 0.1); border-color: rgba(255, 255, 255, 0.2); }
+  .sortrow { border-top-color: rgba(255, 255, 255, 0.14); }
+  select { background: rgba(255, 255, 255, 0.1); border-color: rgba(255, 255, 255, 0.2); }
+  .row { margin: 0 0 10px; padding: 14px; border: 1px solid rgba(255, 255, 255, 0.16); border-radius: 18px; background: rgba(255, 255, 255, 0.07); }
+  .row:first-child { border-top: 1px solid rgba(255, 255, 255, 0.16); }
+  .sz { background: rgba(255, 255, 255, 0.1); }
+  .sp { background: rgba(255, 255, 255, 0.1); border-color: rgba(255, 255, 255, 0.2); color: #e7ecff; border-radius: 999px; }
+  .btn { min-height: 48px; border-radius: 18px; }
+  .btn.tg { background: linear-gradient(135deg, #ffd26e, #ff9f5a); color: #2a1604; box-shadow: 0 8px 22px rgba(255, 160, 90, 0.35); }
+  .btn.dl { background: rgba(255, 255, 255, 0.14); color: #fff; border: 1px solid rgba(255, 255, 255, 0.3); }
+  .foot { border-top-color: rgba(255, 255, 255, 0.14); }
+  @media (prefers-reduced-motion: reduce) { .tile { transition: none; } }
 </style>

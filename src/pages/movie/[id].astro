@@ -667,10 +667,15 @@ const ogTitle = `${movie.title} ${ogYear}`.trim();
           if (typeof d === 'string') { try { d = JSON.parse(d); } catch (e) { return; } }
           if (d && d.event === 'onError') { f.remove(); return; } // this trailer cannot be embedded: keep the backdrop picture
           const st = d && d.info && typeof d.info === 'object' ? d.info.playerState : d && d.event === 'onStateChange' ? d.info : undefined;
-          if (st === 1 && !playing) {
+          if (st === 1) {
             playing = true;
             vid.classList.add('on');
             vmute?.classList.add('on');
+          } else if (playing && (st === 2 || st === 0 || st === 5)) {
+            // YouTube draws its own title bar and big play buttons whenever the picture is
+            // paused; hide the picture then so only our backdrop shows, and bring it back
+            // when it plays again.
+            vid.classList.remove('on');
           }
         });
         setTimeout(() => { if (!playing) { f.remove(); } }, 9000);
@@ -810,14 +815,14 @@ const ogTitle = `${movie.title} ${ogYear}`.trim();
 
 
   /* ---- trailer video in the top ---- */
-  .vid { position: absolute; left: 0; right: 0; top: 4rem; height: calc(100vw * 9 / 16); overflow: hidden; z-index: 0; pointer-events: none; opacity: 0; transition: opacity 0.9s ease;
-    -webkit-mask-image: linear-gradient(to bottom, #000 62%, transparent); mask-image: linear-gradient(to bottom, #000 62%, transparent); }
+  .vid { position: absolute; left: 0; right: 0; top: 0; height: 560px; overflow: hidden; z-index: 0; pointer-events: none; opacity: 0; transition: opacity 0.9s ease;
+    -webkit-mask-image: linear-gradient(to bottom, #000 55%, transparent); mask-image: linear-gradient(to bottom, #000 55%, transparent); }
   .vid.on { opacity: 1; }
   /* a little zoom so the black side bars some trailers carry are cropped away */
-  .vframe { position: absolute; inset: 0; transform: scale(1.17); }
+  .vframe { position: absolute; left: 50%; top: 50%; width: max(100%, 1160px); aspect-ratio: 16 / 9; transform: translate(-50%, -50%) scale(1.17); }
   .vframe :global(iframe) { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
   .layout.has-vid { padding-top: calc(100vw * 9 / 16 - 46px); }
-  .vmute { display: none; position: absolute; z-index: 3; right: 16px; top: calc(4rem + 100vw * 9 / 16 - 54px); width: 44px; height: 44px; border-radius: 50%; align-items: center; justify-content: center;
+  .vmute { display: none; position: absolute; z-index: 3; right: 16px; top: calc(4rem + 14px); width: 44px; height: 44px; border-radius: 50%; align-items: center; justify-content: center;
     appearance: none; cursor: pointer; color: var(--tx); background: rgba(11,13,18,.6); backdrop-filter: blur(6px); border: 1px solid rgba(255,255,255,.22); }
   .vmute.on { display: flex; }
   .vmute .i-on { display: none; } .vmute.sound .i-on { display: block; } .vmute.sound .i-off { display: none; }
