@@ -8,6 +8,7 @@ import PickYourMood from '../components/PickYourMood.svelte';
 import ContinueWatching from '../components/ContinueWatching.svelte';
 import TrendingNowRow from '../components/TrendingNowRow.svelte';
 import JustAddedRow from '../components/JustAddedRow.svelte';
+import GenreTabsRow from '../components/GenreTabsRow.svelte';
 import { JUST_ADDED_TABS, getJustAdded } from '../lib/just-added';
 import { getTrendingMovies, getNowPlayingMovies, getPopularMovies, getTopRatedMovies, getTrendingTV, getPopularTV, getOnTheAirTV, discoverMovies, getMovieDetails, getMovieGenres, getTVDetails, searchMovies, fetchFromTMDB } from '../lib/tmdb';
 import { getCache as _getCache, setCache as _setCache } from '../lib/cache';
@@ -572,6 +573,13 @@ const actionItems = (actionMovies?.results || []).slice(0, 15).map(transformMovi
 const comedyItems = (comedyMovies?.results || []).slice(0, 15).map(transformMovie);
 const romanceItems = (romanceMovies?.results || []).slice(0, 15).map(transformMovie);
 const thrillerItems = (thrillerMovies?.results || []).slice(0, 15).map(transformMovie);
+// One tabbed section for the four genre rows (about 10 films each).
+const genreTabs = [
+  { key: 'action', label: 'Non-Stop Action', note: 'Fights, chases and big explosions', color: '#ff6a3d', link: '/genre/action', items: actionItems.slice(0, 10) },
+  { key: 'comedy', label: 'Comedy Central', note: 'Films to laugh out loud with', color: '#f5b400', link: '/genre/comedy', items: comedyItems.slice(0, 10) },
+  { key: 'romance', label: 'Midnight Romance', note: 'Love stories for late evenings', color: '#ff5f9e', link: '/genre/romance', items: romanceItems.slice(0, 10) },
+  { key: 'thriller', label: 'Thriller Movies', note: 'Edge-of-your-seat tension', color: '#6a8bff', link: '/genre/thriller', items: thrillerItems.slice(0, 10) },
+];
 const animeItems = (animeMovies?.results || []).slice(0, 15).map(transformMovie);
 const kDramaItems = (kDramaMovies?.results || []).slice(0, 15).map(transformMovie);
 
@@ -828,6 +836,16 @@ try {
     />
   )}
 
+  <!-- New Episodes This Week -->
+  {onTheAirItems.length > 0 && (
+    <ContentRow
+      client:visible
+      title="New Episodes This Week"
+      items={onTheAirItems}
+      seeAllLink="/series/new-episodes"
+    />
+  )}
+
   <!-- Trending TV -->
   {tvItems.length > 0 && (
     <ContentRow
@@ -847,54 +865,9 @@ try {
   <!-- Pick Your Mood -->
   <PickYourMood client:visible moods={moodData} />
 
-  <!-- New Episodes This Week -->
-  {onTheAirItems.length > 0 && (
-    <ContentRow
-      client:visible
-      title="New Episodes This Week"
-      items={onTheAirItems}
-      seeAllLink="/series/new-episodes"
-    />
-  )}
-
-  <!-- Action Movies -->
-  {actionItems.length > 0 && (
-    <ContentRow
-      client:visible
-      title="Non-Stop Action"
-      items={actionItems}
-      seeAllLink="/genre/action"
-    />
-  )}
-
-  <!-- Comedy Movies -->
-  {comedyItems.length > 0 && (
-    <ContentRow
-      client:visible
-      title="Comedy Central"
-      items={comedyItems}
-      seeAllLink="/genre/comedy"
-    />
-  )}
-
-  <!-- Romance Movies -->
-  {romanceItems.length > 0 && (
-    <ContentRow
-      client:visible
-      title="Midnight Romance"
-      items={romanceItems}
-      seeAllLink="/genre/romance"
-    />
-  )}
-
-  <!-- Thriller Movies -->
-  {thrillerItems.length > 0 && (
-    <ContentRow
-      client:visible
-      title="Thriller Movies"
-      items={thrillerItems}
-      seeAllLink="/genre/thriller"
-    />
+  <!-- Genres: Non-Stop Action, Comedy Central, Midnight Romance, Thriller Movies in one tabbed section -->
+  {genreTabs.some(t => t.items.length > 0) && (
+    <GenreTabsRow client:visible tabs={genreTabs} />
   )}
 
   <!-- Movie Guides — curated topic lists (replaced Anime/Korean rows) -->
