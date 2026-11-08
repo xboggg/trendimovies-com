@@ -42,7 +42,9 @@ export function parseSpec(name: string): FileSpec {
 
   const ch = n.match(/[.\s-]([2578])[.\s]([01])[.\s-]/);
   const chCount = n.match(/[.\s-]([268])ch[.\s-]/i);
-  const channels = ch ? `${ch[1]}.${ch[2]}` : chCount ? (chCount[1] === '6' ? '5.1' : chCount[1] === '8' ? '7.1' : '2.0') : '';
+  // Channels written straight after the sound name: AAC5.1, DDP5.1, DD2.0 (names like ...AAC5_1... end up as AAC5.1).
+  const chAttached = n.match(/[.\s-](?:aac|ddp|eac3|ac3|dd|dts|opus|flac)[.\s-]?([2578])[.\s]([01])[.\s-]/i);
+  const channels = ch ? `${ch[1]}.${ch[2]}` : chCount ? (chCount[1] === '6' ? '5.1' : chCount[1] === '8' ? '7.1' : '2.0') : chAttached ? `${chAttached[1]}.${chAttached[2]}` : '';
   let codecName = '';
   if (/atmos/i.test(n)) codecName = 'Atmos';
   else if (/[.\s-](ddp|dd\+|eac3)/i.test(n)) codecName = 'DD+';
