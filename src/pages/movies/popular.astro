@@ -5,41 +5,107 @@ import ListingView from '../../components/ListingView.svelte';
 import { discoverMovies } from '../../lib/tmdb';
 
 // Get query params
-const page = parseInt(Astro.url.searchParams.get('page') || '1');
-const sort = Astro.url.searchParams.get('sort') || 'popular';
+const params = Astro.url.searchParams;
+const page = Math.max(1, parseInt(params.get('page') || '1') || 1);
 
-// Map sort options
-const sortMap: Record<string, string> = {
-  'popular': 'popularity.desc',
-  'rating': 'vote_average.desc',
-  'newest': 'primary_release_date.desc',
-  'title': 'title.asc'
+// ---------------------------------------------------------------- filters --
+// Same filter bar as /movies/latest (Genre, Year range, Language, Sort, 7+ stars,
+// Nollywood), but this page reads from TMDB, so each filter becomes a TMDB "discover" setting.
+const GENRES: Record<string, number> = {
+  'Action': 28, 'Adventure': 12, 'Animation': 16, 'Comedy': 35, 'Crime': 80, 'Documentary': 99,
+  'Drama': 18, 'Family': 10751, 'Fantasy': 14, 'History': 36, 'Horror': 27, 'Music': 10402,
+  'Mystery': 9648, 'Romance': 10749, 'Science Fiction': 878, 'Thriller': 53, 'War': 10752, 'Western': 37,
 };
 
-const sortBy = sortMap[sort] || 'popularity.desc';
+// Several TMDB language codes can share one choice (Indian, Chinese): TMDB accepts "hi|ta|ml".
+// 'cn' sits WITH 'zh' because TMDB uses cn for Cantonese and zh for Mandarin.
+const LANGS: Record<string, { label: string; codes: string[] }> = {
+  en:       { label: 'English',  codes: ['en'] },
+  indian:   { label: 'Indian',   codes: ['hi', 'ta', 'ml', 'te', 'kn', 'bn', 'mr', 'pa', 'gu'] },
+  chinese:  { label: 'Chinese',  codes: ['zh', 'cn'] },
+  japanese: { label: 'Japanese', codes: ['ja'] },
+  french:   { label: 'French',   codes: ['fr'] },
+  korean:   { label: 'Korean',   codes: ['ko'] },
+  spanish:  { label: 'Spanish',  codes: ['es'] },
+};
+
+const SORTS: Record<string, { label: string; tmdb: string }> = {
+  popular: { label: 'Most Popular',  tmdb: 'popularity.desc' },
+  rating:  { label: 'Highest Rated', tmdb: 'vote_average.desc' },
+  newest:  { label: 'Newest',        tmdb: 'primary_release_date.desc' },
+  title:   { label: 'Title A-Z',     tmdb: 'title.asc' },
+};
+
+// Year range (?yf=2020&yt=2024). Either end may be empty. Only whole years in range are accepted.
+const YEAR_MAX = new Date().getFullYear();
+const YEAR_MIN = 1950;
+const YEAR_OPTIONS = Array.from({ length: YEAR_MAX - YEAR_MIN + 1 }, (_, i) => YEAR_MAX - i);
+const yearParam = (k: string) => {
+  const v = parseInt(params.get(k) || '', 10);
+  return Number.isInteger(v) && v >= YEAR_MIN && v <= YEAR_MAX ? v : null;
+};
+let fYearFrom = yearParam('yf');
+let fYearTo = yearParam('yt');
+if (fYearFrom !== null && fYearTo !== null && fYearFrom > fYearTo) {
+  [fYearFrom, fYearTo] = [fYearTo, fYearFrom];
+}
+
+const fGenre = GENRES[params.get('genre') || ''] ? (params.get('genre') as string) : '';
+const fLang = LANGS[params.get('lang') || ''] ? (params.get('lang') as string) : '';
+const fRated = params.get('rating') === '7';
+const fNolly = params.get('from') === 'ng';
+const fSort = SORTS[params.get('sort') || ''] ? (params.get('sort') as string) : 'popular';
+
+const hasFilters = !!(fGenre || fLang || fYearFrom !== null || fYearTo !== null || fRated || fNolly) || fSort !== 'popular';
 
 // Each site page = 2 TMDB pages (40 -> 30 after poster filter), matching /movies/upcoming.
 const tmdbPage1 = (page - 1) * 2 + 1;
 const tmdbPage2 = tmdbPage1 + 1;
 
 // Popular films with a real vote base so we don't surface obscure/empty entries.
+// Nollywood films get far fewer votes on TMDB, so that filter uses a lower floor.
+const query: Record<string, string> = {
+  sort_by: SORTS[fSort].tmdb,
+  'vote_count.gte': fNolly ? '5' : '150',
+};
+if (fGenre) query.with_genres = String(GENRES[fGenre]);
+if (fLang) query.with_original_language = LANGS[fLang].codes.join('|');
+if (fYearFrom !== null) query['primary_release_date.gte'] = `${fYearFrom}-01-01`;
+if (fYearTo !== null) query['primary_release_date.lte'] = `${fYearTo}-12-31`;
+if (fRated) query['vote_average.gte'] = '7';
+if (fNolly) query.with_origin_country = 'NG';
+
 const [response1, response2] = await Promise.all([
-  discoverMovies({
-    sort_by: sortBy,
-    'vote_count.gte': '150',
-    page: tmdbPage1.toString()
-  }),
-  discoverMovies({
-    sort_by: sortBy,
-    'vote_count.gte': '150',
-    page: tmdbPage2.toString()
-  })
+  discoverMovies({ ...query, page: tmdbPage1.toString() }),
+  discoverMovies({ ...query, page: tmdbPage2.toString() })
 ]);
 
 const allMovies = Array.from(new Map([...(response1.results || []), ...(response2.results || [])].map((x: any) => [x.id, x])).values())
   .filter((m: any) => m.poster_path && !m.adult);
 const movies = allMovies.slice(0, 30);
 const totalPages = Math.min(Math.ceil((response1.total_pages || 1) / 2), 250);
+const totalFound = response1.total_results || 0;
+
+// Keep every active filter when moving between pages.
+function link(overrides: Record<string, string | null> = {}) {
+  const p = new URLSearchParams();
+  const cur: Record<string, string> = {
+    genre: fGenre, lang: fLang,
+    yf: fYearFrom !== null ? String(fYearFrom) : '',
+    yt: fYearTo !== null ? String(fYearTo) : '',
+    rating: fRated ? '7' : '', from: fNolly ? 'ng' : '',
+    sort: fSort === 'popular' ? '' : fSort,
+  };
+  Object.assign(cur, overrides as any);
+  for (const [k, v] of Object.entries(cur)) if (v) p.set(k, v as string);
+  const qs = p.toString();
+  return `/movies/popular${qs ? '?' + qs : ''}`;
+}
+
+function pageLink(n: number) {
+  const base = link();
+  return base.includes('?') ? `${base}&page=${n}` : `${base}?page=${n}`;
+}
 
 function transformToItem(movie: any) {
   return {
@@ -55,6 +121,9 @@ function transformToItem(movie: any) {
     type: 'movie' as const
   };
 }
+
+const heading = fNolly ? (fGenre ? `🔥 Popular Nollywood ${fGenre} Movies` : '🔥 Popular Nollywood Movies')
+  : fGenre ? `🔥 Popular ${fGenre} Movies` : '🔥 Popular Movies';
 
 // WhatsApp-safe OG collage (type=digital -> satori->sharp JPEG ~25-60KB, well under
 // the ~300KB comfortable / 600KB hard limit). Uses the top posters of THIS page.
@@ -78,35 +147,86 @@ const ogImage = `/api/og.png?type=digital`
   title="Popular Movies — What Everyone's Watching | TrendiMovies"
   description="The most popular movies right now on TrendiMovies. Browse what everyone's watching and stream or download free in 720p & 1080p."
   image={ogImage}
+  noIndex={hasFilters}
 >
   <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-    <div class="flex flex-col md:flex-row md:items-center md:justify-between mb-8">
-      <div>
-        <h1 class="text-3xl font-bold mb-2" style="color: var(--text-primary);">🔥 Popular Movies</h1>
-        <p style="color: var(--text-secondary);">The films everyone's watching right now</p>
+    <div class="mb-6">
+      <h1 class="text-3xl font-bold mb-2" style="color: var(--text-primary);">{heading}</h1>
+      <p style="color: var(--text-secondary);">
+        {hasFilters ? `${totalFound.toLocaleString()} movies match` : "The films everyone's watching right now"}
+      </p>
+    </div>
+
+    <!-- ============================ FILTER BAR ============================ -->
+    <!-- Same bar as /movies/latest: native selects in a real GET form, so every
+         combination is a normal link (back button and sharing work, and it still
+         works with JS blocked). Filtered views carry noindex via `noIndex` above;
+         the plain /movies/popular stays indexable as before. -->
+    <form class="tmf" method="get" action="/movies/popular" id="tmf">
+      <label class="tmf__f">
+        <span>Genre</span>
+        <select name="genre">
+          <option value="">All genres</option>
+          {Object.keys(GENRES).map(g => <option value={g} selected={fGenre === g}>{g}</option>)}
+        </select>
+      </label>
+
+      <div class="tmf__f" role="group" aria-labelledby="tmf-year-l">
+        <span id="tmf-year-l">Year</span>
+        <div class="tmf__range">
+          <select name="yf" aria-label="From year" data-nosubmit>
+            <option value="">From</option>
+            {YEAR_OPTIONS.map(y => <option value={y} selected={fYearFrom === y}>{y}</option>)}
+          </select>
+          <span class="tmf__to" aria-hidden="true">–</span>
+          <select name="yt" aria-label="To year">
+            <option value="">To</option>
+            {YEAR_OPTIONS.map(y => <option value={y} selected={fYearTo === y}>{y}</option>)}
+          </select>
+        </div>
       </div>
 
-      <!-- Sort Filter -->
-      <div class="mt-4 md:mt-0">
-        <select
-          id="sort-select"
-          class="px-4 py-2 rounded-lg text-sm"
-          style="background-color: var(--bg-card); color: var(--text-primary); border: 1px solid var(--border);"
-        >
-          <option value="popular" selected={sort === 'popular'}>Most Popular</option>
-          <option value="rating" selected={sort === 'rating'}>Highest Rated</option>
-          <option value="newest" selected={sort === 'newest'}>Newest</option>
-          <option value="title" selected={sort === 'title'}>Title A-Z</option>
+      <label class="tmf__f">
+        <span>Language</span>
+        <select name="lang">
+          <option value="">Any language</option>
+          {Object.entries(LANGS).map(([k, v]) => (
+            <option value={k} selected={fLang === k}>{v.label}</option>
+          ))}
         </select>
+      </label>
+
+      <label class="tmf__f">
+        <span>Sort</span>
+        <select name="sort">
+          {Object.entries(SORTS).map(([k, v]) => (
+            <option value={k} selected={fSort === k}>{v.label}</option>
+          ))}
+        </select>
+      </label>
+
+      <div class="tmf__toggles">
+        <label class={`tmf__t ${fRated ? 'is-on' : ''}`}>
+          <input type="checkbox" name="rating" value="7" checked={fRated} /> ★ 7+
+        </label>
+        <label class={`tmf__t ${fNolly ? 'is-on' : ''}`}>
+          <input type="checkbox" name="from" value="ng" checked={fNolly} /> Nollywood
+        </label>
+        <button type="submit" class="tmf__go">Apply</button>
+        {hasFilters && <a href="/movies/popular" class="tmf__clear">Clear</a>}
       </div>
-    </div>
+    </form>
 
     <!-- Movie Grid -->
     {movies.length > 0 ? (
       <ListingView client:load items={movies.map((movie: any) => transformToItem(movie))} gridClass="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 lg:grid-cols-6 gap-4" />
     ) : (
       <div class="text-center py-16">
-        <p style="color: var(--text-secondary);">No popular movies found</p>
+        <p class="mb-3" style="color: var(--text-primary); font-weight:600;">Nothing matches those filters</p>
+        <p class="text-sm mb-5" style="color: var(--text-secondary);">
+          Try removing one — the combination may be too narrow.
+        </p>
+        <a href="/movies/popular" class="tmf__go" style="display:inline-block;text-decoration:none;">Clear all filters</a>
       </div>
     )}
 
@@ -115,7 +235,7 @@ const ogImage = `/api/og.png?type=digital`
       <div class="flex justify-center mt-8 gap-2">
         {page > 1 && (
           <a
-            href={`/movies/popular?sort=${sort}&page=${page - 1}`}
+            href={pageLink(page - 1)}
             class="px-4 py-2 rounded-lg"
             style="background-color: var(--bg-card); color: var(--text-primary); border: 1px solid var(--border);"
           >
@@ -129,7 +249,7 @@ const ogImage = `/api/og.png?type=digital`
 
         {page < totalPages && (
           <a
-            href={`/movies/popular?sort=${sort}&page=${page + 1}`}
+            href={pageLink(page + 1)}
             class="px-4 py-2 rounded-lg"
             style="background-color: var(--bg-card); color: var(--text-primary); border: 1px solid var(--border);"
           >
@@ -139,16 +259,106 @@ const ogImage = `/api/og.png?type=digital`
       </div>
     )}
   </div>
-
-  <script>
-    const sortSelect = document.getElementById('sort-select') as HTMLSelectElement;
-    if (sortSelect) {
-      sortSelect.addEventListener('change', () => {
-        const url = new URL(window.location.href);
-        url.searchParams.set('sort', sortSelect.value);
-        url.searchParams.delete('page');
-        window.location.href = url.toString();
-      });
-    }
-  </script>
 </BaseLayout>
+
+<style>
+  .tmf {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 10px 14px;
+    padding: 12px 14px;
+    margin-bottom: 22px;
+    border-radius: 12px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+  }
+  .tmf__f { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+  .tmf__f > span {
+    font-size: 10.5px;
+    letter-spacing: .085em;
+    text-transform: uppercase;
+    color: var(--text-secondary);
+  }
+  .tmf select {
+    appearance: none;
+    -webkit-appearance: none;
+    padding: 7px 30px 7px 11px;
+    min-width: 150px;
+    max-width: 100%;
+    font-size: 13.5px;
+    font-family: inherit;
+    color: var(--text-primary);
+    background-color: transparent;
+    background-image:
+      linear-gradient(45deg, transparent 50%, currentColor 50%),
+      linear-gradient(135deg, currentColor 50%, transparent 50%);
+    background-position: calc(100% - 15px) 52%, calc(100% - 10px) 52%;
+    background-size: 5px 5px, 5px 5px;
+    background-repeat: no-repeat;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    cursor: pointer;
+  }
+  .tmf select option { background: var(--bg-card); color: var(--text-primary); }
+  .tmf__range { display: flex; align-items: center; gap: 6px; }
+  .tmf__range select { min-width: 92px; }
+  .tmf__to { color: var(--text-secondary); font-size: 13px; }
+  .tmf select:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+  .tmf__toggles { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-left: auto; }
+  .tmf__t {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    border-radius: 999px;
+    font-size: 13px;
+    color: var(--text-secondary);
+    border: 1px solid var(--border);
+    cursor: pointer;
+    user-select: none;
+  }
+  .tmf__t input { accent-color: var(--accent); margin: 0; }
+  .tmf__t.is-on { background: var(--accent); color: #111; border-color: var(--accent); font-weight: 600; }
+  .tmf__go {
+    padding: 7px 16px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    color: #111;
+    background: var(--accent);
+    border: 0;
+    cursor: pointer;
+  }
+  .tmf__clear {
+    padding: 7px 12px;
+    font-size: 13px;
+    color: var(--text-secondary);
+    border-bottom: 1px dashed var(--border);
+  }
+
+  @media (max-width: 640px) {
+    .tmf { gap: 9px 10px; padding: 11px 12px; }
+    .tmf__f { flex: 1 1 calc(50% - 5px); }
+    .tmf select { min-width: 0; width: 100%; }
+    .tmf__range select { min-width: 0; flex: 1 1 0; }
+    .tmf__toggles { margin-left: 0; width: 100%; }
+    .tmf__go { margin-left: auto; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { transition: none !important; }
+  }
+</style>
+
+<script>
+  // Progressive enhancement ONLY. Without JS the Apply button submits the form normally.
+  const tmf = document.getElementById('tmf') as HTMLFormElement | null;
+  // "From" waits for "To" (or Apply) so picking a range is one page load.
+  if (tmf) tmf.addEventListener('change', (e) => {
+    const t = e.target as HTMLElement | null;
+    if (t && t.hasAttribute('data-nosubmit')) return;
+    tmf.submit();
+  });
+</script>
