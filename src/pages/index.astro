@@ -761,6 +761,11 @@ try {
     />
   )}
 
+  <!-- Just Added (from our database - movies and shows with downloads), straight under Trending This Week. -->
+  {justAddedTabs.some(t => t.items.length > 0) && (
+    <JustAddedRow client:load tabs={justAddedTabs} />
+  )}
+
   <!-- Trending Now — ranked by REAL views on TrendiMovies (page_views data).
        Distinct from "Trending This Week" (TMDB global) via rank #s + view counts. -->
   {mostViewedItems.length >= 5 && (
@@ -790,15 +795,6 @@ try {
         reviews={latestReviews}
       />
     </div>
-
-    <!-- Newly Added Movies (from our database - movies with downloads).
-         Now the SINGLE latest-additions section (merged from the old
-         "Just Dropped" reel + "More Just Added" row). -->
-    {justAddedTabs.some(t => t.items.length > 0) && (
-      <div class="order-2">
-        <JustAddedRow client:load tabs={justAddedTabs} />
-      </div>
-    )}
   </div>
 
   <!-- Now Playing -->

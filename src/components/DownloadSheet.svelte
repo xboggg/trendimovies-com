@@ -289,14 +289,16 @@
             {/each}
           </div>
 
-          <div class="sortrow">
-            <label for="ds-sort">Sort</label>
-            <select id="ds-sort" bind:value={sort}>
-              <option value="best">Best first</option>
-              <option value="small">Smallest first</option>
-              <option value="large">Largest first</option>
-            </select>
-          </div>
+          {#if shown.length > 1}
+            <div class="sortrow">
+              <label for="ds-sort">Sort</label>
+              <select id="ds-sort" bind:value={sort}>
+                <option value="best">Best first</option>
+                <option value="small">Smallest first</option>
+                <option value="large">Largest first</option>
+              </select>
+            </div>
+          {/if}
 
           <ul class="rows">
             {#each shown as r (r.l.id)}
