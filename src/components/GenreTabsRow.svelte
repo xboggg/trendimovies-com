@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { onMount, onDestroy } from 'svelte';
   import { fly } from 'svelte/transition';
   import { ChevronLeft, ChevronRight } from 'lucide-svelte';
   import MovieCard from './MovieCard.svelte';
@@ -18,13 +19,44 @@
 
   function pick(key: string) {
     active = key;
+    hold();
     if (scroller) scroller.scrollTo({ left: 0 });
-  }
-  function nudge(dir: 'left' | 'right') {
-    if (!scroller) return;
-    scroller.scrollBy({ left: (dir === 'left' ? -1 : 1) * scroller.clientWidth * 0.8, behavior: 'smooth' });
+    release(1500);
   }
   const reduce = typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  // The row slides along by itself (like Trending This Week). It waits while a finger
+  // or the mouse is on it, and starts again a moment after.
+  let frame = 0;
+  let paused = false;
+  let resumeTimer: ReturnType<typeof setTimeout>;
+  function hold() { paused = true; clearTimeout(resumeTimer); }
+  function release(wait = 2500) { clearTimeout(resumeTimer); resumeTimer = setTimeout(() => { paused = false; }, wait); }
+  function nudge(dir: 'left' | 'right') {
+    if (!scroller) return;
+    hold();
+    scroller.scrollBy({ left: (dir === 'left' ? -1 : 1) * scroller.clientWidth * 0.8, behavior: 'smooth' });
+    release(3000);
+  }
+  onMount(() => {
+    if (reduce) return;
+    // The position is kept in `pos` because a phone may round scrollLeft to whole pixels.
+    let pos = 0;
+    const step = () => {
+      if (scroller) {
+        if (paused) {
+          pos = scroller.scrollLeft;
+        } else {
+          const max = scroller.scrollWidth - scroller.clientWidth;
+          pos = pos >= max - 1 ? 0 : pos + 0.6;
+          scroller.scrollLeft = pos;
+        }
+      }
+      frame = requestAnimationFrame(step);
+    };
+    frame = requestAnimationFrame(step);
+  });
+  onDestroy(() => { if (frame) cancelAnimationFrame(frame); clearTimeout(resumeTimer); });
 </script>
 
 {#if current}
@@ -60,7 +92,10 @@
             <ChevronLeft size={24} style="color: var(--text-primary);" />
           </button>
 
-          <div bind:this={scroller} class="flex gap-4 overflow-x-auto gt-scroll pb-2 scroll-smooth">
+          <div bind:this={scroller} class="flex gap-4 overflow-x-auto gt-scroll pb-2"
+            on:mouseenter={hold} on:mouseleave={() => release(800)}
+            on:touchstart|passive={hold} on:touchend={() => release()} on:touchcancel={() => release()}
+            on:wheel|passive={() => { hold(); release(); }}>
             {#key current.key}
               {#each current.items as item, i (current.key + ':' + item.type + ':' + item.id)}
                 <div class="flex-shrink-0 w-[140px] sm:w-[160px] md:w-[180px]" in:fly={{ x: reduce ? 0 : 28, duration: reduce ? 0 : 320, delay: reduce ? 0 : Math.min(i, 6) * 45 }}>

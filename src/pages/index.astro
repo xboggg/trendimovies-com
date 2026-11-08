@@ -569,16 +569,23 @@ const onTheAirItems = [
   ...dbOnAirItems,
   ...tmdbOnAirItems.filter((x: any) => !dbTmdbIds.has(x.tmdb_id)),
 ];
-const actionItems = (actionMovies?.results || []).slice(0, 15).map(transformMovie);
-const comedyItems = (comedyMovies?.results || []).slice(0, 15).map(transformMovie);
-const romanceItems = (romanceMovies?.results || []).slice(0, 15).map(transformMovie);
-const thrillerItems = (thrillerMovies?.results || []).slice(0, 15).map(transformMovie);
+const actionItems = (actionMovies?.results || []).slice(0, 20).map(transformMovie);
+const comedyItems = (comedyMovies?.results || []).slice(0, 20).map(transformMovie);
+const romanceItems = (romanceMovies?.results || []).slice(0, 20).map(transformMovie);
+const thrillerItems = (thrillerMovies?.results || []).slice(0, 20).map(transformMovie);
 // One tabbed section for the four genre rows (about 10 films each).
+// A film can be in two genres, so each one is shown in the first tab it belongs to only.
+const _genreSeen = new Set<number>();
+const _genrePick = (list: any[]) => {
+  const out = list.filter((m: any) => !_genreSeen.has(m.id)).slice(0, 10);
+  out.forEach((m: any) => _genreSeen.add(m.id));
+  return out;
+};
 const genreTabs = [
-  { key: 'action', label: 'Non-Stop Action', note: 'Fights, chases and big explosions', color: '#ff6a3d', link: '/genre/action', items: actionItems.slice(0, 10) },
-  { key: 'comedy', label: 'Comedy Central', note: 'Films to laugh out loud with', color: '#f5b400', link: '/genre/comedy', items: comedyItems.slice(0, 10) },
-  { key: 'romance', label: 'Midnight Romance', note: 'Love stories for late evenings', color: '#ff5f9e', link: '/genre/romance', items: romanceItems.slice(0, 10) },
-  { key: 'thriller', label: 'Thriller Movies', note: 'Edge-of-your-seat tension', color: '#6a8bff', link: '/genre/thriller', items: thrillerItems.slice(0, 10) },
+  { key: 'action', label: 'Non-Stop Action', note: 'Fights, chases and big explosions', color: '#ff6a3d', link: '/genre/action', items: _genrePick(actionItems) },
+  { key: 'comedy', label: 'Comedy Central', note: 'Films to laugh out loud with', color: '#f5b400', link: '/genre/comedy', items: _genrePick(comedyItems) },
+  { key: 'romance', label: 'Midnight Romance', note: 'Love stories for late evenings', color: '#ff5f9e', link: '/genre/romance', items: _genrePick(romanceItems) },
+  { key: 'thriller', label: 'Thriller Movies', note: 'Edge-of-your-seat tension', color: '#6a8bff', link: '/genre/thriller', items: _genrePick(thrillerItems) },
 ];
 const animeItems = (animeMovies?.results || []).slice(0, 15).map(transformMovie);
 const kDramaItems = (kDramaMovies?.results || []).slice(0, 15).map(transformMovie);
