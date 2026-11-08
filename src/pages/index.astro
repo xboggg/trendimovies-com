@@ -9,6 +9,7 @@ import ContinueWatching from '../components/ContinueWatching.svelte';
 import TrendingNowRow from '../components/TrendingNowRow.svelte';
 import JustAddedRow from '../components/JustAddedRow.svelte';
 import GenreTabsRow from '../components/GenreTabsRow.svelte';
+import TrendingTabsRow from '../components/TrendingTabsRow.svelte';
 import { JUST_ADDED_TABS, getJustAdded } from '../lib/just-added';
 import { getTrendingMovies, getNowPlayingMovies, getPopularMovies, getTopRatedMovies, getTrendingTV, getPopularTV, getOnTheAirTV, discoverMovies, getMovieDetails, getMovieGenres, getTVDetails, searchMovies, fetchFromTMDB } from '../lib/tmdb';
 import { getCache as _getCache, setCache as _setCache } from '../lib/cache';
@@ -305,6 +306,12 @@ const trendingItems = (trending || []).slice(0, 20).map(transformMovie);
 const featured = heroItems[0] || null;
 const nowPlayingItems = (nowPlaying || []).map(transformMovie);
 const popularItems = (popular || []).map(transformMovie);
+// One tabbed section for Trending This Week + Popular Movies. A film in both lists shows under Trending only.
+const _trendIds = new Set(trendingItems.map((m: any) => m.id));
+const trendingTabs = [
+  { key: 'trending', label: 'Trending This Week', note: 'What everyone is watching right now', color: '#ff5a3c', link: '/trending', items: trendingItems.slice(0, 15) },
+  { key: 'popular', label: 'Popular Movies', note: 'Crowd favourites people keep coming back to', color: '#f5b400', link: '/movies/popular', items: popularItems.filter((m: any) => !_trendIds.has(m.id)).slice(0, 15) },
+];
 const topRatedItems = (topRatedRecent?.results || []).slice(0, 20).map(transformMovie);
 
 // Transform latest additions from database
@@ -767,13 +774,7 @@ try {
 
   <!-- Trending Movies -->
   {trendingItems.length > 0 && (
-    <ContentRow
-      client:load
-      title="Trending This Week"
-      items={trendingItems}
-      seeAllLink="/trending"
-      autoScroll={true}
-    />
+    <TrendingTabsRow client:load tabs={trendingTabs} />
   )}
 
   <!-- Just Added (from our database - movies and shows with downloads), straight under Trending This Week. -->
@@ -830,16 +831,6 @@ try {
       title="Coming Soon"
       items={upcomingItems}
       seeAllLink="/movies/upcoming"
-    />
-  )}
-
-  <!-- Popular Movies -->
-  {popularItems.length > 0 && (
-    <ContentRow
-      client:visible
-      title="Popular Movies"
-      items={popularItems}
-      seeAllLink="/movies/popular"
     />
   )}
 
