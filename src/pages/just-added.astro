@@ -5,7 +5,7 @@ import { JUST_ADDED_TABS, getJustAddedAll, isJustAddedTab } from '../lib/just-ad
 import { getAuthHeaders } from '../lib/auth';
 
 // "Just Added" page: what we added most recently. Tabs for Movies / Series /
-// Anime / Asian, the same filters as /movies/latest, and a Grid | List switch.
+// Indian / Asian, the same filters as /movies/latest, and a Grid | List switch.
 // Plain links and a plain GET form, so every view is a real, shareable URL and
 // the page still works with JS blocked. No title count on purpose: the
 // numbers move all day and are not worth showing.
@@ -117,8 +117,8 @@ const tabLong = JUST_ADDED_TABS.find(t => t.key === tab)?.long || 'Movies';
 ---
 
 <BaseLayout
-  title="Just Added — New Movies, Series, Anime & Asian | TrendiMovies"
-  description="Fresh on TrendiMovies: the newest movies, TV shows, anime and Asian titles just added and ready to stream or download in HD."
+  title="Just Added — New Movies, Series, Indian & Asian | TrendiMovies"
+  description="Fresh on TrendiMovies: the newest movies, TV shows, Indian and Asian titles just added and ready to stream or download in HD."
   noIndex={hasFilters || tab !== 'movie' || page > 1}
 >
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500;700&display=swap" />

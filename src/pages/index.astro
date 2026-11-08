@@ -460,7 +460,7 @@ const _reelFallbackIds = digitalReleaseItems.length === 0
   : new Set();
 const latestAdditionsRowItems = latestAdditionItems.filter((m: any) => !_reelFallbackIds.has(m.id));
 
-// "Just Added" row: Movie / TV Show / Anime / Asian. The Movie tab is the list
+// "Just Added" row: Movie / TV Show / Indian / Asian. The Movie tab is the list
 // the home page has always had; the other tabs come from lib/just-added.ts.
 // Any failure leaves that tab empty, and an empty tab is not shown.
 const _jaOthers = await Promise.all(

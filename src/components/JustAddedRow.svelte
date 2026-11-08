@@ -5,7 +5,7 @@
   import MovieCard from './MovieCard.svelte';
 
   // Home page "Just Added" row: one heading you can tap, four tabs
-  // (Movie / TV Show / Anime / Asian) on the same line, and the usual swipe
+  // (Movie / TV Show / Indian / Asian) on the same line, and the usual swipe
   // row of posters. All four lists come from the server with the page, so
   // switching tabs is instant. A tab with nothing in it is not shown.
   interface Tab { key: string; label: string; items: any[]; }

@@ -3,25 +3,25 @@ import { getAuthHeaders } from './auth';
 // "Just Added": what we added most recently, in four tabs.
 //   movie  : movies with new files
 //   tv     : shows that got new episode files this week (view recent_episode_series)
-//   anime  : Japanese animation, movies and shows, newest first (any date, so the
-//            tab is never empty just because it was a quiet month)
+//   indian : Hindi, Tamil, Telugu, Malayalam and other Indian-language films and shows, newest first
 //   asian  : Korean, Japanese, Chinese and Thai films and shows, newest first
 // Used by the home page row and by the /just-added page. Answers are kept in
 // memory for 5 minutes so both stay fast. Any failure gives an empty tab, and
 // an empty tab is simply not shown on the home page.
 const POSTGREST_URL = 'http://localhost:3001';
 const ASIAN = new Set(['ko', 'ja', 'zh', 'cn', 'th']);
+const INDIAN = new Set(['hi', 'ta', 'ml', 'te', 'kn', 'bn', 'mr', 'pa', 'gu']);
 
-export type JustAddedTab = 'movie' | 'tv' | 'anime' | 'asian';
+export type JustAddedTab = 'movie' | 'tv' | 'indian' | 'asian';
 export const JUST_ADDED_TABS: { key: JustAddedTab; label: string; long: string }[] = [
   { key: 'movie', label: 'Movie', long: 'Movies' },
   { key: 'tv', label: 'TV Show', long: 'Series' },
-  { key: 'anime', label: 'Anime', long: 'Anime' },
+  { key: 'indian', label: 'Indian', long: 'Indian' },
   { key: 'asian', label: 'Asian', long: 'Asian' },
 ];
 
 export function isJustAddedTab(v: string | null | undefined): v is JustAddedTab {
-  return v === 'movie' || v === 'tv' || v === 'anime' || v === 'asian';
+  return v === 'movie' || v === 'tv' || v === 'indian' || v === 'asian';
 }
 
 const memo = new Map<string, { at: number; items: any[] }>();
@@ -81,7 +81,7 @@ async function build(tab: JustAddedTab): Promise<any[]> {
     const minYear = new Date().getFullYear() - 1;
     return (await recentMovies(30, minYear)).map(m => movieItem(m));
   }
-  const [movies, shows] = await Promise.all([tab === 'tv' ? Promise.resolve([]) : recentMovies(tab === 'anime' ? 2000 : 800, 0), recentSeries()]);
+  const [movies, shows] = await Promise.all([tab === 'tv' ? Promise.resolve([]) : recentMovies(800, 0), recentSeries()]);
   const [mInfo, sInfo] = await Promise.all([
     pgByIds('movies', movies.map((m: any) => m.tmdb_id)),
     pgByIds('series', shows.map((s: any) => s.tmdb_id)),
@@ -91,7 +91,7 @@ async function build(tab: JustAddedTab): Promise<any[]> {
   const fits = (info: any) => {
     if (tab === 'tv') return true;
     if (!info) return false;
-    return tab === 'anime' ? info.original_language === 'ja' && genreNames(info.genres).includes('Animation') : ASIAN.has(info.original_language);
+    return tab === 'indian' ? INDIAN.has(info.original_language) : ASIAN.has(info.original_language);
   };
   const out = [
     ...movies.filter((m: any) => fits(mi.get(m.tmdb_id))).map((m: any) => movieItem(m, mi.get(m.tmdb_id))),
