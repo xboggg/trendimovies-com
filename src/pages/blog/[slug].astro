@@ -1,6 +1,7 @@
 ---
 import BaseLayout from '../../layouts/BaseLayout.astro';
 import BlogJsonLd from '../../components/BlogJsonLd.astro';
+import { fetchFromTMDB } from '../../lib/tmdb';
 
 const POSTGREST_URL = import.meta.env.PUBLIC_SUPABASE_URL || 'http://localhost:3001';
 const { slug } = Astro.params;
@@ -24,6 +25,31 @@ if (!post) {
 const accent = post.accent || '#f59e0b';
 const coverUrl = post.cover_image ? (post.cover_image.startsWith('http') ? post.cover_image : `https://image.tmdb.org/t/p/w1280${post.cover_image}`) : '';
 
+// A post about several films shows them as a fanned stack of posters; a post about one film (or none) keeps the
+// single full poster. The films are the ones the post itself links to (/movie/<id> or /tv/<id>), in order of first
+// mention. Posters come from TMDB through the site's cached helper; if TMDB is slow (3 s) or fails we fall back to
+// the single poster, so this can never slow down or break the page.
+const filmRefs: { type: string; id: string }[] = [];
+for (const m of (post.body || '').matchAll(/href="\/(movie|tv)\/(\d+)"/g)) {
+  if (!filmRefs.some((f) => f.type === m[1] && f.id === m[2])) filmRefs.push({ type: m[1], id: m[2] });
+}
+let stackFilms: { title: string; poster: string; href: string; type: string; id: string }[] = [];
+if (filmRefs.length >= 2) {
+  try {
+    const found = await Promise.all(filmRefs.slice(0, 7).map(async (f) => {
+      try {
+        const d: any = await Promise.race([
+          fetchFromTMDB(`/${f.type}/${f.id}`, {}, 0),
+          new Promise((resolve) => setTimeout(() => resolve(null), 3000)),
+        ]);
+        if (!d || !d.poster_path) return null;
+        return { title: d.title || d.name || '', poster: `https://image.tmdb.org/t/p/w500${d.poster_path}`, href: `/${f.type}/${f.id}`, type: f.type, id: f.id };
+      } catch (e) { return null; }
+    }));
+    stackFilms = found.filter(Boolean).slice(0, 6) as typeof stackFilms;
+  } catch (e) { stackFilms = []; }
+}
+
 // Body: split on blank lines into paragraphs. The FIRST paragraph is the lead (drop-cap).
 // A body block that STARTS with a block-level tag is emitted as-is rather
 // than wrapped in <p>: a <table> inside a <p> is invalid HTML and the
@@ -40,6 +66,24 @@ if (post.related_tmdb_id && post.related_type === 'movie') {
   } catch (e) { related = null; }
 }
 const readMinutes = Math.max(2, Math.round((post.body || '').split(/\s+/).length / 220));
+
+// No poster appears twice on the page: the collage leaves out the film shown in the Related Watch card and any
+// poster already used; if fewer than two films are left there is no collage, and the single banner is dropped when
+// it would just repeat the Related Watch poster.
+const usedPosters = new Set<string>();
+const stackUnique = stackFilms.filter((f) => {
+  if (related && ((f.type === 'movie' && String(related.tmdb_id) === f.id) || (related.poster_path && f.poster.endsWith(related.poster_path)))) return false;
+  if (usedPosters.has(f.poster)) return false;
+  usedPosters.add(f.poster);
+  return true;
+}).slice(0, 5);
+const stack = stackUnique.length >= 2
+  ? stackUnique.map((f, i) => {
+      const o = i - (stackUnique.length - 1) / 2;            // distance from the middle poster
+      return { ...f, r: Math.round(o * 4 * 10) / 10, y: Math.round(Math.abs(o) * 7), z: 10 - Math.round(Math.abs(o) * 2) };
+    })
+  : [];
+const showBanner = !!coverUrl && !(related && post.cover_image && post.cover_image === related.poster_path);
 
 // The post has always carried published_at; the page just never showed it.
 // Readers and search engines both need a date on a technical article.
@@ -87,8 +131,15 @@ const pageDesc = post.deck || `${post.title} — from the TrendiMovies desk.`;
         <span>{readMinutes} min read</span>
       </div>
 
-      {coverUrl && (
-        <div class="bl-cover"><img src={coverUrl} alt={post.title} loading="eager" /></div>
+      {stack.length >= 2 ? (
+        <div class="bl-cover bl-stack">
+          <div class="bl-cover-bg" style={`background-image:url('${stack[0].poster}')`} aria-hidden="true"></div>
+          {stack.map((f) => (
+            <a class="bl-st" href={f.href} aria-label={f.title} style={`--r:${f.r}deg;--y:${f.y}px;--z:${f.z}`}><img src={f.poster} alt={f.title} loading="eager" /></a>
+          ))}
+        </div>
+      ) : showBanner && (
+        <div class="bl-cover"><div class="bl-cover-bg" style={`background-image:url('${coverUrl}')`} aria-hidden="true"></div><img src={coverUrl} alt={post.title} loading="eager" /></div>
       )}
 
       <div class="bl-grid">
@@ -136,8 +187,17 @@ const pageDesc = post.deck || `${post.title} — from the TrendiMovies desk.`;
   .bl-deck{font-family:'Fraunces',Georgia,serif;font-size:clamp(17px,2.2vw,22px);font-style:italic;color:#e9e7ee;opacity:.85;max-width:60ch;line-height:1.4;margin:0 0 26px}
   .bl-byline{display:flex;align-items:center;gap:14px;color:#9a97a4;font-size:14px;border-top:1px solid rgba(255,255,255,.09);border-bottom:1px solid rgba(255,255,255,.09);padding:16px 0;margin-bottom:34px}
   .bl-byline b{color:#e9e7ee;font-weight:700}.bl-sep{opacity:.4}
-  .bl-cover{border-radius:20px;overflow:hidden;box-shadow:0 24px 60px rgba(0,0,0,.5);margin-bottom:38px;aspect-ratio:16/9}
-  .bl-cover img{width:100%;height:100%;object-fit:cover;display:block}
+  .bl-cover{position:relative;border-radius:20px;overflow:hidden;box-shadow:0 24px 60px rgba(0,0,0,.5);margin-bottom:38px;aspect-ratio:16/9;background:#14101c}
+  .bl-cover-bg{position:absolute;inset:-30px;background-size:cover;background-position:center;filter:blur(30px) saturate(1.3) brightness(.5)}
+  .bl-cover img{position:relative;width:100%;height:100%;object-fit:contain;display:block}
+  @media (max-width:640px){.bl-cover{aspect-ratio:1/1;border-radius:16px}}
+  .bl-stack{display:flex;align-items:center;justify-content:center}
+  .bl-st{position:relative;flex:none;height:70%;aspect-ratio:2/3;margin-left:-12%;border-radius:8px;overflow:hidden;z-index:var(--z);
+    transform:translateY(var(--y)) rotate(var(--r));box-shadow:0 14px 34px rgba(0,0,0,.6),0 0 0 1px rgba(255,255,255,.14);transition:transform .25s ease}
+  .bl-st:first-of-type{margin-left:0}
+  .bl-st:hover{transform:translateY(calc(var(--y) - 8px)) rotate(var(--r)) scale(1.03);z-index:20}
+  .bl-st img{width:100%;height:100%;object-fit:cover;display:block}
+  @media (max-width:640px){.bl-st{height:46%;margin-left:-15%}}
   .bl-grid{display:grid;grid-template-columns:1fr;gap:40px}
   .bl-article{min-width:0}
   .bl-article p{font-size:19px;line-height:1.85;color:#e9e7ee;margin:0 0 24px;opacity:.94}
