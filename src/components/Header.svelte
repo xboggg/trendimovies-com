@@ -442,15 +442,7 @@
           </a>
           <a href="/events" class="mobile-nav-item" class:mobile-nav-active={isActive('/events')} style="color:#f7d000;">
             <span>📅</span>
-            <span>All Events</span>
-          </a>
-          <a href="/cannes-2026" class="mobile-nav-item" class:mobile-nav-active={isActive('/cannes-2026')} style="color:#f7d000;">
-            <span>🌴</span>
-            <span>Cannes 2026</span>
-          </a>
-          <a href="/oscars-2026" class="mobile-nav-item" class:mobile-nav-active={isActive('/oscars-2026')} style="color:#f7d000;">
-            <span>🏆</span>
-            <span>Oscars 2026</span>
+            <span>Events</span>
           </a>
         </div>
 
