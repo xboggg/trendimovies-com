@@ -185,8 +185,8 @@
             <ChevronDown size={14} class="transition-transform {showGenreDropdown ? 'rotate-180' : ''}" />
           </button>
           {#if showGenreDropdown}
-            <div class="dropdown-menu">
-              <div class="grid grid-cols-2 gap-1">
+            <div class="dropdown-menu" style="min-width:320px">
+              <div class="grid grid-cols-2 gap-x-3 gap-y-1">
                 {#each genres as genre}
                   <a href="/genre/{genre.slug}" class="dropdown-item">
                     {genre.name}
