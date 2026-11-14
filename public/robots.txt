@@ -42,6 +42,18 @@ Disallow: /
 User-Agent: DataForSeoBot
 Disallow: /
 
+User-Agent: QlyzeBot
+Disallow: /
+
+User-Agent: SERankingBacklinksBot
+Disallow: /
+
+User-Agent: ElevenlabsCrawler
+Disallow: /
+
+User-Agent: panscient
+Disallow: /
+
 Sitemap: https://trendimovies.com/sitemap.xml
 Sitemap: https://trendimovies.com/sitemap-movies.xml
 Sitemap: https://trendimovies.com/sitemap-series.xml
