@@ -54,6 +54,48 @@ Disallow: /
 User-Agent: panscient
 Disallow: /
 
+User-Agent: anthropic-ai
+Disallow: /
+
+User-Agent: Claude-Web
+Disallow: /
+
+User-Agent: ChatGPT-User
+Disallow: /
+
+User-Agent: OAI-SearchBot
+Disallow: /
+
+User-Agent: PerplexityBot
+Disallow: /
+
+User-Agent: Amazonbot
+Disallow: /
+
+User-Agent: cohere-ai
+Disallow: /
+
+User-Agent: Diffbot
+Disallow: /
+
+User-Agent: ImagesiftBot
+Disallow: /
+
+User-Agent: Omgilibot
+Disallow: /
+
+User-Agent: Timpibot
+Disallow: /
+
+User-Agent: YouBot
+Disallow: /
+
+User-Agent: FriendlyCrawler
+Disallow: /
+
+User-Agent: Google-Extended
+Disallow: /
+
 Sitemap: https://trendimovies.com/sitemap.xml
 Sitemap: https://trendimovies.com/sitemap-movies.xml
 Sitemap: https://trendimovies.com/sitemap-series.xml

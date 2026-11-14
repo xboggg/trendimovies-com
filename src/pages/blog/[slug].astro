@@ -56,6 +56,9 @@ if (filmRefs.length >= 2) {
 // browser closes the paragraph early, wrecking the spacing around it.
 const BLOCK_RE = /^<(table|h2|h3|h4|ul|ol|div|blockquote|figure|pre)\b/i;
 const paras: string[] = (post.body || '').split(/\n\s*\n/).map((p: string) => p.trim()).filter(Boolean);
+// Invisible TrendiMovies fingerprint (zero-width letters after the first sentence of a paragraph). A copied
+// paragraph still carries it, which lets us prove the text started here. Nothing visible changes.
+const sig = (t: string) => t.replace(/(?<=[a-z]{3}[.!?] )(?=[A-Z])/, '\u200b\u200c\u200b\u200d');
 
 // Optional "Related Read" — one movie/series this post centers on.
 let related: any = null;
@@ -148,9 +151,10 @@ const pageDesc = post.deck || `${post.title} — from the TrendiMovies desk.`;
             BLOCK_RE.test(p)
               ? <div class="bl-block" set:html={p} />
               : i === 0
-                ? <p class="bl-lead" set:html={p} />
-                : <p set:html={p} />
+                ? <p class="bl-lead" set:html={sig(p)} />
+                : <p set:html={sig(p)} />
           ))}
+          <p class="bl-credit">First published on <a href={`https://trendimovies.com${Astro.url.pathname}`}>TrendiMovies</a>. Please do not copy without permission.</p>
         </div>
 
         {related && (
@@ -229,6 +233,8 @@ const pageDesc = post.deck || `${post.title} — from the TrendiMovies desk.`;
   .bl-lead::first-letter{font-family:'Fraunces',Georgia,serif;float:left;font-size:80px;line-height:.72;font-weight:900;padding:8px 14px 0 0;color:var(--bl-a2)}
   .bl-rail{max-width:280px}
   .bl-card{display:block;text-decoration:none;background:linear-gradient(160deg,rgba(24,22,28,.72),rgba(16,15,20,.72));backdrop-filter:blur(30px);border:1px solid rgba(255,255,255,.1);border-radius:20px;padding:18px;box-shadow:0 24px 60px rgba(0,0,0,.4)}
+  .bl-credit{margin-top:28px;padding-top:14px;border-top:1px solid rgba(255,255,255,.12);font-size:13px;color:#8d8a96}
+  .bl-credit a{color:#f59e0b}
   .bl-eyebrow{font-size:11px;font-weight:800;letter-spacing:1.5px;text-transform:uppercase;color:var(--bl-a2);margin-bottom:12px}
   .bl-poster{border-radius:12px;overflow:hidden;margin-bottom:12px}
   .bl-poster img{width:100%;display:block}

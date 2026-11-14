@@ -28,6 +28,8 @@ const watchUrl = `/movie/${review.tmdb_id}`;
 
 // Body: split on blank lines into paragraphs. The FIRST paragraph is the lead (drop-cap).
 const paras: string[] = (review.body || '').split(/\n\s*\n/).map((p: string) => p.trim()).filter(Boolean);
+// Invisible TrendiMovies fingerprint (see the blog page): zero-width letters after the first sentence.
+const sig = (t: string) => t.replace(/(?<=[a-z]{3}[.!?] )(?=[A-Z])/, '\u200b\u200c\u200b\u200d');
 
 // Meta pills
 const pills: { k?: string; v: string }[] = [];
@@ -69,17 +71,18 @@ const pageDesc = review.deck || `Our spoiler-free review of ${review.title}. Wat
         <div class="rv-article">
           {paras.map((p, i) => (
             i === 0
-              ? <p class="rv-lead" set:html={p} />
+              ? <p class="rv-lead" set:html={sig(p)} />
               : (
                 review.pull_quote && i === Math.min(2, paras.length - 1)
                   ? <>
                       <div class="rv-pullquote" set:html={review.pull_quote} />
-                      <p set:html={p} />
+                      <p set:html={sig(p)} />
                     </>
-                  : <p set:html={p} />
+                  : <p set:html={sig(p)} />
               )
           ))}
 
+          <p class="rv-credit">First published on <a href={`https://trendimovies.com${Astro.url.pathname}`}>TrendiMovies</a>. Please do not copy without permission.</p>
           <div class="rv-cta">
             {review.verdict && <div class="rv-vd">Our verdict: <b>{review.verdict}</b></div>}
             <a class="rv-watch" href={watchUrl}>▶ Watch on TrendiMovies</a>
@@ -145,6 +148,8 @@ const pageDesc = review.deck || `Our spoiler-free review of ${review.title}. Wat
   .rv-row .k{color:#9a97a4}.rv-row .val{color:#e9e7ee;font-weight:600;text-align:right}
   .rv-watch{display:inline-flex;align-items:center;justify-content:center;gap:9px;background:linear-gradient(135deg,var(--rv-accent),color-mix(in srgb,var(--rv-accent) 55%,#000));color:#fff;font-weight:800;font-size:16px;padding:15px 30px;border-radius:100px;box-shadow:0 14px 34px color-mix(in srgb,var(--rv-accent) 42%,transparent);text-decoration:none;white-space:nowrap}
   .rv-card-watch{display:flex;margin-top:18px}
+  .rv-credit{margin-top:24px;font-size:13px;color:#8d8a96}
+  .rv-credit a{color:#f59e0b}
   .rv-cta{margin-top:44px;display:flex;flex-wrap:wrap;align-items:center;gap:18px;padding:24px 26px;border-radius:20px;background:linear-gradient(135deg,color-mix(in srgb,var(--rv-accent) 14%,transparent),color-mix(in srgb,var(--rv-a2) 6%,transparent));border:1px solid color-mix(in srgb,var(--rv-a2) 22%,transparent)}
   .rv-vd{font-family:'Fraunces',serif;font-style:italic;font-size:20px;color:#fff;flex:1;min-width:200px}
   .rv-vd b{color:var(--gold);font-style:normal}
