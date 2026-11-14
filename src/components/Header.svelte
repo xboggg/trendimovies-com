@@ -350,7 +350,7 @@
     <div class="lg:hidden mobile-menu" on:click|self={() => isMenuOpen = false}>
       <div class="mobile-menu-content">
         <!-- Mobile Search -->
-        <div class="relative search-container mb-4">
+        <div class="relative search-container mb-3">
           <div class="flex items-center rounded-xl px-4 py-3 mobile-search-bar">
             <Search size={18} class="text-amber-400" />
             <input
@@ -405,7 +405,8 @@
         </div>
 
         <!-- Navigation Grid -->
-        <div class="grid grid-cols-3 gap-2 mb-4">
+        <p class="text-xs font-semibold uppercase tracking-wider mb-2 category-label">Browse</p>
+        <div class="mobile-pills mb-3">
           <a href="/" class="mobile-nav-item" class:mobile-nav-active={isActive('/')}>
             <span>Home</span>
           </a>
@@ -420,6 +421,10 @@
           <a href="/blog" class="mobile-nav-item" class:mobile-nav-active={isActive('/blog')}>
             <span>Blog</span>
           </a>
+        </div>
+
+        <p class="text-xs font-semibold uppercase tracking-wider mb-2 category-label">Featured</p>
+        <div class="mobile-pills mb-3">
           <a href="/digital-releases" class="mobile-nav-item" class:mobile-nav-active={isActive('/digital-releases')} style="color:#f7d000;">
             <span>📀</span>
             <span>Digital Releases</span>
@@ -451,9 +456,9 @@
         </div>
 
         <!-- Genre -->
-        <div class="mb-4">
+        <div class="mb-3">
           <p class="text-xs font-semibold uppercase tracking-wider mb-2 category-label">Genre</p>
-          <div class="grid grid-cols-3 gap-2">
+          <div class="mobile-pills">
             {#each genres as genre}
               <a href="/genre/{genre.slug}" class="mobile-nav-item-sm">{genre.name}</a>
             {/each}
@@ -461,9 +466,9 @@
         </div>
 
         <!-- Discovery -->
-        <div class="mb-4">
+        <div class="mb-3">
           <p class="text-xs font-semibold uppercase tracking-wider mb-2 category-label">Discovery</p>
-          <div class="grid grid-cols-3 gap-2">
+          <div class="mobile-pills">
             <a href="/category/anime" class="mobile-nav-item-sm">Anime</a>
             <a href="/category/korean-movies" class="mobile-nav-item-sm">K-Drama Movies</a>
             <a href="/category/korean-series" class="mobile-nav-item-sm">K-Drama Series</a>
@@ -474,7 +479,7 @@
         </div>
 
         <!-- Action Buttons -->
-        <div class="grid grid-cols-2 gap-3 pt-3 border-t mobile-border">
+        <div class="grid grid-cols-2 gap-2 pt-3 border-t mobile-border">
           <a href="/request" class="mobile-btn-gold">
             Request
           </a>
@@ -694,18 +699,26 @@
     color: var(--text-muted);
   }
 
-  .mobile-nav-item {
+  /* Phone menu: every link is a small pill so the whole menu fits on one screen */
+  .mobile-pills {
     display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+  }
+
+  .mobile-nav-item {
+    display: inline-flex;
     align-items: center;
     justify-content: center;
-    gap: 0.5rem;
-    padding: 0.875rem 1rem;
+    gap: 0.3rem;
+    padding: 0.4rem 0.8rem;
     background: var(--bg-card);
     border: 1px solid var(--border);
-    border-radius: 0.75rem;
+    border-radius: 9999px;
     color: var(--text-primary);
     font-weight: 500;
-    font-size: 0.9rem;
+    font-size: 0.82rem;
+    white-space: nowrap;
     transition: all 0.2s;
   }
   .mobile-nav-item:hover {
@@ -721,13 +734,14 @@
   }
 
   .mobile-nav-item-sm {
-    display: block;
-    padding: 0.625rem 0.75rem;
+    display: inline-block;
+    padding: 0.4rem 0.8rem;
     background: var(--bg-card);
     border: 1px solid var(--border);
-    border-radius: 0.5rem;
+    border-radius: 9999px;
     color: var(--text-secondary);
-    font-size: 0.8rem;
+    font-size: 0.82rem;
+    white-space: nowrap;
     text-align: center;
     transition: all 0.2s;
   }
@@ -750,7 +764,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    padding: 0.875rem;
+    padding: 0.7rem;
     color: #000;
     font-weight: 700;
     font-size: 0.9rem;
@@ -764,7 +778,7 @@
     align-items: center;
     justify-content: center;
     gap: 0.375rem;
-    padding: 0.875rem;
+    padding: 0.7rem;
     color: white;
     font-weight: 600;
     font-size: 0.9rem;
