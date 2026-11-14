@@ -453,7 +453,7 @@
         <!-- Genre -->
         <div class="mb-4">
           <p class="text-xs font-semibold uppercase tracking-wider mb-2 category-label">Genre</p>
-          <div class="grid grid-cols-5 gap-2">
+          <div class="grid grid-cols-3 gap-2">
             {#each genres as genre}
               <a href="/genre/{genre.slug}" class="mobile-nav-item-sm">{genre.name}</a>
             {/each}
