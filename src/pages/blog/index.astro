@@ -36,6 +36,10 @@ const rest = page === 1 ? posts.slice(3) : posts;
 
 const cover = (p: string | null) => p ? (p.startsWith('http') ? p : `https://image.tmdb.org/t/p/w780${p}`) : '/images/no-poster.svg';
 const angleLabel = (a: string | null) => a ? a.replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase()) : '';
+// "More From The Blog" cards: small poster (w342 is plenty for an 86px thumbnail), tag, title, deck, date
+const thumb = (p: string | null) => p ? (p.startsWith('http') ? p : `https://image.tmdb.org/t/p/w342${p}`) : '/images/no-poster.svg';
+const tagLabel = (p: any) => String(p.tags?.[0] || angleLabel(p.angle) || '').replace(/[-_]/g, ' ');
+const fmtDate = (d: string | null) => d ? new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' }) : '';
 const timecode = (s: string | null) => s ? `${new Date(s).toLocaleTimeString('en-GB', { hour12: false })}:00` : '00:00:00:00';
 
 const _ogPosters = posts.map((p) => p.cover_image).filter((p) => p && !p.startsWith('http')).slice(0, 5).join('|');
@@ -95,14 +99,17 @@ const pageDesc = 'Recaps, takes and franchise deep-dives from the TrendiMovies d
           <div class="vs-shelf">
             <div class="vs-row">
               {rest.map((p) => (
-                <a class="vs-sleeve" href={`/blog/${p.slug}`} style={`--glow:${p.accent || '#f59e0b'};background-image:linear-gradient(180deg, rgba(10,6,16,.6) 0%, transparent 28%, transparent 58%, rgba(10,6,16,.88) 100%), url('${cover(p.cover_image)}')`}>
-                  <span class="vs-kicker">{p.tags?.[0] || angleLabel(p.angle)}</span>
-                  <span class="vs-title">{p.title}</span>
-                  <div class="vs-label" style={`--ring:${p.accent || '#f59e0b'}`}></div>
+                <a class="bs-card" href={`/blog/${p.slug}`} style={`--glow:${p.accent || '#f59e0b'}`}>
+                  <img class="bs-poster" src={thumb(p.cover_image)} alt={p.title} width="86" height="129" loading="lazy" decoding="async" />
+                  <span class="bs-tx">
+                    <span class="bs-chip">{tagLabel(p)}</span>
+                    <span class="bs-title">{p.title}</span>
+                    {p.deck && <span class="bs-deck">{p.deck}</span>}
+                    <span class="bs-date">{fmtDate(p.published_at)}</span>
+                  </span>
                 </a>
               ))}
             </div>
-            <div class="vs-ledge"></div>
           </div>
         </div>
       )}
@@ -160,21 +167,20 @@ const pageDesc = 'Recaps, takes and franchise deep-dives from the TrendiMovies d
     text-shadow:-1px -1px 0 #000,1px -1px 0 #000,-1px 1px 0 #000,1px 1px 0 #000,0 2px 10px rgba(0,0,0,.6);line-height:1.28;max-width:94%}
   .tc-tc{align-self:flex-end;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-variant-numeric:tabular-nums;font-size:9.5px;letter-spacing:.04em}
 
-  /* More From The Blog — vinyl sleeve shelf */
-  .vs-shelf{background:linear-gradient(180deg,#241533 0%,#1a0f26 100%);border-radius:16px;padding:32px 28px 0;overflow:hidden}
-  .vs-row{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:20px;padding-bottom:28px}
-  .vs-sleeve{aspect-ratio:2/3;border-radius:8px;position:relative;background-size:cover;background-position:center top;
-    box-shadow:0 18px 34px rgba(0,0,0,.45), 0 0 0 1px color-mix(in srgb, var(--glow) 25%, transparent);
-    padding:15px;display:flex;flex-direction:column;justify-content:space-between;text-decoration:none;color:inherit;
-    background-color:#2a1a3d;transition:transform .25s ease, box-shadow .25s ease}
-  .vs-sleeve:hover{transform:translateY(-5px);box-shadow:0 26px 46px rgba(0,0,0,.5), 0 0 30px 4px color-mix(in srgb, var(--glow) 55%, transparent)}
-  .vs-label{position:absolute;bottom:13px;right:13px;width:42px;height:42px;border-radius:50%;
-    background:radial-gradient(circle at 50% 50%,var(--ring,#fff) 0 4px,transparent 5px),
-                repeating-radial-gradient(circle at 50% 50%,rgba(0,0,0,.3) 0 2px,transparent 2px 5px);
-    border:3px solid rgba(255,255,255,.85)}
-  .vs-kicker{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:9px;letter-spacing:.13em;text-transform:uppercase;color:rgba(255,255,255,.82);text-shadow:0 1px 4px rgba(0,0,0,.6)}
-  .vs-title{font-family:'Fraunces',Georgia,serif;font-weight:900;font-size:14px;line-height:1.25;color:#fff;max-width:76%;text-shadow:0 2px 8px rgba(0,0,0,.6)}
-  .vs-ledge{height:14px;background:linear-gradient(180deg,#3a2450,#150a1f);border-radius:0 0 16px 16px;box-shadow:inset 0 6px 10px rgba(0,0,0,.4)}
+  /* More From The Blog — poster-and-story cards on a dark shelf panel */
+  .vs-shelf{background:linear-gradient(180deg,#241533 0%,#1a0f26 100%);border-radius:16px;padding:28px;overflow:hidden}
+  .vs-row{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,340px),1fr));gap:18px}
+  .bs-card{display:flex;gap:14px;padding:12px;border-radius:12px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.12);
+    text-decoration:none;color:inherit;transition:transform .2s ease, border-color .2s ease, box-shadow .2s ease}
+  .bs-card:hover,.bs-card:focus-visible{transform:translateY(-3px);border-color:color-mix(in srgb, var(--glow) 60%, transparent);
+    box-shadow:0 14px 30px rgba(0,0,0,.4), 0 0 24px color-mix(in srgb, var(--glow) 30%, transparent);outline:none}
+  .bs-poster{width:86px;height:auto;aspect-ratio:2/3;flex:none;border-radius:6px;object-fit:cover;background:#2a1a3d;box-shadow:0 8px 18px rgba(0,0,0,.45)}
+  .bs-tx{min-width:0;display:flex;flex-direction:column;gap:5px}
+  .bs-chip{align-self:flex-start;padding:2px 8px;border-radius:99px;background:color-mix(in srgb, var(--glow) 28%, transparent);color:#fff;
+    font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:10px;letter-spacing:.11em;text-transform:uppercase}
+  .bs-title{font-family:'Fraunces',Georgia,serif;font-weight:900;font-size:17px;line-height:1.22;color:#fff}
+  .bs-deck{color:#b9b6c0;font-size:13px;line-height:1.45;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+  .bs-date{font-size:12px;color:#a59db4}
 
   /* pagination */
   .blh-pager{display:flex;align-items:center;justify-content:center;gap:18px;margin-top:12px}
@@ -183,7 +189,7 @@ const pageDesc = 'Recaps, takes and franchise deep-dives from the TrendiMovies d
   .blh-pg-btn:hover{border-color:#f59e0b;background:rgba(245,158,11,.12)}
   .blh-pg-info{font-size:14px;color:#b9b6c0;font-weight:600}
   /* Light mode: these hardcode light text from when every page was dark.
-     .vs-title and .tc-sub are NOT included -- they sit on card artwork,
+     .bs-* (on the dark shelf) and .tc-sub are NOT included -- they sit on card artwork,
      where white with a shadow is right in either theme. */
   :global(html:not(.dark)) .blh-title,
   :global(html:not(.dark)) .blh-section-head h2{color:#14121a}
@@ -203,14 +209,13 @@ const pageDesc = 'Recaps, takes and franchise deep-dives from the TrendiMovies d
     .blh-section{margin-bottom:40px}
     .blh-section-head{margin-bottom:14px}
     .tc-row{grid-template-columns:1fr;max-width:74%;gap:14px}
-    .vs-shelf{padding:22px 16px 0;border-radius:14px}
-    .vs-row{grid-template-columns:repeat(2,1fr);gap:12px;padding-bottom:20px}
-    .vs-title{font-size:12.5px}
-    .vs-label{width:34px;height:34px;bottom:10px;right:10px}
+    .vs-shelf{padding:16px 14px;border-radius:14px}
+    .vs-row{grid-template-columns:1fr;gap:12px}
+    .bs-poster{width:72px}
+    .bs-title{font-size:15.5px}
   }
 
   @media(max-width:420px){
     .tc-row{max-width:100%}
-    .vs-row{grid-template-columns:1fr 1fr;gap:10px}
   }
 </style>
