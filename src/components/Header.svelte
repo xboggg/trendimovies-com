@@ -217,11 +217,9 @@
               <a href="/reviews" class="dropdown-item flex items-center gap-2" style="color:#f7d000;font-weight:600;">
                 <span>⭐</span> Movie Reviews
               </a>
-              <div class="my-1 border-t" style="border-color: var(--border);"></div>
-              <p class="dropdown-heading">Events</p>
-              <a href="/events" class="dropdown-item flex items-center gap-2" style="color:#f7d000;font-weight:600;"><span>📅</span> All Events</a>
-              <a href="/cannes-2026" class="dropdown-item flex items-center gap-2" style="color:#f7d000;font-weight:600;"><span>🌴</span> Cannes 2026</a>
-              <a href="/oscars-2026" class="dropdown-item flex items-center gap-2" style="color:#f7d000;font-weight:600;"><span>🏆</span> Oscars 2026</a>
+              <a href="/events" class="dropdown-item flex items-center gap-2" style="color:#f7d000;font-weight:600;">
+                <span>📅</span> Events
+              </a>
               <div class="my-1 border-t" style="border-color: var(--border);"></div>
               <a href="/category/anime" class="dropdown-item">Anime</a>
               <a href="/category/korean-movies" class="dropdown-item">K-Drama Movies</a>
@@ -635,14 +633,6 @@
     font-size: 0.875rem;
     border-radius: 0.375rem;
     transition: all 0.15s;
-  }
-  .dropdown-heading {
-    padding: 0.25rem 1rem 0.125rem;
-    font-size: 0.65rem;
-    font-weight: 700;
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
-    color: var(--text-muted);
   }
   .dropdown-item:hover {
     background: var(--bg-hover);
