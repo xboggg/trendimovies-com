@@ -123,11 +123,19 @@ const LANGUAGES: [string, string][] = [
   ['hi', 'Hindi'], ['ta', 'Tamil'], ['te', 'Telugu'], ['ml', 'Malayalam'], ['kn', 'Kannada'], ['bn', 'Bengali'],
   ['ja', 'Japanese'], ['ko', 'Korean'], ['zh', 'Chinese'], ['th', 'Thai'], ['id', 'Indonesian'],
 ];
-// Some categories already have a language (Anime = Japanese, K-Drama = Korean, Bollywood = Hindi).
-// The first choice in the Language list is that default; picking another language replaces it.
+// Only Anime and Bollywood get a Language box. Marvel, DC and Korean pages have none.
+const INDIAN_LANGUAGES: [string, string][] = [
+  ['hi', 'Hindi'], ['ta', 'Tamil'], ['te', 'Telugu'], ['ml', 'Malayalam'], ['kn', 'Kannada'],
+  ['bn', 'Bengali'], ['mr', 'Marathi'], ['pa', 'Punjabi'], ['gu', 'Gujarati'],
+];
+const langChoices: [string, string][] | null =
+  slug === 'anime' ? LANGUAGES : slug === 'bollywood' ? INDIAN_LANGUAGES : null;
+const showLang = langChoices !== null;
+// The first choice in the Language list is the page's own language (Anime = Japanese, Bollywood = Hindi);
+// picking another language replaces it.
 const defaultLang = config.params.with_original_language || '';
-const defaultLangName = LANGUAGES.find(([c]) => c === defaultLang)?.[1] || '';
-const lang = LANGUAGES.some(([c]) => c === langParam && c !== defaultLang) ? langParam : '';
+const defaultLangName = (langChoices || LANGUAGES).find(([c]) => c === defaultLang)?.[1] || '';
+const lang = langChoices && langChoices.some(([c]) => c === langParam && c !== defaultLang) ? langParam : '';
 
 // Build params with sorting
 const movieParams: Record<string, string> = { ...config.params, sort_by: sortBy };
@@ -241,17 +249,19 @@ function transformSeries(show: any) {
           ))}
         </select>
 
-        <select
-          id="lang-select"
-          aria-label="Language"
-          class="px-3 py-2 rounded-lg text-sm"
-          style="background-color: var(--bg-card); color: var(--text-primary); border: 1px solid var(--border);"
-        >
-          <option value="">{defaultLang ? `${defaultLangName} (default)` : 'All Languages'}</option>
-          {LANGUAGES.filter(([c]) => c !== defaultLang).map(([c, n]) => (
-            <option value={c} selected={lang === c}>{n}</option>
-          ))}
-        </select>
+        {showLang && (
+          <select
+            id="lang-select"
+            aria-label="Language"
+            class="px-3 py-2 rounded-lg text-sm"
+            style="background-color: var(--bg-card); color: var(--text-primary); border: 1px solid var(--border);"
+          >
+            <option value="">{defaultLang ? `${defaultLangName} (default)` : 'All Languages'}</option>
+            {(langChoices || []).filter(([c]) => c !== defaultLang).map(([c, n]) => (
+              <option value={c} selected={lang === c}>{n}</option>
+            ))}
+          </select>
+        )}
 
         <select
           id="year-select"
@@ -328,7 +338,7 @@ function transformSeries(show: any) {
       const sort = document.getElementById('sort-select').value;
       const year = document.getElementById('year-select').value;
       const genre = document.getElementById('genre-select').value;
-      const lang = document.getElementById('lang-select').value;
+      const lang = document.getElementById('lang-select')?.value || '';
 
       const params = new URLSearchParams();
       if (sort && sort !== 'popular') params.set('sort', sort);
