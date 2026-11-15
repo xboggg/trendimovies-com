@@ -36,12 +36,17 @@ const LANGS: Record<string, { label: string; codes: string[] }> = {
   marathi:   { label: 'Marathi',   codes: ['mr'] },
   punjabi:   { label: 'Punjabi',   codes: ['pa'] },
   gujarati:  { label: 'Gujarati',  codes: ['gu'] },
+  thai:       { label: 'Thai',       codes: ['th'] },
+  indonesian: { label: 'Indonesian', codes: ['id'] },
+  vietnamese: { label: 'Vietnamese', codes: ['vi'] },
+  filipino:   { label: 'Filipino',   codes: ['tl'] },
+  malay:      { label: 'Malay',      codes: ['ms'] },
 };
 // The Indian tab offers only Indian languages and the Asian tab only Korean, Chinese and Japanese.
 // Movie and TV Show tabs keep the general list.
 const LANG_KEYS: string[] =
   tab === 'indian' ? ['hindi','tamil','telugu','malayalam','kannada','bengali','marathi','punjabi','gujarati']
-  : tab === 'asian' ? ['korean','chinese','japanese']
+  : tab === 'asian' ? ['korean','chinese','japanese','thai','indonesian','vietnamese','filipino','malay']
   : ['en','indian','chinese','japanese','french','korean','spanish'];
 const SORTS: Record<string, { label: string; order: string }> = {
   newest:   { label: 'Newest added', order: 'created_at.desc' },

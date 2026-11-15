@@ -4,12 +4,12 @@ import { getAuthHeaders } from './auth';
 //   movie  : movies with new files
 //   tv     : shows that got new episode files this week (view recent_episode_series)
 //   indian : Hindi, Tamil, Telugu, Malayalam and other Indian-language films and shows, newest first
-//   asian  : Korean, Japanese, Chinese and Thai films and shows, newest first
+//   asian  : Korean, Japanese, Chinese, Thai, Indonesian, Vietnamese, Filipino and Malay films and shows, newest first
 // Used by the home page row and by the /just-added page. Answers are kept in
 // memory for 5 minutes so both stay fast. Any failure gives an empty tab, and
 // an empty tab is simply not shown on the home page.
 const POSTGREST_URL = 'http://localhost:3001';
-const ASIAN = new Set(['ko', 'ja', 'zh', 'cn', 'th']);
+const ASIAN = new Set(['ko', 'ja', 'zh', 'cn', 'th', 'id', 'vi', 'tl', 'ms']);
 const INDIAN = new Set(['hi', 'ta', 'ml', 'te', 'kn', 'bn', 'mr', 'pa', 'gu']);
 
 export type JustAddedTab = 'movie' | 'tv' | 'indian' | 'asian';

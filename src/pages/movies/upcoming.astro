@@ -2,11 +2,23 @@
 import BaseLayout from '../../layouts/BaseLayout.astro';
 import MovieCard from '../../components/MovieCard.svelte';
 import ListingView from '../../components/ListingView.svelte';
-import { discoverMovies } from '../../lib/tmdb';
+import { discoverMovies, getMovieGenres } from '../../lib/tmdb';
 
 // Get query params
 const page = parseInt(Astro.url.searchParams.get('page') || '1');
 const sort = Astro.url.searchParams.get('sort') || 'popular';
+const genreParam = Astro.url.searchParams.get('genre') || '';
+const langParam = Astro.url.searchParams.get('lang') || '';
+
+const LANGUAGES: [string, string][] = [
+  ['en', 'English'], ['fr', 'French'], ['es', 'Spanish'], ['de', 'German'], ['it', 'Italian'],
+  ['pt', 'Portuguese'], ['ru', 'Russian'], ['tr', 'Turkish'], ['ar', 'Arabic'],
+  ['hi', 'Hindi'], ['ta', 'Tamil'], ['te', 'Telugu'], ['ml', 'Malayalam'], ['kn', 'Kannada'], ['bn', 'Bengali'],
+  ['ja', 'Japanese'], ['ko', 'Korean'], ['zh', 'Chinese'], ['th', 'Thai'], ['id', 'Indonesian'],
+];
+const lang = LANGUAGES.some(([c]) => c === langParam) ? langParam : '';
+const genres = await getMovieGenres().catch(() => [] as { id: number; name: string }[]);
+const genre = genres.some((g) => String(g.id) === genreParam) ? genreParam : '';
 
 // Map sort options
 const sortMap: Record<string, string> = {
@@ -31,18 +43,24 @@ const futureStr = sixMonthsLater.toISOString().split('T')[0];
 const tmdbPage1 = (page - 1) * 2 + 1;
 const tmdbPage2 = tmdbPage1 + 1;
 
+const extra: Record<string, string> = {};
+if (genre) extra.with_genres = genre;
+if (lang) extra.with_original_language = lang;
+
 const [response1, response2] = await Promise.all([
   discoverMovies({
     'primary_release_date.gte': tomorrowStr,
     'primary_release_date.lte': futureStr,
     sort_by: sortBy,
-    page: tmdbPage1.toString()
+    page: tmdbPage1.toString(),
+    ...extra
   }),
   discoverMovies({
     'primary_release_date.gte': tomorrowStr,
     'primary_release_date.lte': futureStr,
     sort_by: sortBy,
-    page: tmdbPage2.toString()
+    page: tmdbPage2.toString(),
+    ...extra
   })
 ]);
 
@@ -81,7 +99,27 @@ function transformToItem(movie: any) {
       </div>
 
       <!-- Sort Filter -->
-      <div class="mt-4 md:mt-0">
+      <div class="mt-4 md:mt-0 flex flex-wrap gap-2">
+        <select
+          id="genre-select"
+          aria-label="Genre"
+          class="px-3 py-2 rounded-lg text-sm"
+          style="background-color: var(--bg-card); color: var(--text-primary); border: 1px solid var(--border);"
+        >
+          <option value="">All Genres</option>
+          {genres.map((g) => <option value={g.id} selected={genre === String(g.id)}>{g.name}</option>)}
+        </select>
+
+        <select
+          id="lang-select"
+          aria-label="Language"
+          class="px-3 py-2 rounded-lg text-sm"
+          style="background-color: var(--bg-card); color: var(--text-primary); border: 1px solid var(--border);"
+        >
+          <option value="">All Languages</option>
+          {LANGUAGES.map(([c, n]) => <option value={c} selected={lang === c}>{n}</option>)}
+        </select>
+
         <select
           id="sort-select"
           class="px-4 py-2 rounded-lg text-sm"
@@ -109,7 +147,7 @@ function transformToItem(movie: any) {
       <div class="flex justify-center mt-8 gap-2">
         {page > 1 && (
           <a
-            href={`/movies/upcoming?sort=${sort}&page=${page - 1}`}
+            href={`/movies/upcoming?sort=${sort}&genre=${genre}&lang=${lang}&page=${page - 1}`}
             class="px-4 py-2 rounded-lg"
             style="background-color: var(--bg-card); color: var(--text-primary); border: 1px solid var(--border);"
           >
@@ -123,7 +161,7 @@ function transformToItem(movie: any) {
 
         {page < totalPages && (
           <a
-            href={`/movies/upcoming?sort=${sort}&page=${page + 1}`}
+            href={`/movies/upcoming?sort=${sort}&genre=${genre}&lang=${lang}&page=${page + 1}`}
             class="px-4 py-2 rounded-lg"
             style="background-color: var(--bg-card); color: var(--text-primary); border: 1px solid var(--border);"
           >
@@ -135,14 +173,20 @@ function transformToItem(movie: any) {
   </div>
 
   <script>
-    const sortSelect = document.getElementById('sort-select') as HTMLSelectElement;
-    if (sortSelect) {
-      sortSelect.addEventListener('change', () => {
-        const url = new URL(window.location.href);
-        url.searchParams.set('sort', sortSelect.value);
-        url.searchParams.delete('page');
-        window.location.href = url.toString();
-      });
+    function go() {
+      const url = new URL(window.location.href);
+      const set = (k: string, id: string) => {
+        const v = (document.getElementById(id) as HTMLSelectElement | null)?.value || '';
+        if (v) url.searchParams.set(k, v); else url.searchParams.delete(k);
+      };
+      set('sort', 'sort-select');
+      set('genre', 'genre-select');
+      set('lang', 'lang-select');
+      url.searchParams.delete('page');
+      window.location.href = url.toString();
     }
+    ['sort-select', 'genre-select', 'lang-select'].forEach((id) => {
+      document.getElementById(id)?.addEventListener('change', go);
+    });
   </script>
 </BaseLayout>

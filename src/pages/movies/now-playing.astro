@@ -1,20 +1,60 @@
 ---
 import BaseLayout from '../../layouts/BaseLayout.astro';
 import ListingView from '../../components/ListingView.svelte';
-import { fetchFromTMDB } from '../../lib/tmdb';
+import { discoverMovies, getMovieGenres } from '../../lib/tmdb';
 
-// Films showing in cinemas right now (TMDB "now playing"), 20 per page, with Grid | List.
+// Films showing in cinemas right now, with Sort, Genre and Language filters and a Grid | List switch.
 const page = Math.max(1, parseInt(Astro.url.searchParams.get('page') || '1') || 1);
+const sort = Astro.url.searchParams.get('sort') || 'popular';
+const genreParam = Astro.url.searchParams.get('genre') || '';
+const langParam = Astro.url.searchParams.get('lang') || '';
+
+const SORTS: Record<string, { label: string; by: string }> = {
+  popular: { label: 'Most Popular', by: 'popularity.desc' },
+  rating:  { label: 'Highest Rated', by: 'vote_average.desc' },
+  newest:  { label: 'Newest Release', by: 'primary_release_date.desc' },
+  title:   { label: 'Title A-Z', by: 'title.asc' },
+};
+const sortKey = SORTS[sort] ? sort : 'popular';
+
+const LANGUAGES: [string, string][] = [
+  ['en', 'English'], ['fr', 'French'], ['es', 'Spanish'], ['de', 'German'], ['it', 'Italian'],
+  ['pt', 'Portuguese'], ['ru', 'Russian'], ['tr', 'Turkish'], ['ar', 'Arabic'],
+  ['hi', 'Hindi'], ['ta', 'Tamil'], ['te', 'Telugu'], ['ml', 'Malayalam'], ['kn', 'Kannada'], ['bn', 'Bengali'],
+  ['ja', 'Japanese'], ['ko', 'Korean'], ['zh', 'Chinese'], ['th', 'Thai'], ['id', 'Indonesian'],
+];
+const lang = LANGUAGES.some(([c]) => c === langParam) ? langParam : '';
+
+const genres = await getMovieGenres().catch(() => [] as { id: number; name: string }[]);
+const genre = genres.some((g) => String(g.id) === genreParam) ? genreParam : '';
+
+// "Now playing" = released in cinemas (any country) in roughly the last six weeks
+const iso = (d: Date) => d.toISOString().split('T')[0];
+const today = new Date();
+const since = new Date(today);
+since.setDate(since.getDate() - 45);
+
+const params: Record<string, string> = {
+  with_release_type: '2|3',
+  'release_date.gte': iso(since),
+  'release_date.lte': iso(today),
+  sort_by: SORTS[sortKey].by,
+  page: String(page),
+};
+if (sortKey === 'rating') params['vote_count.gte'] = '20';
+if (genre) params.with_genres = genre;
+if (lang) params.with_original_language = lang;
 
 let response: any = { results: [], total_pages: 1 };
 try {
-  response = await fetchFromTMDB<any>('/movie/now_playing', { page: String(page) });
+  response = await discoverMovies(params);
 } catch (e) {
   response = { results: [], total_pages: 1 };
 }
 
 const movies = (response.results || []).filter((m: any) => m.poster_path);
 const totalPages = Math.min(response.total_pages || 1, 50);
+const q = (p: number) => `/movies/now-playing?page=${p}&sort=${sortKey}&genre=${genre}&lang=${lang}`;
 
 function transformToItem(movie: any) {
   return {
@@ -36,9 +76,42 @@ function transformToItem(movie: any) {
   description="Movies showing in cinemas right now. See what is on the big screen this week, and find it on TrendiMovies as soon as it is available."
 >
   <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-    <div class="mb-8">
-      <h1 class="text-3xl font-bold mb-2" style="color: var(--text-primary);">Now Playing in Theaters</h1>
-      <p style="color: var(--text-secondary);">Movies showing in cinemas right now</p>
+    <div class="flex flex-col md:flex-row md:items-center md:justify-between mb-8">
+      <div>
+        <h1 class="text-3xl font-bold mb-2" style="color: var(--text-primary);">Now Playing in Theaters</h1>
+        <p style="color: var(--text-secondary);">Movies showing in cinemas right now</p>
+      </div>
+
+      <div class="mt-4 md:mt-0 flex flex-wrap gap-2">
+        <select
+          id="sort-select"
+          aria-label="Sort"
+          class="px-3 py-2 rounded-lg text-sm"
+          style="background-color: var(--bg-card); color: var(--text-primary); border: 1px solid var(--border);"
+        >
+          {Object.entries(SORTS).map(([k, v]) => <option value={k} selected={sortKey === k}>{v.label}</option>)}
+        </select>
+
+        <select
+          id="genre-select"
+          aria-label="Genre"
+          class="px-3 py-2 rounded-lg text-sm"
+          style="background-color: var(--bg-card); color: var(--text-primary); border: 1px solid var(--border);"
+        >
+          <option value="">All Genres</option>
+          {genres.map((g) => <option value={g.id} selected={genre === String(g.id)}>{g.name}</option>)}
+        </select>
+
+        <select
+          id="lang-select"
+          aria-label="Language"
+          class="px-3 py-2 rounded-lg text-sm"
+          style="background-color: var(--bg-card); color: var(--text-primary); border: 1px solid var(--border);"
+        >
+          <option value="">All Languages</option>
+          {LANGUAGES.map(([c, n]) => <option value={c} selected={lang === c}>{n}</option>)}
+        </select>
+      </div>
     </div>
 
     {movies.length > 0 ? (
@@ -53,7 +126,7 @@ function transformToItem(movie: any) {
       <div class="flex justify-center mt-8 gap-2">
         {page > 1 && (
           <a
-            href={`/movies/now-playing?page=${page - 1}`}
+            href={q(page - 1)}
             class="px-4 py-2 rounded-lg"
             style="background-color: var(--bg-card); color: var(--text-primary); border: 1px solid var(--border);"
           >
@@ -67,7 +140,7 @@ function transformToItem(movie: any) {
 
         {page < totalPages && (
           <a
-            href={`/movies/now-playing?page=${page + 1}`}
+            href={q(page + 1)}
             class="px-4 py-2 rounded-lg"
             style="background-color: var(--bg-card); color: var(--text-primary); border: 1px solid var(--border);"
           >
@@ -77,4 +150,22 @@ function transformToItem(movie: any) {
       </div>
     )}
   </div>
+
+  <script>
+    function go() {
+      const url = new URL(window.location.href);
+      const set = (k: string, id: string) => {
+        const v = (document.getElementById(id) as HTMLSelectElement | null)?.value || '';
+        if (v) url.searchParams.set(k, v); else url.searchParams.delete(k);
+      };
+      set('sort', 'sort-select');
+      set('genre', 'genre-select');
+      set('lang', 'lang-select');
+      url.searchParams.delete('page');
+      window.location.href = url.toString();
+    }
+    ['sort-select', 'genre-select', 'lang-select'].forEach((id) => {
+      document.getElementById(id)?.addEventListener('change', go);
+    });
+  </script>
 </BaseLayout>
