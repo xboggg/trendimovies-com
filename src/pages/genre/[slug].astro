@@ -39,6 +39,16 @@ if (!genre) {
 const page = parseInt(Astro.url.searchParams.get('page') || '1');
 const sort = Astro.url.searchParams.get('sort') || 'popularity.desc';
 const year = Astro.url.searchParams.get('year') || '';
+const langParam = Astro.url.searchParams.get('lang') || '';
+
+// Original language of the film (same list as the category pages)
+const LANGUAGES: [string, string][] = [
+  ['en', 'English'], ['fr', 'French'], ['es', 'Spanish'], ['de', 'German'], ['it', 'Italian'],
+  ['pt', 'Portuguese'], ['ru', 'Russian'], ['tr', 'Turkish'], ['ar', 'Arabic'],
+  ['hi', 'Hindi'], ['ta', 'Tamil'], ['te', 'Telugu'], ['ml', 'Malayalam'], ['kn', 'Kannada'], ['bn', 'Bengali'],
+  ['ja', 'Japanese'], ['ko', 'Korean'], ['zh', 'Chinese'], ['th', 'Thai'], ['id', 'Indonesian'],
+];
+const lang = LANGUAGES.some(([c]) => c === langParam) ? langParam : '';
 
 // Map sort options to TMDB sort_by values
 const sortMap: Record<string, string> = {
@@ -59,6 +69,10 @@ const baseParams: Record<string, string> = {
 
 if (year) {
   baseParams.primary_release_year = year;
+}
+
+if (lang) {
+  baseParams.with_original_language = lang;
 }
 
 // Fetch 2 pages to get 30+ movies
@@ -115,6 +129,18 @@ function transformToItem(movie: any) {
         </select>
 
         <select
+          id="lang-select"
+          aria-label="Language"
+          class="px-3 py-2 rounded-lg text-sm"
+          style="background-color: var(--bg-card); color: var(--text-primary); border: 1px solid var(--border);"
+        >
+          <option value="">All Languages</option>
+          {LANGUAGES.map(([c, n]) => (
+            <option value={c} selected={lang === c}>{n}</option>
+          ))}
+        </select>
+
+        <select
           id="year-select"
           class="px-3 py-2 rounded-lg text-sm"
           style="background-color: var(--bg-card); color: var(--text-primary); border: 1px solid var(--border);"
@@ -141,7 +167,7 @@ function transformToItem(movie: any) {
       <div class="flex justify-center mt-8 gap-2">
         {page > 1 && (
           <a
-            href={`/genre/${slug}?page=${page - 1}&sort=${sort}&year=${year}`}
+            href={`/genre/${slug}?page=${page - 1}&sort=${sort}&lang=${lang}&year=${year}`}
             class="px-4 py-2 rounded-lg"
             style="background-color: var(--bg-card); color: var(--text-primary); border: 1px solid var(--border);"
           >
@@ -155,7 +181,7 @@ function transformToItem(movie: any) {
 
         {page < totalPages && (
           <a
-            href={`/genre/${slug}?page=${page + 1}&sort=${sort}&year=${year}`}
+            href={`/genre/${slug}?page=${page + 1}&sort=${sort}&lang=${lang}&year=${year}`}
             class="px-4 py-2 rounded-lg"
             style="background-color: var(--bg-card); color: var(--text-primary); border: 1px solid var(--border);"
           >
@@ -186,9 +212,11 @@ function transformToItem(movie: any) {
     function updateUrl() {
       const sort = document.getElementById('sort-select').value;
       const year = document.getElementById('year-select').value;
+      const lang = document.getElementById('lang-select').value;
 
       const params = new URLSearchParams();
       if (sort && sort !== 'popular') params.set('sort', sort);
+      if (lang) params.set('lang', lang);
       if (year) params.set('year', year);
 
       window.location.href = '/genre/' + slug + (params.toString() ? '?' + params.toString() : '');
@@ -196,5 +224,6 @@ function transformToItem(movie: any) {
 
     document.getElementById('sort-select')?.addEventListener('change', updateUrl);
     document.getElementById('year-select')?.addEventListener('change', updateUrl);
+    document.getElementById('lang-select')?.addEventListener('change', updateUrl);
   </script>
 </BaseLayout>
