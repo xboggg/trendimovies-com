@@ -1,0 +1,120 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import ListingView from '../../components/ListingView.svelte';
+import { fetchFromTMDB, getTVGenres } from '../../lib/tmdb';
+
+// Trending TV series this week, with Genre and Language filters, a Grid | List switch and pages of 30.
+const page = Math.max(1, parseInt(Astro.url.searchParams.get('page') || '1') || 1);
+const genreParam = Astro.url.searchParams.get('genre') || '';
+const langParam = Astro.url.searchParams.get('lang') || '';
+
+const LANGUAGES: [string, string][] = [
+  ['en', 'English'], ['fr', 'French'], ['es', 'Spanish'], ['de', 'German'], ['it', 'Italian'],
+  ['pt', 'Portuguese'], ['ru', 'Russian'], ['tr', 'Turkish'], ['ar', 'Arabic'],
+  ['hi', 'Hindi'], ['ta', 'Tamil'], ['te', 'Telugu'], ['ml', 'Malayalam'], ['kn', 'Kannada'], ['bn', 'Bengali'],
+  ['ja', 'Japanese'], ['ko', 'Korean'], ['zh', 'Chinese'], ['th', 'Thai'], ['id', 'Indonesian'],
+];
+const tvGenres = await getTVGenres().catch(() => [] as { id: number; name: string }[]);
+const genre = tvGenres.some((g) => String(g.id) === genreParam) ? genreParam : '';
+const lang = LANGUAGES.some(([c]) => c === langParam) ? langParam : '';
+
+// TMDB gives 20 a page; take the first five (100 shows), filter, then cut pages of 30
+const parts = await Promise.all(
+  [1, 2, 3, 4, 5].map((p) => fetchFromTMDB<any>('/trending/tv/week', { page: String(p) }).catch(() => ({ results: [] })))
+);
+const seen = new Set<number>();
+const all = parts.flatMap((r: any) => r.results || []).filter((t: any) => {
+  if (!t.poster_path || seen.has(t.id)) return false;
+  seen.add(t.id);
+  return true;
+}).filter((t: any) =>
+  (!genre || (t.genre_ids || []).includes(Number(genre))) && (!lang || t.original_language === lang));
+
+const PAGE_SIZE = 30;
+const totalPages = Math.max(1, Math.ceil(all.length / PAGE_SIZE));
+const shows = all.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE).map((show: any) => ({
+  id: show.id,
+  tmdb_id: show.id,
+  title: show.name,
+  poster_path: show.poster_path,
+  overview: show.overview,
+  vote_average: show.vote_average,
+  year: show.first_air_date ? new Date(show.first_air_date).getFullYear() : null,
+  type: 'series' as const
+}));
+const q = (p: number) => `/series/trending?page=${p}&genre=${genre}&lang=${lang}`;
+---
+
+<BaseLayout
+  title="Trending TV Series"
+  description="The TV series everyone is watching this week"
+  image={shows[0]?.poster_path ? `https://image.tmdb.org/t/p/w780${shows[0].poster_path}` : '/images/og-default.jpg'}
+>
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <div class="flex flex-col md:flex-row md:items-center md:justify-between mb-8">
+      <div>
+        <h1 class="text-3xl font-bold mb-2" style="color: var(--text-primary);">Trending TV Series</h1>
+        <p class="text-sm" style="color: var(--text-secondary);">The series everyone is watching this week</p>
+      </div>
+
+      <div class="mt-4 md:mt-0 flex flex-wrap gap-2">
+        <select
+          id="genre-select"
+          aria-label="Genre"
+          class="px-3 py-2 rounded-lg text-sm"
+          style="background-color: var(--bg-card); color: var(--text-primary); border: 1px solid var(--border);"
+        >
+          <option value="">All Genres</option>
+          {tvGenres.map((g) => <option value={g.id} selected={genre === String(g.id)}>{g.name}</option>)}
+        </select>
+
+        <select
+          id="lang-select"
+          aria-label="Language"
+          class="px-3 py-2 rounded-lg text-sm"
+          style="background-color: var(--bg-card); color: var(--text-primary); border: 1px solid var(--border);"
+        >
+          <option value="">All Languages</option>
+          {LANGUAGES.map(([c, n]) => <option value={c} selected={lang === c}>{n}</option>)}
+        </select>
+      </div>
+    </div>
+
+    {shows.length > 0 ? (
+      <ListingView client:load items={shows} gridClass="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 lg:grid-cols-6 gap-4" />
+    ) : (
+      <div class="text-center py-16">
+        <p style="color: var(--text-secondary);">No trending series for this choice</p>
+      </div>
+    )}
+
+    {totalPages > 1 && (
+      <div class="flex justify-center mt-8 gap-2">
+        {page > 1 && (
+          <a href={q(page - 1)} class="px-4 py-2 rounded-lg" style="background-color: var(--bg-card); color: var(--text-primary); border: 1px solid var(--border);">Previous</a>
+        )}
+        <span class="px-4 py-2" style="color: var(--text-secondary);">Page {page} of {totalPages}</span>
+        {page < totalPages && (
+          <a href={q(page + 1)} class="px-4 py-2 rounded-lg" style="background-color: var(--bg-card); color: var(--text-primary); border: 1px solid var(--border);">Next</a>
+        )}
+      </div>
+    )}
+  </div>
+
+  <script>
+    function go() {
+      const url = new URL(window.location.href);
+      const set = (k: string, id: string) => {
+        const v = (document.getElementById(id) as HTMLSelectElement | null)?.value || '';
+        if (v) url.searchParams.set(k, v); else url.searchParams.delete(k);
+      };
+      set('genre', 'genre-select');
+      set('lang', 'lang-select');
+      url.searchParams.delete('page');
+      window.location.href = url.toString();
+    }
+    ['genre-select', 'lang-select'].forEach((id) => {
+      document.getElementById(id)?.addEventListener('change', go);
+    });
+  </script>
+</BaseLayout>

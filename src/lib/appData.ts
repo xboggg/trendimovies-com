@@ -24,7 +24,7 @@ export const ROWS: Array<{ key: string; title: string; heading: string; seeAll: 
   { key: 'trending', title: 'Trending This Week', heading: 'Trending This Week', seeAll: '/trending' },
   { key: 'newmovies', title: 'Newly Added Movies', heading: 'Newly Added Movies', seeAll: '/movies/latest' },
   { key: 'newep', title: 'New Episodes This Week', heading: 'New Episodes This Week', seeAll: '/series/new-episodes' },
-  { key: 'tvtrending', title: 'Trending TV Series', heading: 'Trending TV Series', seeAll: '/series/popular' },
+  { key: 'tvtrending', title: 'Trending TV Series', heading: 'Trending TV Series', seeAll: '/series/trending' },
   { key: 'action', title: 'Non-Stop Action', heading: 'Non-Stop Action', seeAll: '/genre/action' },
   { key: 'digital', title: 'Digital Releases', heading: '', seeAll: '/digital-releases' },
 ];
