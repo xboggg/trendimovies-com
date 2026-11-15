@@ -69,6 +69,13 @@ const currentWeekData = hasDbData
   ? await enrichWithPosters(weeklyData[weeks[0]] || [])
   : await enrichWithPosters(hardcodedData);
 
+// Phone list: every bar is drawn relative to the biggest weekend number
+const topWeekend = Math.max(1, ...currentWeekData.map((e: any) => Number(e.three_day_gross) || 0));
+
+// Wide screens: the top three get big poster cards, the rest are a compact table
+const topThree = currentWeekData.slice(0, 3);
+const restRows = currentWeekData.slice(3);
+
 function formatMoney(amount: number | null): string {
   if (!amount) return '-';
   if (amount >= 1000000000) return `$${(amount / 1000000000).toFixed(2)}B`;
@@ -84,9 +91,9 @@ function formatDate(dateStr: string): string {
   });
 }
 
-function getPosterUrl(path: string | null): string {
+function getPosterUrl(path: string | null, size: string = 'w185'): string {
   if (!path) return '/images/no-poster.svg';
-  return `https://image.tmdb.org/t/p/w185${path}`;
+  return `https://image.tmdb.org/t/p/${size}${path}`;
 }
 ---
 
@@ -122,71 +129,120 @@ function getPosterUrl(path: string | null): string {
       This Week's Top 10
     </h2>
 
-    <div class="overflow-x-auto">
-      <table class="w-full">
-        <thead>
-          <tr class="text-left text-sm" style="color: var(--text-muted);">
-            <th class="pb-4 pl-2">#</th>
-            <th class="pb-4">Movie</th>
-            <th class="pb-4 text-right">Weekend (3-Day)</th>
-            <th class="pb-4 text-right hidden md:table-cell">Weekend (4-Day)</th>
-            <th class="pb-4 text-right">Total Gross</th>
-            <th class="pb-4 text-center pr-4">Weeks</th>
-          </tr>
-        </thead>
-        <tbody>
-          {currentWeekData.map((entry, index) => (
-            <tr
-              class="transition-colors hover:bg-[var(--bg-hover)]"
-              style="border-top: 1px solid var(--border);"
-            >
-              <td class="py-4 pl-2">
+    <!-- Phone list (under 768px): rank, name, weekend money, a bar drawn to scale, total + weeks, and a link to the film page.
+         The table below is for wider screens, so nothing is squeezed on a phone. -->
+    <ol class="md:hidden flex flex-col gap-5 list-none p-0 m-0">
+      {currentWeekData.map((entry, index) => {
+        const Row = entry.tmdb_id ? 'a' : 'div';
+        const barPct = Math.max(3, Math.round(((Number(entry.three_day_gross) || 0) / topWeekend) * 100));
+        return (
+          <li>
+            <Row href={entry.tmdb_id ? `/movie/${entry.tmdb_id}` : undefined} class="flex items-start gap-3">
+              <span
+                class="w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0"
+                style={index < 3
+                  ? 'background: linear-gradient(135deg, #22c55e, #16a34a); color: white;'
+                  : 'background-color: var(--bg-hover); color: var(--text-primary);'}
+              >
+                {entry.rank}
+              </span>
+              <span class="flex-1 min-w-0 block">
+                <span class="flex justify-between items-baseline gap-3">
+                  <span class="font-semibold" style="color: var(--text-primary);">{entry.movie_title}</span>
+                  <span class="font-bold text-green-500 flex-shrink-0">{formatMoney(entry.three_day_gross)}</span>
+                </span>
+                <span class="block rounded-full mt-2 overflow-hidden" style="height: 10px; background-color: var(--bg-hover);">
+                  <span class="block h-full rounded-full" style={`width: ${barPct}%; background-color: #22c55e;`}></span>
+                </span>
+                <span class="flex justify-between items-center gap-3 mt-1.5 text-xs" style="color: var(--text-muted);">
+                  <span>Total {formatMoney(entry.total_gross)} · Week {entry.weeks_in_release || 1}</span>
+                  {entry.tmdb_id && <span class="font-bold text-green-500 whitespace-nowrap">View film ›</span>}
+                </span>
+              </span>
+            </Row>
+          </li>
+        );
+      })}
+    </ol>
+
+    <!-- Wide screens (768px and up): big poster cards for the top three, then a compact table for the rest. -->
+    <div class="hidden md:block">
+      <div class="grid grid-cols-3 gap-4 mb-5">
+        {topThree.map((entry, index) => {
+          const href = entry.tmdb_id ? `/movie/${entry.tmdb_id}` : null;
+          return (
+            <div class="rounded-2xl p-3.5 flex gap-3.5" style="background-color: var(--bg-card); border: 1px solid var(--border);">
+              <a href={href} class="flex-shrink-0 block">
+                <img loading="lazy" src={getPosterUrl(entry.poster_path, 'w342')} alt={entry.movie_title} class="bo-poster rounded-lg object-cover" />
+              </a>
+              <div class="flex flex-col items-start gap-1.5 min-w-0">
                 <span
                   class="w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold"
-                  style={index < 3
-                    ? 'background: linear-gradient(135deg, #22c55e, #16a34a); color: white;'
-                    : 'background-color: var(--bg-hover); color: var(--text-primary);'}
+                  style="background: linear-gradient(135deg, #22c55e, #16a34a); color: white;"
                 >
                   {entry.rank}
                 </span>
-              </td>
-              <td class="py-4">
-                <a
-                  href={entry.tmdb_id ? `/movie/${entry.tmdb_id}` : '#'}
-                  class="flex items-center gap-3 group"
-                >
-                  <img loading="lazy" src={getPosterUrl(entry.poster_path)}
-                    alt={entry.movie_title}
-                    class="w-10 h-15 rounded object-cover hidden sm:block"
-                  />
-                  <div>
-                    <p class="font-semibold group-hover:text-green-500 transition-colors" style="color: var(--text-primary);">
-                      {entry.movie_title}
-                    </p>
-                    <p class="text-xs sm:hidden" style="color: var(--text-muted);">
-                      Week {entry.weeks_in_release || 1}
-                    </p>
-                  </div>
-                </a>
-              </td>
-              <td class="py-4 text-right font-medium" style="color: var(--text-primary);">
-                {formatMoney(entry.three_day_gross)}
-              </td>
-              <td class="py-4 text-right hidden md:table-cell" style="color: var(--text-secondary);">
-                {formatMoney(entry.four_day_gross)}
-              </td>
-              <td class="py-4 text-right">
-                <span class="font-bold text-green-500">{formatMoney(entry.total_gross)}</span>
-              </td>
-              <td class="py-4 text-center pr-4">
-                <span class="inline-flex items-center justify-center w-8 h-8 rounded-full text-sm font-bold" style="background-color: var(--bg-hover); color: var(--text-primary);">
-                  {entry.weeks_in_release || 1}
-                </span>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+                <a href={href} class="font-bold leading-tight hover:text-green-500 transition-colors" style="color: var(--text-primary); font-size: 16px;">{entry.movie_title}</a>
+                <p class="bo-money font-extrabold text-green-500 leading-none">{formatMoney(entry.three_day_gross)}</p>
+                <p class="text-xs" style="color: var(--text-muted);">Total {formatMoney(entry.total_gross)} · Week {entry.weeks_in_release || 1}</p>
+                {entry.four_day_gross ? <p class="text-xs" style="color: var(--text-muted);">4-day weekend {formatMoney(entry.four_day_gross)}</p> : null}
+                {href && (
+                  <a
+                    href={href}
+                    class="mt-auto inline-flex items-center text-sm font-bold rounded-full px-3.5 py-1.5 whitespace-nowrap"
+                    style={index === 0
+                      ? 'background-color: #22c55e; color: #052e16;'
+                      : 'border: 1px solid #22c55e; color: #22c55e;'}
+                  >
+                    View film ›
+                  </a>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      <div class="bo-cols text-sm pb-2" style="color: var(--text-muted);">
+        <span class="pl-1">#</span>
+        <span></span>
+        <span>Movie</span>
+        <span class="text-right">Weekend</span>
+        <span class="text-right">Total gross</span>
+        <span class="text-center">Weeks</span>
+        <span></span>
+      </div>
+      {restRows.map((entry) => {
+        const href = entry.tmdb_id ? `/movie/${entry.tmdb_id}` : null;
+        return (
+          <div class="bo-cols py-2.5 transition-colors hover:bg-[var(--bg-hover)]" style="border-top: 1px solid var(--border);">
+            <span class="pl-1">
+              <span class="w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold" style="background-color: var(--bg-hover); color: var(--text-primary);">
+                {entry.rank}
+              </span>
+            </span>
+            <a href={href} class="block">
+              <img loading="lazy" src={getPosterUrl(entry.poster_path)} alt={entry.movie_title} class="rounded object-cover" style="width: 32px; height: 48px;" />
+            </a>
+            <a href={href} class="font-semibold hover:text-green-500 transition-colors min-w-0" style="color: var(--text-primary);">{entry.movie_title}</a>
+            <span class="text-right font-semibold" style="color: var(--text-primary);">
+              {formatMoney(entry.three_day_gross)}
+              {entry.four_day_gross ? <span class="block text-xs font-normal" style="color: var(--text-muted);">4-day {formatMoney(entry.four_day_gross)}</span> : null}
+            </span>
+            <span class="text-right font-bold text-green-500">{formatMoney(entry.total_gross)}</span>
+            <span class="text-center">
+              <span class="inline-flex items-center justify-center w-8 h-8 rounded-full text-sm font-bold" style="background-color: var(--bg-hover); color: var(--text-primary);">
+                {entry.weeks_in_release || 1}
+              </span>
+            </span>
+            <span class="text-right">
+              {href && (
+                <a href={href} class="inline-flex items-center text-sm font-bold rounded-full px-3.5 py-1 whitespace-nowrap" style="border: 1px solid #22c55e; color: #22c55e;">View ›</a>
+              )}
+            </span>
+          </div>
+        );
+      })}
     </div>
   </section>
 
@@ -249,3 +305,20 @@ function getPosterUrl(path: string | null): string {
     </div>
   </section>
 </BaseLayout>
+
+<style>
+  .bo-poster { width: 88px; height: 132px; }
+  .bo-money { font-size: 24px; }
+  .bo-cols {
+    display: grid;
+    align-items: center;
+    gap: 16px;
+    grid-template-columns: 40px 34px minmax(0, 1fr) 100px 100px 56px 80px;
+  }
+  @media (min-width: 1024px) {
+    .bo-poster { width: 104px; height: 156px; }
+    .bo-money { font-size: 26px; }
+    .bo-cols { grid-template-columns: 40px 34px minmax(0, 1fr) 120px 120px 64px 100px; }
+  }
+</style>
+
