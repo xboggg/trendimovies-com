@@ -2,16 +2,30 @@
 import BaseLayout from '../../layouts/BaseLayout.astro';
 import MovieCard from '../../components/MovieCard.svelte';
 import ListingView from '../../components/ListingView.svelte';
-import { getOnTheAirTVPaginated, getTVDetails } from '../../lib/tmdb';
+import { getOnTheAirTVPaginated, getTVDetails, getTVGenres } from '../../lib/tmdb';
 
 const POSTGREST_URL = import.meta.env.PUBLIC_SUPABASE_URL || 'http://localhost:3001';
 
 // Get current page from query params
 const page = parseInt(Astro.url.searchParams.get('page') || '1');
+const genreParam = Astro.url.searchParams.get('genre') || '';
+const langParam = Astro.url.searchParams.get('lang') || '';
 
-// On page 1: prepend DB-assigned recent episodes (last 7 days)
+const LANGUAGES: [string, string][] = [
+  ['en', 'English'], ['fr', 'French'], ['es', 'Spanish'], ['de', 'German'], ['it', 'Italian'],
+  ['pt', 'Portuguese'], ['ru', 'Russian'], ['tr', 'Turkish'], ['ar', 'Arabic'],
+  ['hi', 'Hindi'], ['ta', 'Tamil'], ['te', 'Telugu'], ['ml', 'Malayalam'], ['kn', 'Kannada'], ['bn', 'Bengali'],
+  ['ja', 'Japanese'], ['ko', 'Korean'], ['zh', 'Chinese'], ['th', 'Thai'], ['id', 'Indonesian'],
+];
+const tvGenres = await getTVGenres().catch(() => [] as { id: number; name: string }[]);
+const genre = tvGenres.some((g) => String(g.id) === genreParam) ? genreParam : '';
+const lang = LANGUAGES.some(([c]) => c === langParam) ? langParam : '';
+const filtering = !!(genre || lang);
+
+// On page 1: prepend DB-assigned recent episodes (last 7 days).
+// With a filter on, the whole list is filtered first and then split into pages, so read it on every page.
 let dbItems: any[] = [];
-if (page === 1) {
+if (page === 1 || filtering) {
   try {
     const dbRes = await fetch(`${POSTGREST_URL}/recent_episode_series?order=latest_added.desc&limit=50`);
     if (dbRes.ok) {
@@ -36,18 +50,52 @@ if (page === 1) {
   } catch(e) {}
 }
 
-// Fetch 2 TMDB pages per app page (to get ~40 results, display 30)
+// Fetch 2 TMDB pages per app page (to get ~40 results, display 30).
+// With a filter on, look through the first 10 TMDB pages (200 shows) instead and filter them.
 const tmdbPage1 = (page - 1) * 2 + 1;
 const tmdbPage2 = tmdbPage1 + 1;
+const pagesToGet = filtering ? [1, 2, 3, 4, 5, 6, 7, 8, 9, 10] : [tmdbPage1, tmdbPage2];
 
-const [response1, response2] = await Promise.all([
-  getOnTheAirTVPaginated(tmdbPage1),
-  getOnTheAirTVPaginated(tmdbPage2)
-]);
+const responses = await Promise.all(
+  pagesToGet.map((n) => getOnTheAirTVPaginated(n).catch(() => ({ results: [], total_pages: 1 } as any)))
+);
+const response1 = responses[0];
 
-const allShows = Array.from(new Map([...(response1.results || []), ...(response2.results || [])].map((x: any) => [x.id, x])).values());
-const filtered = allShows.filter((t: any) => t.poster_path).slice(0, 30);
-const totalPages = Math.min(Math.ceil((response1.total_pages || 1) / 2), 250);
+const allShows = Array.from(new Map(responses.flatMap((r: any) => r.results || []).map((x: any) => [x.id, x])).values());
+let filtered = allShows.filter((t: any) => t.poster_path);
+let totalPages = Math.min(Math.ceil((response1.total_pages || 1) / 2), 250);
+
+if (filtering) {
+  // our own recent-episode shows: look up language and genres
+  if (dbItems.length) {
+    try {
+      const ids = dbItems.map((x: any) => x.tmdb_id).join(',');
+      const infoRes = await fetch(`${POSTGREST_URL}/series?tmdb_id=in.(${ids})&select=tmdb_id,original_language,genres`);
+      const info: any[] = infoRes.ok ? await infoRes.json() : [];
+      const byId = new Map(info.map((r: any) => [r.tmdb_id, r]));
+      dbItems = dbItems.filter((x: any) => {
+        const r: any = byId.get(x.tmdb_id);
+        if (!r) return false;
+        const gids = (Array.isArray(r.genres) ? r.genres : []).map((g: any) => Number(g?.id ?? g));
+        return (!genre || gids.includes(Number(genre))) && (!lang || r.original_language === lang);
+      });
+    } catch (e) { dbItems = []; }
+  }
+  const dbSeen = new Set(dbItems.map((x: any) => x.tmdb_id));
+  filtered = filtered.filter((t: any) =>
+    !dbSeen.has(t.id) &&
+    (!genre || (t.genre_ids || []).includes(Number(genre))) &&
+    (!lang || t.original_language === lang));
+  totalPages = Math.max(1, Math.ceil((dbItems.length + filtered.length) / 30));
+  // this page's slice of the combined list (our shows first), then episode numbers for the TMDB ones
+  const start = (page - 1) * 30;
+  const dbSlice = dbItems.slice(start, start + 30);
+  const tmdbStart = Math.max(0, start - dbItems.length);
+  filtered = filtered.slice(tmdbStart, tmdbStart + (30 - dbSlice.length));
+  dbItems = dbSlice;
+} else {
+  filtered = filtered.slice(0, 30);
+}
 
 // Fetch details for each show in parallel to get last_episode_to_air
 const details = await Promise.all(
@@ -85,7 +133,7 @@ const merged = [
 ];
 // Round down to multiple of 6 so grid rows are always complete
 const cols = 6;
-const shows = merged.length % cols === 0 ? merged : merged.slice(0, Math.floor(merged.length / cols) * cols);
+const shows = filtering || merged.length % cols === 0 ? merged : merged.slice(0, Math.floor(merged.length / cols) * cols);
 ---
 
 <BaseLayout
@@ -102,6 +150,28 @@ const shows = merged.length % cols === 0 ? merged : merged.slice(0, Math.floor(m
           TV series currently airing new episodes
         </p>
       </div>
+
+      <div class="mt-4 md:mt-0 flex flex-wrap gap-2">
+        <select
+          id="genre-select"
+          aria-label="Genre"
+          class="px-3 py-2 rounded-lg text-sm"
+          style="background-color: var(--bg-card); color: var(--text-primary); border: 1px solid var(--border);"
+        >
+          <option value="">All Genres</option>
+          {tvGenres.map((g) => <option value={g.id} selected={genre === String(g.id)}>{g.name}</option>)}
+        </select>
+
+        <select
+          id="lang-select"
+          aria-label="Language"
+          class="px-3 py-2 rounded-lg text-sm"
+          style="background-color: var(--bg-card); color: var(--text-primary); border: 1px solid var(--border);"
+        >
+          <option value="">All Languages</option>
+          {LANGUAGES.map(([c, n]) => <option value={c} selected={lang === c}>{n}</option>)}
+        </select>
+      </div>
     </div>
 
     <!-- Series Grid -->
@@ -109,7 +179,7 @@ const shows = merged.length % cols === 0 ? merged : merged.slice(0, Math.floor(m
       <ListingView client:load items={shows.map((show: any) => show)} gridClass="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 lg:grid-cols-6 gap-4" />
     ) : (
       <div class="text-center py-16">
-        <p style="color: var(--text-secondary);">No new episodes airing this week</p>
+        <p style="color: var(--text-secondary);">{filtering ? 'No new episodes this week for this choice' : 'No new episodes airing this week'}</p>
       </div>
     )}
 
@@ -118,7 +188,7 @@ const shows = merged.length % cols === 0 ? merged : merged.slice(0, Math.floor(m
       <div class="flex justify-center mt-8 gap-2">
         {page > 1 && (
           <a
-            href={`/series/new-episodes?page=${page - 1}`}
+            href={`/series/new-episodes?page=${page - 1}&genre=${genre}&lang=${lang}`}
             class="px-4 py-2 rounded-lg"
             style="background-color: var(--bg-card); color: var(--text-primary); border: 1px solid var(--border);"
           >
@@ -132,7 +202,7 @@ const shows = merged.length % cols === 0 ? merged : merged.slice(0, Math.floor(m
 
         {page < totalPages && (
           <a
-            href={`/series/new-episodes?page=${page + 1}`}
+            href={`/series/new-episodes?page=${page + 1}&genre=${genre}&lang=${lang}`}
             class="px-4 py-2 rounded-lg"
             style="background-color: var(--bg-card); color: var(--text-primary); border: 1px solid var(--border);"
           >
@@ -142,4 +212,21 @@ const shows = merged.length % cols === 0 ? merged : merged.slice(0, Math.floor(m
       </div>
     )}
   </div>
+
+  <script>
+    function go() {
+      const url = new URL(window.location.href);
+      const set = (k: string, id: string) => {
+        const v = (document.getElementById(id) as HTMLSelectElement | null)?.value || '';
+        if (v) url.searchParams.set(k, v); else url.searchParams.delete(k);
+      };
+      set('genre', 'genre-select');
+      set('lang', 'lang-select');
+      url.searchParams.delete('page');
+      window.location.href = url.toString();
+    }
+    ['genre-select', 'lang-select'].forEach((id) => {
+      document.getElementById(id)?.addEventListener('change', go);
+    });
+  </script>
 </BaseLayout>
