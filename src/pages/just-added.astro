@@ -27,7 +27,22 @@ const LANGS: Record<string, { label: string; codes: string[] }> = {
   french:  { label: 'French',   codes: ['fr'] },
   korean:  { label: 'Korean',   codes: ['ko'] },
   spanish: { label: 'Spanish',  codes: ['es'] },
+  hindi:     { label: 'Hindi',     codes: ['hi'] },
+  tamil:     { label: 'Tamil',     codes: ['ta'] },
+  telugu:    { label: 'Telugu',    codes: ['te'] },
+  malayalam: { label: 'Malayalam', codes: ['ml'] },
+  kannada:   { label: 'Kannada',   codes: ['kn'] },
+  bengali:   { label: 'Bengali',   codes: ['bn'] },
+  marathi:   { label: 'Marathi',   codes: ['mr'] },
+  punjabi:   { label: 'Punjabi',   codes: ['pa'] },
+  gujarati:  { label: 'Gujarati',  codes: ['gu'] },
 };
+// The Indian tab offers only Indian languages and the Asian tab only Korean, Chinese and Japanese.
+// Movie and TV Show tabs keep the general list.
+const LANG_KEYS: string[] =
+  tab === 'indian' ? ['hindi','tamil','telugu','malayalam','kannada','bengali','marathi','punjabi','gujarati']
+  : tab === 'asian' ? ['korean','chinese','japanese']
+  : ['en','indian','chinese','japanese','french','korean','spanish'];
 const SORTS: Record<string, { label: string; order: string }> = {
   newest:   { label: 'Newest added', order: 'created_at.desc' },
   rated:    { label: 'Top rated',    order: 'vote_average.desc' },
@@ -45,7 +60,7 @@ const yearParam = (k: string) => {
   return Number.isInteger(v) && v >= YEAR_MIN && v <= YEAR_MAX ? v : null;
 };
 const fGenre = GENRES.includes(params.get('genre') || '') ? (params.get('genre') as string) : '';
-const fLang = LANGS[params.get('lang') || ''] ? (params.get('lang') as string) : '';
+const fLang = LANG_KEYS.includes(params.get('lang') || '') ? (params.get('lang') as string) : '';
 let fYearFrom = yearParam('yf');
 let fYearTo = yearParam('yt');
 if (fYearFrom !== null && fYearTo !== null && fYearFrom > fYearTo) [fYearFrom, fYearTo] = [fYearTo, fYearFrom];
@@ -158,7 +173,7 @@ const tabLong = JUST_ADDED_TABS.find(t => t.key === tab)?.long || 'Movies';
         <span>Language</span>
         <select name="lang">
           <option value="">Any language</option>
-          {Object.entries(LANGS).map(([k, v]) => <option value={k} selected={fLang === k}>{v.label}</option>)}
+          {LANG_KEYS.map((k) => <option value={k} selected={fLang === k}>{LANGS[k].label}</option>)}
         </select>
       </label>
       <label class="tmf__f">
