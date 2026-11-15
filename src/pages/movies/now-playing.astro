@@ -34,26 +34,41 @@ const today = new Date();
 const since = new Date(today);
 since.setDate(since.getDate() - 45);
 
-const params: Record<string, string> = {
+const baseParams: Record<string, string> = {
   with_release_type: '2|3',
   'release_date.gte': iso(since),
   'release_date.lte': iso(today),
   sort_by: SORTS[sortKey].by,
-  page: String(page),
 };
-if (sortKey === 'rating') params['vote_count.gte'] = '20';
-if (genre) params.with_genres = genre;
-if (lang) params.with_original_language = lang;
+if (sortKey === 'rating') baseParams['vote_count.gte'] = '20';
+if (genre) baseParams.with_genres = genre;
+if (lang) baseParams.with_original_language = lang;
 
-let response: any = { results: [], total_pages: 1 };
+// 30 films a page (6 across x 5 down fills the screen). TMDB gives 20 a page, so work out
+// which of its pages hold films start..start+29 and cut exactly 30 from them.
+const PAGE_SIZE = 30;
+const start = (page - 1) * PAGE_SIZE;
+const firstTmdb = Math.floor(start / 20) + 1;
+const lastTmdb = Math.floor((start + PAGE_SIZE - 1) / 20) + 1;
+
+let totalResults = 0;
+let raw: any[] = [];
 try {
-  response = await discoverMovies(params);
+  const parts = await Promise.all(
+    Array.from({ length: lastTmdb - firstTmdb + 1 }, (_, i) =>
+      discoverMovies({ ...baseParams, page: String(firstTmdb + i) }).catch(() => ({ results: [], total_results: 0 }))
+    )
+  );
+  totalResults = parts[0]?.total_results || 0;
+  raw = parts.flatMap((r: any) => r.results || []);
 } catch (e) {
-  response = { results: [], total_pages: 1 };
+  raw = [];
 }
 
-const movies = (response.results || []).filter((m: any) => m.poster_path);
-const totalPages = Math.min(response.total_pages || 1, 50);
+const offset = start - (firstTmdb - 1) * 20;
+const movies = raw.slice(offset, offset + PAGE_SIZE).filter((m: any) => m.poster_path);
+// Cinemas worldwide add up to thousands; the first 20 pages (600 films, most popular first) is plenty
+const totalPages = Math.max(1, Math.min(20, Math.ceil(totalResults / PAGE_SIZE)));
 const q = (p: number) => `/movies/now-playing?page=${p}&sort=${sortKey}&genre=${genre}&lang=${lang}`;
 
 function transformToItem(movie: any) {
