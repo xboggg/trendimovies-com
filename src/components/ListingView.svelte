@@ -22,10 +22,18 @@
 
   onMount(() => {
     try { if (localStorage.getItem(KEY) === 'list') mode = 'list'; } catch (e) {}
+    // Several lists on one page (e.g. Movies + Series) follow the same switch
+    const follow = (e: Event) => {
+      const m = (e as CustomEvent).detail;
+      if (m === 'grid' || m === 'list') mode = m;
+    };
+    window.addEventListener('tm-listing-view', follow);
+    return () => window.removeEventListener('tm-listing-view', follow);
   });
   function setMode(m: 'grid' | 'list') {
     mode = m;
     try { localStorage.setItem(KEY, m); } catch (e) {}
+    try { window.dispatchEvent(new CustomEvent('tm-listing-view', { detail: m })); } catch (e) {}
   }
 
   const poster = (p: string | null) => p ? (p.startsWith('/images/') ? p : `https://image.tmdb.org/t/p/w185${p}`) : '/images/no-poster.svg';

@@ -1,12 +1,14 @@
 ---
 import BaseLayout from '../../layouts/BaseLayout.astro';
-import MovieCard from '../../components/MovieCard.svelte';
-import { discoverMovies, discoverTV } from '../../lib/tmdb';
+import ListingView from '../../components/ListingView.svelte';
+import { discoverMovies, discoverTV, getMovieGenres, getTVGenres } from '../../lib/tmdb';
 
 const { slug } = Astro.params;
 const page = parseInt(Astro.url.searchParams.get('page') || '1');
 const sort = Astro.url.searchParams.get('sort') || 'popular';
 const year = Astro.url.searchParams.get('year') || '';
+const genreParam = Astro.url.searchParams.get('genre') || '';
+const langParam = Astro.url.searchParams.get('lang') || '';
 
 // Map sort options
 const sortMap: Record<string, string> = {
@@ -91,14 +93,62 @@ if (!config) {
   return Astro.redirect('/movies');
 }
 
+// ---- Genre and language filters ----
+const [movieGenres, tvGenres] = await Promise.all([
+  config.type !== 'tv' ? getMovieGenres().catch(() => []) : Promise.resolve([] as { id: number; name: string }[]),
+  config.type !== 'movie' ? getTVGenres().catch(() => []) : Promise.resolve([] as { id: number; name: string }[]),
+]);
+const genreOptions = config.type === 'tv' ? tvGenres : movieGenres;
+// Only accept a genre that is really in the list
+const genre = genreOptions.some((g) => String(g.id) === genreParam) ? genreParam : '';
+
+// Movie and TV genre numbers differ a little at TMDB, so a chosen movie genre is translated for the series side.
+// A genre that has no TV version (Horror, Romance, Thriller...) simply shows no series.
+const TV_FROM_MOVIE: Record<string, string> = { '28': '10759', '12': '10759', '14': '10765', '878': '10765', '10752': '10768' };
+const tvIds = new Set(tvGenres.map((g) => String(g.id)));
+let tvGenre: string | null = '';
+if (genre) {
+  if (config.type === 'tv') {
+    tvGenre = genre;
+  } else {
+    const m = TV_FROM_MOVIE[genre] || genre;
+    tvGenre = tvIds.has(m) ? m : null;
+  }
+}
+const tvSkip = tvGenre === null;
+
+const LANGUAGES: [string, string][] = [
+  ['en', 'English'], ['fr', 'French'], ['es', 'Spanish'], ['de', 'German'], ['it', 'Italian'],
+  ['pt', 'Portuguese'], ['ru', 'Russian'], ['tr', 'Turkish'], ['ar', 'Arabic'],
+  ['hi', 'Hindi'], ['ta', 'Tamil'], ['te', 'Telugu'], ['ml', 'Malayalam'], ['kn', 'Kannada'], ['bn', 'Bengali'],
+  ['ja', 'Japanese'], ['ko', 'Korean'], ['zh', 'Chinese'], ['th', 'Thai'], ['id', 'Indonesian'],
+];
+// Some categories already have a language (Anime = Japanese, K-Drama = Korean, Bollywood = Hindi).
+// The first choice in the Language list is that default; picking another language replaces it.
+const defaultLang = config.params.with_original_language || '';
+const defaultLangName = LANGUAGES.find(([c]) => c === defaultLang)?.[1] || '';
+const lang = LANGUAGES.some(([c]) => c === langParam && c !== defaultLang) ? langParam : '';
+
 // Build params with sorting
-const movieParams = { ...config.params, sort_by: sortBy };
-const tvParams = { ...config.params, sort_by: tvSortBy };
+const movieParams: Record<string, string> = { ...config.params, sort_by: sortBy };
+const tvParams: Record<string, string> = { ...config.params, sort_by: tvSortBy };
 
 if (year) {
   movieParams.primary_release_year = year;
   tvParams.first_air_date_year = year;
 }
+
+if (lang) {
+  movieParams.with_original_language = lang;
+  tvParams.with_original_language = lang;
+}
+
+// "," means AND in TMDB, so Anime (Animation) + Action = animated action
+function addGenre(base: string | undefined, extra: string): string {
+  return [...new Set([...(base ? base.split(',') : []), extra])].join(',');
+}
+if (genre) movieParams.with_genres = addGenre(config.params.with_genres, genre);
+if (tvGenre) tvParams.with_genres = addGenre(config.params.with_genres, tvGenre);
 
 // Fetch content based on category type
 let movies: any[] = [];
@@ -117,7 +167,7 @@ if (config.type === 'movie' || config.type === 'both') {
   totalPages = Math.max(totalPages, Math.ceil((resp1.total_pages || 1) / 2));
 }
 
-if (config.type === 'tv' || config.type === 'both') {
+if ((config.type === 'tv' || config.type === 'both') && !tvSkip) {
   const [resp1, resp2] = await Promise.all([
     discoverTV({ ...tvParams, page: tmdbPage1.toString() }),
     discoverTV({ ...tvParams, page: tmdbPage2.toString() })
@@ -147,6 +197,7 @@ function transformSeries(show: any) {
     tmdb_id: show.id,
     title: show.name,
     poster_path: show.poster_path,
+    overview: show.overview,
     vote_average: show.vote_average,
     year: show.first_air_date ? new Date(show.first_air_date).getFullYear() : null,
     type: 'series' as const
@@ -179,6 +230,30 @@ function transformSeries(show: any) {
         </select>
 
         <select
+          id="genre-select"
+          aria-label="Genre"
+          class="px-3 py-2 rounded-lg text-sm"
+          style="background-color: var(--bg-card); color: var(--text-primary); border: 1px solid var(--border);"
+        >
+          <option value="">All Genres</option>
+          {genreOptions.map(g => (
+            <option value={g.id} selected={genre === g.id.toString()}>{g.name}</option>
+          ))}
+        </select>
+
+        <select
+          id="lang-select"
+          aria-label="Language"
+          class="px-3 py-2 rounded-lg text-sm"
+          style="background-color: var(--bg-card); color: var(--text-primary); border: 1px solid var(--border);"
+        >
+          <option value="">{defaultLang ? `${defaultLangName} (default)` : 'All Languages'}</option>
+          {LANGUAGES.filter(([c]) => c !== defaultLang).map(([c, n]) => (
+            <option value={c} selected={lang === c}>{n}</option>
+          ))}
+        </select>
+
+        <select
           id="year-select"
           class="px-3 py-2 rounded-lg text-sm"
           style="background-color: var(--bg-card); color: var(--text-primary); border: 1px solid var(--border);"
@@ -197,11 +272,7 @@ function transformSeries(show: any) {
         {config.type === 'both' && (
           <h2 class="text-2xl font-semibold mb-6" style="color: var(--text-primary);">Movies</h2>
         )}
-        <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 lg:grid-cols-6 gap-4">
-          {movies.map(movie => (
-            <MovieCard client:visible item={transformMovie(movie)} />
-          ))}
-        </div>
+        <ListingView client:load items={movies.map((movie: any) => transformMovie(movie))} gridClass="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 lg:grid-cols-6 gap-4" />
       </section>
     )}
 
@@ -211,11 +282,7 @@ function transformSeries(show: any) {
         {config.type === 'both' && (
           <h2 class="text-2xl font-semibold mb-6" style="color: var(--text-primary);">Series</h2>
         )}
-        <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 lg:grid-cols-6 gap-4">
-          {series.map(show => (
-            <MovieCard client:visible item={transformSeries(show)} />
-          ))}
-        </div>
+        <ListingView client:load showToggle={movies.length === 0} items={series.map((show: any) => transformSeries(show))} gridClass="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 lg:grid-cols-6 gap-4" />
       </section>
     )}
 
@@ -231,7 +298,7 @@ function transformSeries(show: any) {
       <div class="flex justify-center mt-8 gap-2">
         {page > 1 && (
           <a
-            href={`/category/${slug}?page=${page - 1}&sort=${sort}&year=${year}`}
+            href={`/category/${slug}?page=${page - 1}&sort=${sort}&genre=${genre}&lang=${lang}&year=${year}`}
             class="px-4 py-2 rounded-lg"
             style="background-color: var(--bg-card); color: var(--text-primary); border: 1px solid var(--border);"
           >
@@ -245,7 +312,7 @@ function transformSeries(show: any) {
 
         {page < totalPages && (
           <a
-            href={`/category/${slug}?page=${page + 1}&sort=${sort}&year=${year}`}
+            href={`/category/${slug}?page=${page + 1}&sort=${sort}&genre=${genre}&lang=${lang}&year=${year}`}
             class="px-4 py-2 rounded-lg"
             style="background-color: var(--bg-card); color: var(--text-primary); border: 1px solid var(--border);"
           >
@@ -260,9 +327,13 @@ function transformSeries(show: any) {
     function updateUrl() {
       const sort = document.getElementById('sort-select').value;
       const year = document.getElementById('year-select').value;
+      const genre = document.getElementById('genre-select').value;
+      const lang = document.getElementById('lang-select').value;
 
       const params = new URLSearchParams();
       if (sort && sort !== 'popular') params.set('sort', sort);
+      if (genre) params.set('genre', genre);
+      if (lang) params.set('lang', lang);
       if (year) params.set('year', year);
 
       window.location.href = '/category/' + slug + (params.toString() ? '?' + params.toString() : '');
@@ -270,5 +341,7 @@ function transformSeries(show: any) {
 
     document.getElementById('sort-select')?.addEventListener('change', updateUrl);
     document.getElementById('year-select')?.addEventListener('change', updateUrl);
+    document.getElementById('genre-select')?.addEventListener('change', updateUrl);
+    document.getElementById('lang-select')?.addEventListener('change', updateUrl);
   </script>
 </BaseLayout>
