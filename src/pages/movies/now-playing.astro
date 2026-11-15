@@ -1,0 +1,80 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import ListingView from '../../components/ListingView.svelte';
+import { fetchFromTMDB } from '../../lib/tmdb';
+
+// Films showing in cinemas right now (TMDB "now playing"), 20 per page, with Grid | List.
+const page = Math.max(1, parseInt(Astro.url.searchParams.get('page') || '1') || 1);
+
+let response: any = { results: [], total_pages: 1 };
+try {
+  response = await fetchFromTMDB<any>('/movie/now_playing', { page: String(page) });
+} catch (e) {
+  response = { results: [], total_pages: 1 };
+}
+
+const movies = (response.results || []).filter((m: any) => m.poster_path);
+const totalPages = Math.min(response.total_pages || 1, 50);
+
+function transformToItem(movie: any) {
+  return {
+    id: movie.id,
+    tmdb_id: movie.id,
+    title: movie.title,
+    poster_path: movie.poster_path,
+    overview: movie.overview,
+    vote_average: movie.vote_average,
+    year: movie.release_date ? new Date(movie.release_date).getFullYear() : null,
+    release_date: movie.release_date,
+    type: 'movie' as const
+  };
+}
+---
+
+<BaseLayout
+  title="Now Playing in Theaters | TrendiMovies"
+  description="Movies showing in cinemas right now. See what is on the big screen this week, and find it on TrendiMovies as soon as it is available."
+>
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <div class="mb-8">
+      <h1 class="text-3xl font-bold mb-2" style="color: var(--text-primary);">Now Playing in Theaters</h1>
+      <p style="color: var(--text-secondary);">Movies showing in cinemas right now</p>
+    </div>
+
+    {movies.length > 0 ? (
+      <ListingView client:load items={movies.map((movie: any) => transformToItem(movie))} gridClass="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 lg:grid-cols-6 gap-4" />
+    ) : (
+      <div class="text-center py-16">
+        <p style="color: var(--text-secondary);">No movies found</p>
+      </div>
+    )}
+
+    {totalPages > 1 && (
+      <div class="flex justify-center mt-8 gap-2">
+        {page > 1 && (
+          <a
+            href={`/movies/now-playing?page=${page - 1}`}
+            class="px-4 py-2 rounded-lg"
+            style="background-color: var(--bg-card); color: var(--text-primary); border: 1px solid var(--border);"
+          >
+            Previous
+          </a>
+        )}
+
+        <span class="px-4 py-2" style="color: var(--text-secondary);">
+          Page {page} of {totalPages}
+        </span>
+
+        {page < totalPages && (
+          <a
+            href={`/movies/now-playing?page=${page + 1}`}
+            class="px-4 py-2 rounded-lg"
+            style="background-color: var(--bg-card); color: var(--text-primary); border: 1px solid var(--border);"
+          >
+            Next
+          </a>
+        )}
+      </div>
+    )}
+  </div>
+</BaseLayout>
