@@ -63,7 +63,8 @@ const ownedCount = items.filter((i: any) => i.has_downloads).length;
 // Branded OG banner (reuses /api/og.png list template)
 const _ogTitles = items.slice(0, 4).map((i: any) => i.title).join('|');
 const _ogBackdrop = (Object.values(owned).find((m: any) => m.backdrop_path && !m.backdrop_path.startsWith('/images/')) as any)?.backdrop_path || '';
-const ogImage = `/api/og.png?type=list&label=${encodeURIComponent(topic.title)}&emoji=${encodeURIComponent(topic.emoji || '🎬')}&color=${encodeURIComponent(topic.color || '#e50914')}&backdrop=${encodeURIComponent(_ogBackdrop)}&titles=${encodeURIComponent(_ogTitles)}`;
+const _ogPosters = items.map((i: any) => i.saved_poster).filter((x: any) => x && !String(x).startsWith('/images/')).slice(0, 3).join('|');
+const ogImage = `/api/og.png?type=guide&label=${encodeURIComponent(topic.title)}&emoji=${encodeURIComponent(topic.emoji || '🎬')}&color=${encodeURIComponent(topic.color || '#e50914')}&count=${items.length}&posters=${encodeURIComponent(_ogPosters)}`;
 
 const firstAvail = items.findIndex((i: any) => i.has_downloads);
 const startItem = firstAvail >= 0 ? items[firstAvail] : null;

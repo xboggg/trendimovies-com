@@ -224,6 +224,51 @@ function listTemplate(p: {
   };
 }
 
+// ── Guide template (Movie Guides: coloured card, big headline, 3 real posters) ──
+
+function guideTemplate(p: { label: string; emoji: string; color: string; count: string; posters: (string | null)[] }) {
+  const accent = p.color || '#e50914';
+  const posters = p.posters.filter(Boolean).slice(0, 3) as string[];
+  const label = p.label.length > 64 ? p.label.slice(0, 62) + '…' : p.label;
+  const tilt = ['rotate(-6deg)', 'rotate(0deg)', 'rotate(6deg)'];
+  const drop = ['20px', '-20px', '20px'];
+  const posterRow = {
+    type: 'div', props: {
+      style: row({ alignItems: 'center', justifyContent: 'center', width: '640px', height: '630px', gap: '14px' }),
+      children: posters.map((src, i) => ({
+        type: 'img', props: { src, style: {
+          width: '188px', height: '282px', objectFit: 'cover', borderRadius: '14px',
+          transform: tilt[i] || 'rotate(0deg)', marginTop: drop[i] || '0px',
+          boxShadow: '0 18px 40px rgba(0,0,0,0.6)', border: '2px solid rgba(255,255,255,0.18)',
+        } },
+      })),
+    },
+  };
+  const left = {
+    type: 'div', props: {
+      style: col({ position: 'relative', justifyContent: 'center', width: '560px', height: '630px', padding: '0 0 0 64px' }),
+      children: [
+        txt(p.emoji, { fontSize: '64px' }),
+        { type: 'div', props: { style: row({ marginTop: '14px', maxWidth: '500px' }), children: [txt(label.toUpperCase(), { fontSize: '46px', fontWeight: 700, color: '#fff', lineHeight: '1.12' })] } },
+        p.count ? { type: 'div', props: { style: row({ marginTop: '22px' }), children: [
+          { type: 'div', props: { style: row({ padding: '8px 18px', borderRadius: '999px', background: accent }), children: [txt(`${p.count} FILMS`, { fontSize: '22px', fontWeight: 700, color: '#fff' })] } },
+        ] } } : { type: 'div', props: { style: { display: 'flex' } } },
+        { type: 'div', props: { style: row({ alignItems: 'center', gap: '12px', marginTop: '34px' }), children: [
+          txt('👑', { fontSize: '24px' }),
+          txt('TrendiMovies', { fontSize: '24px', fontWeight: 700, color: '#fff' }),
+          txt('Movie Guides', { fontSize: '18px', color: '#9ca3af', marginLeft: '10px' }),
+        ] } },
+      ],
+    },
+  };
+  return {
+    type: 'div', props: {
+      style: { display: 'flex', width: '1200px', height: '630px', fontFamily: 'Roboto', position: 'relative', overflow: 'hidden', background: `linear-gradient(135deg, ${accent}cc 0%, #14141c 55%, #0a0a0f 100%)` },
+      children: [left, posterRow],
+    },
+  };
+}
+
 // ── Digital releases template (poster collage + headline) ──────────────────────
 
 function digitalTemplate(p: {
@@ -436,6 +481,21 @@ export const GET: APIRoute = async ({ url }) => {
       node = eventTemplate({ name, subtitle, date, color, emoji, backdrop: backdropData });
     } else if (type === 'list') {
       node = listTemplate({ label, emoji, titles, color, backdrop: backdropData });
+    } else if (type === 'guide') {
+      const gp = await Promise.all(posters.slice(0, 3).map(async (path) => {
+        let d = await toDataUri(`${TMDB_IMG}/w342${path}`);
+        if (!d) {
+          try {
+            const res = await fetch(`${TMDB_IMG}/w342${path}`, { signal: AbortSignal.timeout(8000) });
+            if (res.ok) {
+              const buf = await res.arrayBuffer();
+              d = `data:${res.headers.get('content-type') || 'image/jpeg'};base64,${Buffer.from(buf).toString('base64')}`;
+            }
+          } catch { /* leave null */ }
+        }
+        return d;
+      }));
+      node = guideTemplate({ label, emoji, color, count: p.get('count') || '', posters: gp });
     } else if (type === 'digital') {
       // Fetch up to 5 posters in parallel for the collage backdrop. Retry once
       // (with a longer timeout) so a single slow TMDB fetch doesn't leave the
@@ -546,7 +606,7 @@ export const GET: APIRoute = async ({ url }) => {
     // cards (poster collage / list with backdrop) blow past that as PNG (~0.8–1MB),
     // so re-encode those to a compact JPEG (well under the cap). The plain gradient
     // default + the smaller movie/series/event cards keep their original PNG.
-    if (type === 'digital' || type === 'list' || type === 'review' || type === 'blog') {
+    if (type === 'digital' || type === 'guide' || type === 'list' || type === 'review' || type === 'blog') {
       const jpg = await sharp(png).jpeg({ quality: 78, mozjpeg: true }).toBuffer();
       return new Response(jpg, {
         status: 200,
