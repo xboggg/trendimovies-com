@@ -21,7 +21,7 @@ export const MORE_LIMIT = 30;
 
 /** Row order on the app home. `heading` = the h2 text on the website home page ('' = built from another source). */
 export const ROWS: Array<{ key: string; title: string; heading: string; seeAll: string }> = [
-  { key: 'newmovies', title: 'Newly Added Movies', heading: 'Newly Added Movies', seeAll: '/movies/latest' },
+  { key: 'newmovies', title: 'Newly Added Movies', heading: '', seeAll: '/movies/latest' },
   { key: 'popular', title: 'Popular Movies', heading: '', seeAll: '/movies/popular' },
   { key: 'newep', title: 'New Episodes This Week', heading: 'New Episodes This Week', seeAll: '/series/new-episodes' },
   { key: 'trending', title: 'Trending This Week', heading: '', seeAll: '/trending' },
@@ -227,6 +227,12 @@ async function tmdbMovieRow(endpoint: string): Promise<Card[]> {
   return out;
 }
 
+/** Newly Added Movies: the newest films that have files (our own database), 30 titles. Same list as the Movies tab, "Newest added". */
+async function newMoviesRow(): Promise<Card[]> {
+  const d: any = await browse('movies', { sort: 'newest', page: 1 } as any);
+  return ((d && d.items) || []).slice(0, MORE_LIMIT).map((c: Card) => ({ ...c, img: sized(c.img, 342) }));
+}
+
 /** Year printed on a poster. The website's cards do not carry it, so fill it from our own tables (one query per 150 titles). */
 async function fillYears(rows: Record<string, Card[]>, hero: HeroCard[]): Promise<void> {
   try {
@@ -271,6 +277,7 @@ async function build(): Promise<AppData> {
   }
   const [digital, reviews] = await Promise.all([digitalRows(today).catch(() => [] as Card[]), reviewRows().catch(() => [] as Review[])]);
   rows.digital = digital;
+  rows.newmovies = await newMoviesRow().catch(() => [] as Card[]);
   rows.popular = await tmdbMovieRow('/movie/popular').catch(() => [] as Card[]);
   rows.trending = await tmdbMovieRow('/trending/movie/week').catch(() => [] as Card[]);
   await topUp(rows);
