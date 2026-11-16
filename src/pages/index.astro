@@ -613,6 +613,18 @@ try {
       const j = Math.floor(_rand() * (i + 1));
       [_allGuides[i], _allGuides[j]] = [_allGuides[j], _allGuides[i]];
     }
+    // Seasonal guides go to the front while their season lasts
+    const _now = new Date();
+    const _md = (_now.getUTCMonth() + 1) * 100 + _now.getUTCDate();
+    const _seasonal: string[] = [];
+    if (_md >= 1120 && _md <= 1231) _seasonal.push('christmas-movies-to-watch-every-december');
+    if (_md >= 1010 && _md <= 1031) _seasonal.push('halloween-movies-for-spooky-season');
+    if (_md >= 201 && _md <= 214) _seasonal.push('date-night-movies', 'movies-that-make-you-believe-in-love');
+    if (_seasonal.length) {
+      const _front = _allGuides.filter((g: any) => _seasonal.includes(g.slug));
+      const _rest = _allGuides.filter((g: any) => !_seasonal.includes(g.slug));
+      _allGuides.splice(0, _allGuides.length, ..._front, ..._rest);
+    }
     movieGuides = _allGuides.slice(0, 6);
     await Promise.all(movieGuides.map(async (g: any) => {
       try {

@@ -13,7 +13,7 @@ async function getTopic() {
     const topics = await tRes.json();
     if (!topics.length) return null;
     const topic = topics[0];
-    const iRes = await fetch(`${POSTGREST_URL}/movie_topic_items?topic_id=eq.${topic.id}&order=position.asc&select=tmdb_id,title,year,blurb`);
+    const iRes = await fetch(`${POSTGREST_URL}/movie_topic_items?topic_id=eq.${topic.id}&order=position.asc&select=tmdb_id,title,year,blurb,poster_path`);
     topic.items = iRes.ok ? await iRes.json() : [];
     return topic;
   } catch (e) { return null; }
@@ -53,6 +53,7 @@ const items = topic.items.map((i: any) => {
     has_downloads: !!o.has_downloads,
     blurb: i.blurb || '',
     overview: i.blurb || '',
+    saved_poster: i.poster_path || null,
   };
 });
 // Need TMDB posters for items where we have no local override — fetch w342 path from owned, else build from TMDB tmdb path stored? We only have tmdb_id, so let the card use TMDB via tmdb poster path. Pull poster_path from TMDB for un-owned:
@@ -63,6 +64,18 @@ const ownedCount = items.filter((i: any) => i.has_downloads).length;
 const _ogTitles = items.slice(0, 4).map((i: any) => i.title).join('|');
 const _ogBackdrop = (Object.values(owned).find((m: any) => m.backdrop_path && !m.backdrop_path.startsWith('/images/')) as any)?.backdrop_path || '';
 const ogImage = `/api/og.png?type=list&label=${encodeURIComponent(topic.title)}&emoji=${encodeURIComponent(topic.emoji || '🎬')}&color=${encodeURIComponent(topic.color || '#e50914')}&backdrop=${encodeURIComponent(_ogBackdrop)}&titles=${encodeURIComponent(_ogTitles)}`;
+
+const firstAvail = items.findIndex((i: any) => i.has_downloads);
+const startItem = firstAvail >= 0 ? items[firstAvail] : null;
+const pageUrl = `https://trendimovies.com/guides/${topic.slug}`;
+const shareText = `${topic.title} - the full list on TrendiMovies`;
+const waLink = `https://wa.me/?text=${encodeURIComponent(shareText + '\n' + pageUrl)}`;
+const missingCount = items.length - ownedCount;
+function listPoster(it: any) {
+  const p = it.poster_path || it.saved_poster;
+  if (!p) return '/images/no-poster.svg';
+  return p.startsWith('/images/') ? p : `https://image.tmdb.org/t/p/w185${p}`;
+}
 
 function tmdbPoster(p: string | null) {
   if (!p) return null;
@@ -87,16 +100,34 @@ for (const it of items) {
           <h1 class="text-3xl sm:text-4xl md:text-5xl font-black leading-tight" style="color: var(--text-primary);">{topic.title}</h1>
           {topic.intro && <p class="mt-3 text-base sm:text-lg max-w-3xl leading-relaxed" style="color: var(--text-secondary);">{topic.intro}</p>}
           <p class="mt-3 text-xs" style="color: var(--text-muted);">{items.length} films · {ownedCount} available to watch now on TrendiMovies</p>
+          <div class="mt-4 flex flex-wrap items-center gap-2">
+            {startItem && (
+              <a href={`/movie/${startItem.tmdb_id}`} class="px-4 py-2.5 rounded-xl text-sm font-bold text-black inline-flex items-center gap-2" style={`background: linear-gradient(135deg, ${topic.color}, ${topic.color}bb);`}>▶ Start watching{firstAvail > 0 ? ` (from #${firstAvail + 1})` : ''}</a>
+            )}
+            <a href={waLink} target="_blank" rel="noopener" class="px-4 py-2.5 rounded-xl text-sm font-bold inline-flex items-center gap-2" style="background:#25D366;color:#06210f;">Share on WhatsApp</a>
+            <button type="button" id="guide-copy" class="px-4 py-2.5 rounded-xl text-sm font-semibold" style="background: var(--bg-card); color: var(--text-primary); border: 1px solid var(--border);" data-url={pageUrl}>Copy link</button>
+          </div>
         </div>
       </div>
     </div>
   </section>
 
-  <!-- Grid -->
-  <section class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-    <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 sm:gap-5">
+  <!-- Controls + films -->
+  <section class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8" id="guide-body" data-view="grid" data-filter="all">
+    <div class="flex flex-wrap items-center justify-between gap-3 mb-6">
+      <div class="flex flex-wrap items-center gap-2" role="group" aria-label="Show">
+        <button type="button" class="gd-chip" data-filter-btn="all" aria-pressed="true">All ({items.length})</button>
+        {ownedCount > 0 && <button type="button" class="gd-chip" data-filter-btn="have" aria-pressed="false">On TrendiMovies ({ownedCount})</button>}
+        {missingCount > 0 && ownedCount > 0 && <button type="button" class="gd-chip" data-filter-btn="miss" aria-pressed="false">Request ({missingCount})</button>}
+      </div>
+      <div class="flex items-center gap-2" role="group" aria-label="View">
+        <button type="button" class="gd-chip" data-view-btn="grid" aria-pressed="true">Grid</button>
+        <button type="button" class="gd-chip" data-view-btn="list" aria-pressed="false">List</button>
+      </div>
+    </div>
+    <div class="gd-grid grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 sm:gap-5">
       {items.map((item: any, idx: number) => (
-        <div class="relative">
+        <div class="relative" data-avail={item.has_downloads ? '1' : '0'}>
           <span class="absolute -top-2 -left-2 z-20 w-7 h-7 rounded-full flex items-center justify-center text-xs font-black shadow-lg" style={`background: ${topic.color}; color: #fff;`}>{idx + 1}</span>
           <MovieCard client:visible item={item} />
           {!item.has_downloads && (
@@ -104,6 +135,26 @@ for (const it of items) {
           )}
           {item.blurb && <p class="mt-2 text-xs leading-snug" style="color: var(--text-muted);">{item.blurb}</p>}
         </div>
+      ))}
+    </div>
+    <div class="gd-list flex flex-col gap-3">
+      {items.map((item: any, idx: number) => (
+        <a href={`/movie/${item.tmdb_id}`} data-avail={item.has_downloads ? '1' : '0'} class="flex gap-3 rounded-xl p-3" style="background-color: var(--bg-card); border: 1px solid var(--border);">
+          <div class="relative flex-shrink-0">
+            <img src={listPoster(item)} alt={item.title} width="64" height="96" loading="lazy" class="rounded-lg object-cover" style="width:64px;height:96px;" />
+            <span class="absolute -top-2 -left-2 w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-black" style={`background: ${topic.color}; color: #fff;`}>{idx + 1}</span>
+          </div>
+          <div class="min-w-0 flex-1">
+            <div class="flex flex-wrap items-center gap-2">
+              <h3 class="font-bold text-sm sm:text-base" style="color: var(--text-primary);">{item.title}</h3>
+              {item.year && <span class="text-xs" style="color: var(--text-muted);">{item.year}</span>}
+              {item.has_downloads
+                ? <span class="px-2 py-0.5 rounded text-[10px] font-bold" style="background: rgba(34,197,94,0.15); color: #22c55e;">On TrendiMovies</span>
+                : <span class="px-2 py-0.5 rounded text-[10px] font-bold" style="background: rgba(251,191,36,0.12); color: #fbbf24;">Request</span>}
+            </div>
+            {item.blurb && <p class="mt-1 text-sm leading-snug" style="color: var(--text-secondary);">{item.blurb}</p>}
+          </div>
+        </a>
       ))}
     </div>
   </section>
@@ -114,9 +165,44 @@ for (const it of items) {
       <div class="absolute inset-0 opacity-25 pointer-events-none" style={`background: radial-gradient(ellipse at 30% 50%, ${topic.color}, transparent 60%);`}></div>
       <div class="relative">
         <h2 class="text-xl sm:text-2xl font-black text-white mb-2">More Movie Guides</h2>
-        <p class="text-sm mb-5" style="color: var(--text-secondary);">Hand-picked lists for every mood and era.</p>
+        <p class="text-sm mb-5" style="color: var(--text-secondary);">Fresh lists every day: movies to cry to, laugh at, binge and never forget.</p>
         <a href="/guides" class="px-6 py-3 rounded-xl font-bold text-black inline-block" style={`background: linear-gradient(135deg, ${topic.color}, ${topic.color}aa);`}>Browse All Guides →</a>
       </div>
     </div>
   </section>
 </BaseLayout>
+
+<style is:global>
+  .gd-chip { padding: 0.45rem 0.9rem; border-radius: 9999px; font-size: 0.8rem; font-weight: 600; background: var(--bg-card); color: var(--text-secondary); border: 1px solid var(--border); cursor: pointer; }
+  .gd-chip[aria-pressed="true"] { background: #e50914; color: #fff; border-color: #e50914; }
+  #guide-body[data-view="grid"] .gd-list { display: none; }
+  #guide-body[data-view="list"] .gd-grid { display: none; }
+  #guide-body[data-filter="have"] [data-avail="0"] { display: none; }
+  #guide-body[data-filter="miss"] [data-avail="1"] { display: none; }
+</style>
+
+<script>
+  const KEY = 'tm-listing-view';
+  const body = document.getElementById('guide-body');
+  function sync() {
+    if (!body) return;
+    document.querySelectorAll<HTMLElement>('[data-filter-btn]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.filterBtn === body.dataset.filter)));
+    document.querySelectorAll<HTMLElement>('[data-view-btn]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.viewBtn === body.dataset.view)));
+  }
+  if (body) {
+    try { if (localStorage.getItem(KEY) === 'list') body.dataset.view = 'list'; } catch (e) {}
+    sync();
+    document.querySelectorAll<HTMLElement>('[data-filter-btn]').forEach((b) => b.addEventListener('click', () => { body.dataset.filter = b.dataset.filterBtn || 'all'; sync(); }));
+    document.querySelectorAll<HTMLElement>('[data-view-btn]').forEach((b) => b.addEventListener('click', () => {
+      const m = b.dataset.viewBtn === 'list' ? 'list' : 'grid';
+      body.dataset.view = m; sync();
+      try { localStorage.setItem(KEY, m); window.dispatchEvent(new CustomEvent('tm-listing-view', { detail: m })); } catch (e) {}
+    }));
+  }
+  const copyBtn = document.getElementById('guide-copy');
+  if (copyBtn) copyBtn.addEventListener('click', async () => {
+    const url = copyBtn.dataset.url || location.href;
+    try { await navigator.clipboard.writeText(url); copyBtn.textContent = 'Copied!'; } catch (e) { window.prompt('Copy this link:', url); }
+    setTimeout(() => { copyBtn.textContent = 'Copy link'; }, 2000);
+  });
+</script>
