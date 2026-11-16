@@ -400,7 +400,20 @@ const ogUrl = new URL(Astro.url.pathname + Astro.url.search, Astro.site || 'http
   <!-- Adsterra Social Bar -- skipped on /admin and /api so ads never show in the
        admin panel or leak into API responses. -->
   {!Astro.url.pathname.startsWith('/admin') && !Astro.url.pathname.startsWith('/api') && (
-    <script is:inline src="https://pl21735685.effectivecpmnetwork.com/52/ac/e9/52ace93d1cfd04911005b777950ab266.js"></script>
+    <script is:inline>
+      /* Loaded AFTER the page has finished, so a slow or blocked ad network can never hold up the page
+         (tabs, menus, players). Same ad script as before, same pages. 2026-11-16 */
+      (function () {
+        function addAd() {
+          var s = document.createElement('script');
+          s.src = 'https://pl21735685.effectivecpmnetwork.com/52/ac/e9/52ace93d1cfd04911005b777950ab266.js';
+          s.async = true;
+          document.body.appendChild(s);
+        }
+        if (document.readyState === 'complete') { setTimeout(addAd, 300); }
+        else { window.addEventListener('load', function () { setTimeout(addAd, 300); }); }
+      })();
+    </script>
   )}
 
   <!-- Telegram Mini App bridge: does nothing unless the page is opened from inside Telegram -->
