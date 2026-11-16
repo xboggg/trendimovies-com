@@ -601,9 +601,19 @@ const kDramaItems = (kDramaMovies?.results || []).slice(0, 15).map(transformMovi
 // published topics + their top posters for a cinematic collage card.
 let movieGuides: any[] = [];
 try {
-  const _gr = await fetch(`${POSTGREST_URL}/movie_topics?is_published=eq.true&order=sort_order.asc&limit=6&select=id,slug,title,intro,emoji,color`);
+  const _gr = await fetch(`${POSTGREST_URL}/movie_topics?is_published=eq.true&order=sort_order.asc&select=id,slug,title,intro,emoji,color`);
   if (_gr.ok) {
-    movieGuides = await _gr.json();
+    const _allGuides: any[] = await _gr.json();
+    // Show a different 6 guides each day: shuffle with a seed made from today's date.
+    const _day = new Date().toISOString().slice(0, 10);
+    let _seed = 0;
+    for (const ch of _day) _seed = (_seed * 31 + ch.charCodeAt(0)) >>> 0;
+    const _rand = () => { _seed = (_seed * 1664525 + 1013904223) >>> 0; return _seed / 4294967296; };
+    for (let i = _allGuides.length - 1; i > 0; i--) {
+      const j = Math.floor(_rand() * (i + 1));
+      [_allGuides[i], _allGuides[j]] = [_allGuides[j], _allGuides[i]];
+    }
+    movieGuides = _allGuides.slice(0, 6);
     await Promise.all(movieGuides.map(async (g: any) => {
       try {
         const ir = await fetch(`${POSTGREST_URL}/movie_topic_items?topic_id=eq.${g.id}&order=position.asc&limit=4&select=poster_path`);
@@ -878,7 +888,7 @@ try {
         </div>
         <a href="/guides" class="text-sm font-medium text-purple-400 hover:text-purple-300 transition-colors">See All →</a>
       </div>
-      <p class="text-sm mb-6 -mt-2" style="color: var(--text-muted);">Hand-picked lists for every mood and era.</p>
+      <p class="text-sm mb-6 -mt-2" style="color: var(--text-muted);">Fresh lists every day: movies to cry to, laugh at, binge and never forget.</p>
       <div class="vinyl-grid">
         <div class="vinyl-track">
           {movieGuides.map((g: any) => (
