@@ -1,6 +1,6 @@
 /**
  * /api/app/more?row=<key>  -  the FULL list behind one row of the Telegram Mini App home (the "More" button).
- * Keys: trending, newmovies, newep, tvtrending, action, digital, reviews. Same data and cache as /api/app/home. At most 30 titles.
+ * Keys: newmovies, popular, newep, trending, tvtrending, action, digital, reviews. Same data and cache as /api/app/home. At most 30 titles.
  */
 import type { APIRoute } from 'astro';
 import { getAppData, ROWS, REVIEWS_META, MORE_LIMIT } from '../../../lib/appData';

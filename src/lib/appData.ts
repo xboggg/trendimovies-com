@@ -21,9 +21,10 @@ export const MORE_LIMIT = 30;
 
 /** Row order on the app home. `heading` = the h2 text on the website home page ('' = built from another source). */
 export const ROWS: Array<{ key: string; title: string; heading: string; seeAll: string }> = [
-  { key: 'trending', title: 'Trending This Week', heading: 'Trending This Week', seeAll: '/trending' },
   { key: 'newmovies', title: 'Newly Added Movies', heading: 'Newly Added Movies', seeAll: '/movies/latest' },
+  { key: 'popular', title: 'Popular Movies', heading: '', seeAll: '/movies/popular' },
   { key: 'newep', title: 'New Episodes This Week', heading: 'New Episodes This Week', seeAll: '/series/new-episodes' },
+  { key: 'trending', title: 'Trending This Week', heading: '', seeAll: '/trending' },
   { key: 'tvtrending', title: 'Trending TV Series', heading: 'Trending TV Series', seeAll: '/series/trending' },
   { key: 'action', title: 'Non-Stop Action', heading: 'Non-Stop Action', seeAll: '/genre/action' },
   { key: 'digital', title: 'Digital Releases', heading: '', seeAll: '/digital-releases' },
@@ -208,6 +209,24 @@ async function topUp(rows: Record<string, Card[]>): Promise<void> {
   }
 }
 
+/** A movie row straight from TMDB (30 titles): Popular Movies = /movie/popular (the website's /movies/popular source), Trending This Week = /trending/movie/week. */
+async function tmdbMovieRow(endpoint: string): Promise<Card[]> {
+  const out: Card[] = [];
+  const seen = new Set<string>();
+  for (const page of [1, 2]) {
+    const data: any = await fetchFromTMDB<any>(endpoint, { page: String(page) });
+    for (const r of (data && data.results) || []) {
+      const id = Number(r.id);
+      if (!id || !r.title || !r.poster_path || seen.has(String(id))) continue;
+      seen.add(String(id));
+      const yr = parseInt(String(r.release_date || '').slice(0, 4), 10);
+      out.push({ t: String(r.title), img: `https://image.tmdb.org/t/p/w342${r.poster_path}`, href: `/movie/${id}`, type: 'movie', id, y: yr > 1800 ? yr : undefined });
+      if (out.length >= MORE_LIMIT) return out;
+    }
+  }
+  return out;
+}
+
 /** Year printed on a poster. The website's cards do not carry it, so fill it from our own tables (one query per 150 titles). */
 async function fillYears(rows: Record<string, Card[]>, hero: HeroCard[]): Promise<void> {
   try {
@@ -252,6 +271,8 @@ async function build(): Promise<AppData> {
   }
   const [digital, reviews] = await Promise.all([digitalRows(today).catch(() => [] as Card[]), reviewRows().catch(() => [] as Review[])]);
   rows.digital = digital;
+  rows.popular = await tmdbMovieRow('/movie/popular').catch(() => [] as Card[]);
+  rows.trending = await tmdbMovieRow('/trending/movie/week').catch(() => [] as Card[]);
   await topUp(rows);
   const total = Object.values(rows).reduce((n, r) => n + r.length, 0);
   if (total === 0) throw new Error('home page markup changed: no cards parsed');
