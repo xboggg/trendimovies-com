@@ -5,6 +5,7 @@ import { readFileSync } from 'node:fs';
 
 type Entry = {
   rank: number;
+  box_office_pending?: boolean;
   title: string;
   imdb: number | null;
   rating: string;
@@ -210,6 +211,13 @@ function movieHref(m: Entry): string {
             {!m.in_db && (
               <div class="absolute top-2 right-2 px-2 py-0.5 rounded-md text-[10px] font-bold bg-blue-600 text-white shadow-lg">
                 REQUEST
+              </div>
+            )}
+
+            <!-- No box-office figure on TMDB (streaming film or too new) -->
+            {m.box_office_pending && (
+              <div class="absolute top-10 left-2 px-1.5 py-0.5 rounded text-[9px] font-bold bg-black/80 text-gray-300 border border-white/15">
+                NO BOX OFFICE DATA
               </div>
             )}
 

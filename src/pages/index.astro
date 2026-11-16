@@ -664,7 +664,12 @@ const oscarMovies = oscarResults.filter((m): m is NonNullable<typeof m> => m !==
 
 // Top Movies (current year) - sourced from curated list shipped in JSON
 const currentYear = new Date().getFullYear();
-const _topMoviesYear = topMoviesData.by_year[String(currentYear)] || topMoviesData.by_year[String(topMoviesData.years[0])] || [];
+let _topMoviesYear: any[] = topMoviesData.by_year[String(currentYear)] || topMoviesData.by_year[String(topMoviesData.years[0])] || [];
+// Same daily list the Top Movies page uses (refresh_top_movies_2026.py). If the file is missing or too short, the saved list above stays.
+try {
+  const _fresh = JSON.parse((await import('node:fs')).readFileSync('/var/lib/trendimovies/top_movies_2026.json', 'utf-8'));
+  if (currentYear === 2026 && Array.isArray(_fresh.entries) && _fresh.entries.length >= 30) _topMoviesYear = _fresh.entries;
+} catch (_) { /* keep the saved list */ }
 // Build PostgREST overlay so the homepage hero links to /movie/{slug} when we own the file
 const _topTmdbIds = _topMoviesYear.slice(0, 20).map((m: any) => m.tmdb_id).filter((x: any): x is number => typeof x === 'number');
 const _topLiveMap = new Map<number, { id: number; slug: string | null }>();
