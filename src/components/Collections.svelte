@@ -38,17 +38,38 @@
   function release() { clearTimeout(resumeTimer); resumeTimer = setTimeout(() => (paused = false), 2500); }
 
   // pointer drag-to-scroll (desktop mouse); touch scroll is native
-  let dragging = false, startX = 0, startScroll = 0;
+  // A plain click must reach the card link. The old code captured the pointer on
+  // mouse-down, which sent the click to the track instead of the link, so the cards
+  // could not be opened with a mouse. Now the pointer is captured only once the mouse
+  // has really moved (a drag), and the click that ends a drag is swallowed.
+  let pressed = false, dragging = false, startX = 0, startScroll = 0, swallow = false, capId = -1;
+  const DRAG_PX = 6;
   function down(e: PointerEvent) {
-    dragging = true; hold();
+    if (e.pointerType !== 'mouse' || e.button !== 0) return;      // touch scrolls natively
+    pressed = true; dragging = false; swallow = false;
     startX = e.clientX; startScroll = track.scrollLeft;
-    track.setPointerCapture?.(e.pointerId);
+    hold();
   }
   function move(e: PointerEvent) {
-    if (!dragging) return;
-    track.scrollLeft = startScroll - (e.clientX - startX);
+    if (!pressed) return;
+    const dx = e.clientX - startX;
+    if (!dragging && Math.abs(dx) > DRAG_PX) {
+      dragging = true; capId = e.pointerId;
+      try { track.setPointerCapture?.(e.pointerId); } catch (err) {}
+    }
+    if (dragging) track.scrollLeft = startScroll - dx;
   }
-  function up() { dragging = false; release(); }
+  function up(e?: PointerEvent) {
+    if (dragging) {
+      swallow = true;                                             // the click after a drag must not open a card
+      setTimeout(() => { swallow = false; }, 120);
+      try { if (capId >= 0) track.releasePointerCapture?.(capId); } catch (err) {}
+    }
+    pressed = false; dragging = false; capId = -1; release();
+  }
+  function onClick(e: MouseEvent) {
+    if (swallow) { e.preventDefault(); e.stopPropagation(); }
+  }
 
   onMount(() => { raf = requestAnimationFrame(tick); });
   onDestroy(() => {
@@ -81,6 +102,7 @@
       on:pointermove={move}
       on:pointerup={up}
       on:pointercancel={up}
+      on:click|capture={onClick}
     >
       {#each loop as collection, i}
         <a href={collection.link} class="collection-card group" aria-hidden={i >= collections.length ? 'true' : undefined} draggable="false">
