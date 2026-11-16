@@ -600,6 +600,7 @@ const kDramaItems = (kDramaMovies?.results || []).slice(0, 15).map(transformMovi
 // Movie Guides — curated topic lists (replaces Anime/Korean rows). Pulls a few
 // published topics + their top posters for a cinematic collage card.
 let movieGuides: any[] = [];
+let guideTotal = 0;
 try {
   const _gr = await fetch(`${POSTGREST_URL}/movie_topics?is_published=eq.true&order=sort_order.asc&select=id,slug,title,intro,emoji,color`);
   if (_gr.ok) {
@@ -625,6 +626,7 @@ try {
       const _rest = _allGuides.filter((g: any) => !_seasonal.includes(g.slug));
       _allGuides.splice(0, _allGuides.length, ..._front, ..._rest);
     }
+    guideTotal = _allGuides.length;
     movieGuides = _allGuides.slice(0, 6);
     await Promise.all(movieGuides.map(async (g: any) => {
       try {
@@ -898,7 +900,7 @@ try {
           <span class="text-2xl">🎬</span>
           <h2 class="text-lg sm:text-2xl md:text-3xl font-extrabold" style="color: var(--text-primary);">Movie Guides</h2>
         </div>
-        <a href="/guides" class="text-sm font-medium text-purple-400 hover:text-purple-300 transition-colors">See All →</a>
+        <a href="/guides" class="text-sm font-semibold text-purple-400 hover:text-purple-300 transition-colors px-3 py-2 -mr-3 relative z-10">See All {guideTotal > 6 ? `${guideTotal} guides` : ""} →</a>
       </div>
       <p class="text-sm mb-6 -mt-2" style="color: var(--text-muted);">Fresh lists every day: movies to cry to, laugh at, binge and never forget.</p>
       <div class="vinyl-grid">
@@ -913,6 +915,12 @@ try {
               <p class="vinyl-name"><span class="vinyl-emoji">{g.emoji}</span> {g.title}</p>
             </a>
           ))}
+          <a href="/guides" class="vinyl-card group vinyl-more" style="--c: #a855f7;">
+            <div class="vinyl-disc vinyl-more-disc">
+              <span class="vinyl-more-text">All<br />{guideTotal || ''}<br />guides</span>
+            </div>
+            <p class="vinyl-name">See all →</p>
+          </a>
           {/* duplicate set so the mobile auto-slide loops seamlessly (hidden from screen readers) */}
           {movieGuides.map((g: any) => (
             <a href={`/guides/${g.slug}`} class="vinyl-card group vinyl-dupe" style={`--c: ${g.color};`} aria-hidden="true" tabindex="-1">
@@ -1002,6 +1010,9 @@ try {
   }
   .vinyl-card:hover .vinyl-name { color: #fff; }
   .vinyl-emoji { font-size: 14px; }
+  .vinyl-more-disc { display: flex; align-items: center; justify-content: center; animation: none; background: radial-gradient(circle at 50% 50%, #7e22ce 0 55%, #3b0764 56%); }
+  .vinyl-more-text { color: #fff; font: 800 15px/1.2 system-ui; text-align: center; position: relative; z-index: 2; }
+  @media (min-width: 640px) { .vinyl-more { display: none; } }
 
   @media (prefers-reduced-motion: reduce) {
     .vinyl-disc { animation: none; }
