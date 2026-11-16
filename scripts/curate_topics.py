@@ -49,7 +49,8 @@ def _read_env(path, key):
         pass
     return ""
 
-ANTHROPIC_KEY = _read_env("/opt/tech-news/.env", "ANTHROPIC_API_KEY")
+ANTHROPIC_KEY = (_read_env("/etc/trendimovies/topics.env", "ANTHROPIC_API_KEY")
+                 or _read_env("/opt/tech-news/.env", "ANTHROPIC_API_KEY"))
 TMDB_KEY      = _read_env("/var/www/trendimovies/.env", "TMDB_API_KEY")
 CLAUDE_MODEL  = "claude-sonnet-4-6"
 TMDB          = "https://api.themoviedb.org/3"
@@ -57,7 +58,6 @@ DB_DSN        = "dbname=trendimovies user=postgres"
 
 # ── built-in topic set (legacy weekly run) ────────────────────────────────────
 TOPICS = [
-    # AI-curated mood topics
     {"slug": "movies-that-make-you-cry", "title": "15 Movies That Will Make You Cry",
      "category": "mood", "emoji": "😢", "color": "#7c3aed", "source": "ai", "sort_order": 10,
      "prompt": "the most emotionally devastating, tear-jerking movies that reliably make viewers cry — a mix of acclaimed dramas, tragic romances and true stories"},
@@ -67,7 +67,6 @@ TOPICS = [
     {"slug": "mind-bending-movies", "title": "18 Mind-Bending Movies With Crazy Twists",
      "category": "mood", "emoji": "🤯", "color": "#0d9488", "source": "ai", "sort_order": 30,
      "prompt": "the most mind-bending, reality-questioning movies with shocking plot twists and endings that make you rewatch — psychological thrillers and sci-fi"},
-    # filter topics
     {"slug": "best-horror-movies-80s", "title": "Best Horror Movies of the 80s",
      "category": "decade", "emoji": "🔪", "color": "#dc2626", "source": "filter", "sort_order": 40,
      "filter": {"with_genres": "27", "primary_release_date.gte": "1980-01-01",
@@ -76,7 +75,6 @@ TOPICS = [
      "category": "decade", "emoji": "🚀", "color": "#2563eb", "source": "filter", "sort_order": 50,
      "filter": {"with_genres": "878", "primary_release_date.gte": "2010-01-01",
                 "primary_release_date.lte": "2019-12-31", "sort_by": "vote_average.desc", "vote_count.gte": "500"}},
-    # semi-auto hidden gems: well-rated but low popularity
     {"slug": "hidden-gem-thrillers", "title": "Hidden Gem Thrillers You Probably Missed",
      "category": "hidden", "emoji": "🕵️", "color": "#475569", "source": "filter", "sort_order": 60,
      "filter": {"with_genres": "53", "sort_by": "vote_average.desc", "vote_count.gte": "150",
@@ -231,6 +229,93 @@ def curate(topic):
         intro, items = curate_ai(topic)
     return engine, intro, items
 
+# ── live recipes: guides that rebuild themselves from today's date ───────────
+# {Y} = this year, {TODAY} = today, {D30} = 30 days ago, {P90} = 90 days ahead.
+import datetime
+
+LIVE_RECIPES = {
+    "trending-movies-this-week": {
+        "title": "Trending Movies This Week", "emoji": "🔥", "color": "#ef4444", "sort_order": 1,
+        "intro": "The films the whole world is watching this week. This list updates every day.",
+        "list": "trending/movie/week"},
+    "best-movies-of-the-year": {
+        "title": "Best Movies of {Y}", "emoji": "🏆", "color": "#eab308", "sort_order": 2,
+        "intro": "The highest-rated films of {Y} so far, ranked by what audiences really scored them. It updates every day.",
+        "discover": {"primary_release_year": "{Y}", "sort_by": "vote_average.desc", "vote_count.gte": "900"}},
+    "most-watched-on-trendimovies": {
+        "title": "Most Watched on TrendiMovies", "emoji": "👀", "color": "#06b6d4", "sort_order": 3,
+        "intro": "The films our own viewers are watching the most right now. Real numbers from TrendiMovies, updated every day.",
+        "ours": True},
+    "new-movies-this-month": {
+        "title": "New Movies This Month", "emoji": "🆕", "color": "#22c55e", "sort_order": 5,
+        "intro": "Everything fresh that landed in the last 30 days, the most talked-about first.",
+        "discover": {"primary_release_date.gte": "{D30}", "primary_release_date.lte": "{TODAY}",
+                     "sort_by": "popularity.desc", "vote_count.gte": "20"}},
+    "now-playing-in-cinemas": {
+        "title": "Now Playing in Cinemas", "emoji": "🎟️", "color": "#f59e0b", "sort_order": 7,
+        "intro": "On the big screen right now. Find out what to watch this weekend.",
+        "list": "movie/now_playing"},
+    "coming-soon-to-cinemas": {
+        "title": "Coming Soon to Cinemas", "emoji": "📅", "color": "#a855f7", "sort_order": 8,
+        "intro": "The most-awaited films landing in the next three months.",
+        "discover": {"primary_release_date.gte": "{TODAY}", "primary_release_date.lte": "{P90}",
+                     "sort_by": "popularity.desc"}},
+    "hidden-gems-of-the-year": {
+        "title": "Hidden Gems of {Y}", "emoji": "💎", "color": "#14b8a6", "sort_order": 9,
+        "intro": "Great films from {Y} that did not get much noise. Highly rated, still under the radar.",
+        "discover": {"primary_release_year": "{Y}", "sort_by": "vote_average.desc",
+                     "vote_count.gte": "80", "vote_count.lte": "1500", "vote_average.gte": "6.8"}},
+}
+
+
+def _macros(text):
+    t = datetime.date.today()
+    return (text.replace("{Y}", str(t.year)).replace("{TODAY}", t.isoformat())
+                .replace("{D30}", (t - datetime.timedelta(days=30)).isoformat())
+                .replace("{P90}", (t + datetime.timedelta(days=90)).isoformat()))
+
+
+def _ours_items():
+    """Most-viewed films on our own site (materialised view), with a real TMDB poster."""
+    conn = psycopg2.connect(DB_DSN); cur = conn.cursor()
+    cur.execute("SELECT tmdb_id, title, year FROM mv_top_movies ORDER BY view_count DESC LIMIT 40")
+    rows = cur.fetchall(); cur.close(); conn.close()
+    items = []
+    for (tid, title, year) in rows:
+        try:
+            m = requests.get(f"{TMDB}/movie/{tid}", params={"api_key": TMDB_KEY}, timeout=12).json()
+        except Exception:
+            continue
+        if not m.get("poster_path"):
+            continue
+        items.append(_item_from_tmdb(m))
+        if len(items) >= 20:
+            break
+    return items
+
+
+def curate_recipe(slug):
+    r = LIVE_RECIPES[slug]
+    if r.get("ours"):
+        items = _ours_items()
+    else:
+        if r.get("list"):
+            rows = tmdb_list(r["list"], pages=2)
+        else:
+            rows = tmdb_discover({k: _macros(v) for k, v in r["discover"].items()})
+        items, seen = [], set()
+        for m in rows:
+            if not m.get("poster_path") or m["id"] in seen:
+                continue
+            seen.add(m["id"])
+            items.append(_item_from_tmdb(m))
+            if len(items) >= 20:
+                break
+    topic = {"slug": slug, "title": _macros(r["title"]), "category": "live", "emoji": r["emoji"],
+             "color": r["color"], "sort_order": r["sort_order"]}
+    return topic, _macros(r["intro"]), items
+
+
 # ── slug helper ───────────────────────────────────────────────────────────────
 def slugify(title):
     s = re.sub(r"[^a-z0-9\s-]", "", (title or "").lower())
@@ -303,15 +388,30 @@ def mode_refresh_live():
     """Weekly cron: re-curate every published topic whose source is 'live'."""
     conn = psycopg2.connect(DB_DSN); conn.autocommit = False
     cur = conn.cursor()
-    # intro must be selected too -- curate_live() only ever passes through
-    # whatever intro is already on the topic (it never regenerates one), so
-    # omitting it here made every weekly refresh blank the stored intro text.
-    cur.execute("SELECT slug, title, category, emoji, color, source, sort_order, intro FROM movie_topics WHERE source='live' AND is_published=true")
-    rows = cur.fetchall()
     done = 0
-    for (slug, title, category, emoji, color, source, sort_order, intro) in rows:
+    for slug in LIVE_RECIPES:
+        try:
+            topic, intro, items = curate_recipe(slug)
+            if len(items) < 6:
+                raise RuntimeError("only %d films found, keeping the old list" % len(items))
+            # keep an unpublished/hidden recipe hidden
+            cur.execute("SELECT is_published, sort_order FROM movie_topics WHERE slug=%s", (slug,))
+            row = cur.fetchone()
+            topic["is_published"] = row[0] if row else True
+            if row and row[1] is not None:
+                topic["sort_order"] = row[1]  # keep any order set in the admin
+            upsert_topic(cur, topic, "live", intro, items)
+            conn.commit()
+            done += 1
+            print(f"  ✓ refreshed {slug}: {len(items)} films")
+        except Exception as e:
+            conn.rollback()
+            print(f"  ✗ {slug}: {e}")
+    cur.execute("SELECT slug, title, category, emoji, color, source, sort_order FROM movie_topics WHERE source='live' AND is_published=true")
+    rows = [r for r in cur.fetchall() if r[0] not in LIVE_RECIPES]
+    for (slug, title, category, emoji, color, source, sort_order) in rows:
         topic = {"slug": slug, "title": title, "category": category, "emoji": emoji,
-                 "color": color, "source": "live", "sort_order": sort_order, "intro": intro}
+                 "color": color, "source": "live", "sort_order": sort_order}
         try:
             engine, intro, items = curate(topic)
             upsert_topic(cur, topic, "live", intro, items)
