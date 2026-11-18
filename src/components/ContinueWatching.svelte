@@ -15,6 +15,9 @@
     episode_info?: string;
   }
 
+  // 'movie' or 'series' shows only that kind (used on the Movies and Series pages); empty shows everything (homepage)
+  export let only: '' | 'movie' | 'series' = '';
+
   const STORAGE_KEY = 'tm_continue_watching';
 
   let items: WatchItem[] = [];
@@ -55,7 +58,7 @@
     return `${days}d ago`;
   }
 
-  $: visibleItems = items.filter(i => !dismissed.has(i.id));
+  $: visibleItems = items.filter(i => !dismissed.has(i.id) && (!only || i.type === only));
 
   let scrollContainer: HTMLDivElement;
 
@@ -71,7 +74,7 @@
     <div class="flex items-center justify-between mb-4">
       <div class="flex items-center gap-2 sm:gap-3">
         <h2 class="text-lg sm:text-2xl md:text-3xl font-extrabold" style="color: var(--text-primary);">
-          Jump Back In
+          Continue Watching
         </h2>
         <span class="item-count">{visibleItems.length}</span>
       </div>

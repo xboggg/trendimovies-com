@@ -3,6 +3,7 @@ import BaseLayout from '../layouts/BaseLayout.astro';
 import MovieCard from '../components/MovieCard.svelte';
 import ListingView from '../components/ListingView.svelte';
 import ContentRow from '../components/ContentRow.svelte';
+import ContinueWatching from '../components/ContinueWatching.svelte';
 import { discoverTV, getTVGenres } from '../lib/tmdb';
 
 // Get query params
@@ -84,6 +85,7 @@ function transformToItem(show: any) {
   description="Browse all TV series available for streaming"
   image="/images/og-default.jpg"
 >
+  {page === 1 && <ContinueWatching client:load only="series" />}
   <!-- Ongoing Series Section (only on first page without filters) -->
   {page === 1 && !genre && !year && ongoingSeries.length > 0 && (
     <ContentRow
