@@ -3,6 +3,7 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
 import MovieJsonLd from '../../components/MovieJsonLd.astro';
 import Ratings from '../../components/Ratings.svelte';
 import StreamSheet from '../../components/StreamSheet.svelte';
+import { isTakenDown } from '../../data/takedowns';
 import TrailerSheet from '../../components/TrailerSheet.svelte';
 import { lookupSpecs } from '../../lib/file-specs';
 import { getCollection } from '../../lib/collection';
@@ -271,6 +272,7 @@ const similar = (tmdbData?.similar?.results || []).slice(0, 12).map((m: any) => 
 
 // Build OG description for WhatsApp/social sharing - Title (Year) and Synopsis only
 const ogYear = movie.year ? `(${movie.year})` : '';
+const takenDown = isTakenDown(movie.tmdb_id);     // reported by a rights holder: no Download, no Stream
 const ogSynopsis = movie.overview || `Watch ${movie.title} online for free in HD quality.`;
 
 // Only synopsis - no rating or genres
@@ -358,13 +360,21 @@ const ogTitle = `${movie.title} ${ogYear}`.trim();
         <div class="side">
           <img class="pst-big" src={getPosterUrl(movie.poster_path)} alt="" width="500" height="750" loading="lazy" />
           <div class="cta">
-            <button type="button" class="btn amber" data-go="download">Download</button>
-            <button type="button" class="btn mint" data-go="stream">Stream</button>
+            {takenDown ? (
+              <p style="margin:0 0 10px;padding:12px 14px;border-radius:10px;background:rgba(255,255,255,.06);font-size:13px;line-height:1.4;">
+                Not available. This title was removed after a copyright notice.
+              </p>
+            ) : (
+              <>
+                <button type="button" class="btn amber" data-go="download">Download</button>
+                <button type="button" class="btn mint" data-go="stream">Stream</button>
+              </>
+            )}
             {movie.trailer_key && (
               <button type="button" class="btn ghost" data-go="trailer">&#9654; Trailer</button>
             )}
           </div>
-          {subtitleLinks && subtitleLinks.length > 0 && (
+          {!takenDown && subtitleLinks && subtitleLinks.length > 0 && (
             <button type="button" class="subrow" data-go="download">
               <span>Subtitles <small>({subtitleLinks.length} {subtitleLinks.length === 1 ? 'file' : 'files'})</small></span>
               <span aria-hidden="true">›</span>
@@ -387,7 +397,7 @@ const ogTitle = `${movie.title} ${ogYear}`.trim();
                 <button type="button" role="tab" id="tab-cast" aria-controls="panel-cast" aria-selected="false" tabindex="-1" data-tab="cast">Cast</button>
               )}
             </div>
-            <button type="button" class="minidl" id="minidl" data-go="download" tabindex="-1" aria-hidden="true">Download</button>
+            {!takenDown && <button type="button" class="minidl" id="minidl" data-go="download" tabindex="-1" aria-hidden="true">Download</button>}
           </div>
 
           <div class="panels" id="panels">
@@ -532,6 +542,7 @@ const ogTitle = `${movie.title} ${ogYear}`.trim();
       </div>
     </section>
 
+    {!takenDown && (<>
     <DownloadSheet
       client:load
       links={downloadLinksWithSpecs}
@@ -546,6 +557,7 @@ const ogTitle = `${movie.title} ${ogYear}`.trim();
       releaseDate={movie.release_date}
       title={movie.title}
     />
+    </>)}
     {movie.trailer_key && (
       <TrailerSheet client:load videoKey={movie.trailer_key} title={movie.title} />
     )}
