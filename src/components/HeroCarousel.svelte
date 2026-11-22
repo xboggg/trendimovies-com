@@ -23,6 +23,23 @@
   export let featured: TrendingItem | null = null;
   export let trending: TrendingItem[] = [];
 
+  // "Where to Watch" pop-up: streaming / rent / buy options for the visitor's country (from /api/watch)
+  let wtwOpen = false;
+  let wtwLoading = false;
+  let wtwError = false;
+  let wtwItem: TrendingItem | null = null;
+  let wtwData: any = null;
+  async function openWatch(item: TrendingItem) {
+    wtwItem = item; wtwOpen = true; wtwLoading = true; wtwError = false; wtwData = null;
+    try {
+      const r = await fetch(`/api/watch?type=${item.type === 'movie' ? 'movie' : 'tv'}&id=${item.id}`);
+      const d = await r.json();
+      if (d && !d.error) wtwData = d; else wtwError = true;
+    } catch (e) { wtwError = true; }
+    wtwLoading = false;
+  }
+  function closeWatch() { wtwOpen = false; }
+
   let currentIndex = 0;
   let autoSlideInterval: ReturnType<typeof setInterval>;
   let isTransitioning = false;
@@ -268,11 +285,11 @@
 
             <!-- Action Buttons -->
             <div class="flex flex-wrap gap-2 md:gap-4">
-              <a href={getHref(currentItem)} class="btn-primary">
+              <button type="button" class="btn-primary" on:click={() => openWatch(currentItem)}>
                 <Play size={18} fill="white" class="md:w-[22px] md:h-[22px]" />
                 <span class="hidden sm:inline">Where to Watch</span>
-                <span class="sm:hidden">Details</span>
-              </a>
+                <span class="sm:hidden">Watch</span>
+              </button>
               <a href={getHref(currentItem)} class="btn-secondary">
                 <Info size={18} class="md:w-[22px] md:h-[22px]" />
                 <span class="hidden sm:inline">More Info</span>
@@ -323,6 +340,40 @@
 
   </div>
 </section>
+
+<svelte:window on:keydown={(e) => { if (e.key === 'Escape') wtwOpen = false; }} />
+
+{#if wtwOpen && wtwItem}
+  <!-- svelte-ignore a11y-click-events-have-key-events a11y-no-static-element-interactions -->
+  <div class="wtw-back" on:click={closeWatch}>
+    <!-- svelte-ignore a11y-click-events-have-key-events a11y-no-static-element-interactions -->
+    <div class="wtw-box" role="dialog" aria-modal="true" aria-label="Where to watch" on:click|stopPropagation>
+      <button type="button" class="wtw-x" aria-label="Close" on:click={closeWatch}>&times;</button>
+      <div class="wtw-h">Where to watch</div>
+      <div class="wtw-t">{wtwItem.title}{wtwItem.year ? ` (${wtwItem.year})` : ''}</div>
+      {#if wtwLoading}
+        <p class="wtw-p">Loading…</p>
+      {:else if wtwError}
+        <p class="wtw-p">Could not load this right now. Please try again.</p>
+      {:else if wtwData && wtwData.groups && wtwData.groups.length}
+        {#each wtwData.groups as g}
+          <div class="wtw-l">{g.label}</div>
+          <div class="wtw-r">
+            {#each g.providers as p}
+              <span class="wtw-c">{#if p.logo}<img src={p.logo} alt="" width="28" height="28" loading="lazy" />{/if}{p.name}</span>
+            {/each}
+          </div>
+        {/each}
+        <p class="wtw-n">
+          {#if wtwData.note}{wtwData.note} {/if}{#if wtwData.link}<a href={wtwData.link} target="_blank" rel="noopener noreferrer nofollow">See all options</a> · {/if}Data from JustWatch
+        </p>
+      {:else}
+        <p class="wtw-p">Not listed on the streaming services we track yet. It may still be in cinemas or not released.</p>
+      {/if}
+      <a class="wtw-more" href={getHref(wtwItem)}>Open the full page</a>
+    </div>
+  </div>
+{/if}
 
 <style>
   /* Phone crop follows the people; desktop is unchanged (see focus_x). */
@@ -413,6 +464,9 @@
     border-radius: 0.5rem;
     transition: all 0.3s ease;
     box-shadow: 0 4px 20px rgba(220,38,38,0.4);
+    border: 0;
+    cursor: pointer;
+    font-family: inherit;
   }
   .btn-primary:hover {
     transform: translateY(-3px);
@@ -462,4 +516,18 @@
     border: 3px solid #fbbf24;
     box-shadow: 0 0 30px rgba(251,191,36,0.3);
   }
+
+  .wtw-back { position: fixed; inset: 0; z-index: 9999; background: rgba(0,0,0,0.72); display: flex; align-items: center; justify-content: center; padding: 16px; }
+  .wtw-box { position: relative; width: 100%; max-width: 460px; max-height: 85vh; overflow-y: auto; background: #12151c; color: #eef0f5; border: 1px solid rgba(255,255,255,0.12); border-radius: 16px; padding: 22px 20px 18px; box-shadow: 0 20px 60px rgba(0,0,0,0.6); }
+  .wtw-x { position: absolute; top: 8px; right: 12px; background: none; border: 0; color: #fff; font-size: 28px; line-height: 1; cursor: pointer; }
+  .wtw-h { font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: #fbbf24; font-weight: 700; }
+  .wtw-t { font-size: 20px; font-weight: 800; margin: 4px 28px 14px 0; }
+  .wtw-l { font-size: 12px; letter-spacing: .06em; text-transform: uppercase; opacity: .7; margin: 12px 0 8px; }
+  .wtw-r { display: flex; flex-wrap: wrap; gap: 8px; }
+  .wtw-c { display: inline-flex; align-items: center; gap: 8px; padding: 6px 10px 6px 6px; border-radius: 12px; background: rgba(255,255,255,.07); border: 1px solid rgba(255,255,255,.1); font-size: 13px; }
+  .wtw-c img { border-radius: 7px; }
+  .wtw-n { font-size: 12px; opacity: .65; margin: 14px 0 0; }
+  .wtw-n a { text-decoration: underline; }
+  .wtw-p { opacity: .8; margin: 12px 0; }
+  .wtw-more { display: block; margin-top: 16px; text-align: center; padding: 11px; border-radius: 10px; background: rgba(255,255,255,.1); font-weight: 700; color: #fff; }
 </style>
