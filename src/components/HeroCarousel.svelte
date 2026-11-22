@@ -31,6 +31,7 @@
   let wtwData: any = null;
   async function openWatch(item: TrendingItem) {
     wtwItem = item; wtwOpen = true; wtwLoading = true; wtwError = false; wtwData = null;
+    if (autoSlideInterval) clearInterval(autoSlideInterval);   // keep the slideshow still while the pop-up is open
     try {
       const r = await fetch(`/api/watch?type=${item.type === 'movie' ? 'movie' : 'tv'}&id=${item.id}`);
       const d = await r.json();
@@ -38,7 +39,7 @@
     } catch (e) { wtwError = true; }
     wtwLoading = false;
   }
-  function closeWatch() { wtwOpen = false; }
+  function closeWatch() { wtwOpen = false; resetTimer(); }
 
   let currentIndex = 0;
   let autoSlideInterval: ReturnType<typeof setInterval>;
@@ -341,7 +342,7 @@
   </div>
 </section>
 
-<svelte:window on:keydown={(e) => { if (e.key === 'Escape') wtwOpen = false; }} />
+<svelte:window on:keydown={(e) => { if (e.key === 'Escape' && wtwOpen) closeWatch(); }} />
 
 {#if wtwOpen && wtwItem}
   <!-- svelte-ignore a11y-click-events-have-key-events a11y-no-static-element-interactions -->
@@ -365,7 +366,7 @@
           </div>
         {/each}
         <p class="wtw-n">
-          {#if wtwData.note}{wtwData.note} {/if}{#if wtwData.link}<a href={wtwData.link} target="_blank" rel="noopener noreferrer nofollow">See all options</a> · {/if}Data from JustWatch
+          {#if wtwData.note}{wtwData.note}{' '}{/if}{#if wtwData.link}<a href={wtwData.link} target="_blank" rel="noopener noreferrer nofollow">See all options</a>{' · '}{/if}Data from JustWatch
         </p>
       {:else}
         <p class="wtw-p">Not listed on the streaming services we track yet. It may still be in cinemas or not released.</p>
