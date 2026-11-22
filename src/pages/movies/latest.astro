@@ -1,4 +1,7 @@
 ---
+import { filesEnabled } from '../../lib/site-mode';
+const FILES_ON = filesEnabled();
+if (!FILES_ON) { return Astro.redirect('/just-added' + Astro.url.search, 302); }
 import BaseLayout from '../../layouts/BaseLayout.astro';
 import MovieCard from '../../components/MovieCard.svelte';
 import ListingView from '../../components/ListingView.svelte';

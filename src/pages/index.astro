@@ -1,4 +1,6 @@
 ---
+import { filesEnabled } from '../lib/site-mode';
+const FILES_ON = filesEnabled();
 import BaseLayout from '../layouts/BaseLayout.astro';
 import HeroCarousel from '../components/HeroCarousel.svelte';
 import ContentRow from '../components/ContentRow.svelte';
@@ -467,7 +469,7 @@ const _jaOthers = await Promise.all(
   JUST_ADDED_TABS.filter(t => t.key !== 'movie').map(t => getJustAdded(t.key).catch(() => [] as any[]))
 );
 const justAddedTabs = [
-  { key: 'movie', label: 'Movie', items: latestAdditionsRowItems },
+  { key: 'movie', label: 'Movie', items: FILES_ON ? latestAdditionsRowItems : await getJustAdded('movie').catch(() => [] as any[]) },
   ...JUST_ADDED_TABS.filter(t => t.key !== 'movie').map((t, i) => ({ key: t.key, label: t.label, items: _jaOthers[i] })),
 ];
 
@@ -533,8 +535,10 @@ const popularTVItems = (popularTV || []).map(transformTV);
 // Fetch DB-assigned recent episodes (last 7 days) + TMDB on-the-air list
 let dbRecentEpisodes: any[] = [];
 try {
-  const dbRes = await fetch(`${POSTGREST_URL}/recent_episode_series?order=latest_added.desc&limit=30`);
-  if (dbRes.ok) dbRecentEpisodes = await dbRes.json();
+  if (FILES_ON) {
+    const dbRes = await fetch(`${POSTGREST_URL}/recent_episode_series?order=latest_added.desc&limit=30`);
+    if (dbRes.ok) dbRecentEpisodes = await dbRes.json();
+  }
 } catch(e) {}
 
 const dbOnAirItems = dbRecentEpisodes
@@ -808,7 +812,7 @@ try {
 
   <!-- Just Added (from our database - movies and shows with downloads), straight under Trending This Week. -->
   {justAddedTabs.some(t => t.items.length > 0) && (
-    <JustAddedRow client:load tabs={justAddedTabs} />
+    <JustAddedRow client:load tabs={justAddedTabs} title={FILES_ON ? 'Just Added' : 'New Releases'} />
   )}
 
   <!-- Trending Now — ranked by REAL views on TrendiMovies (page_views data).

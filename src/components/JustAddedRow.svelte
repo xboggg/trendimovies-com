@@ -10,6 +10,7 @@
   // switching tabs is instant. A tab with nothing in it is not shown.
   interface Tab { key: string; label: string; items: any[]; }
   export let tabs: Tab[] = [];
+  export let title = 'Just Added';
 
   let active = tabs[0]?.key || '';
   let scroller: HTMLDivElement;
@@ -56,13 +57,13 @@
   <section class="py-6">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
       <div class="ja-head">
-        <a href={seeAll} class="ja-title" aria-label="Just Added: see everything we added lately">
+        <a href={seeAll} class="ja-title" aria-label={`${title}: see the latest`}>
           <span class="ja-dot" aria-hidden="true"></span>
-          <h2>Just Added</h2>
+          <h2>{title}</h2>
           <span class="ja-chev" aria-hidden="true"><ChevronRight size={18} /></span>
         </a>
 
-        <div class="ja-tabs" role="tablist" aria-label="Just Added sections" bind:this={tabsEl}>
+        <div class="ja-tabs" role="tablist" aria-label={`${title} sections`} bind:this={tabsEl}>
           {#each shown as t (t.key)}
             <button
               type="button"

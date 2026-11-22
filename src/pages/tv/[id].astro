@@ -400,7 +400,7 @@ const _counts = [
   _seasons ? `${_seasons} Season${_seasons > 1 ? 's' : ''}` : '',
   _episodes ? `${_episodes} Episode${_episodes > 1 ? 's' : ''}` : '',
 ].filter(Boolean).join(' · ');
-const ogDescription = `${_counts ? _counts + ' · ' : ''}Watch free on TrendiMovies. ${ogSynopsis}`;
+const ogDescription = `${_counts ? _counts + ' · ' : ''}${ogSynopsis}`;
 
 // Use poster for OG image (better for WhatsApp preview)
 const ogImage = series.poster_path

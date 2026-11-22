@@ -1,4 +1,6 @@
 import { getAuthHeaders } from './auth';
+import { filesEnabled } from './site-mode';
+import { fetchFromTMDB } from './tmdb';
 
 // "Just Added": what we added most recently, in four tabs.
 //   movie  : movies with new files
@@ -76,7 +78,75 @@ async function recentSeries(): Promise<any[]> {
 
 // Everything the tab holds, newest first, with language and genres attached
 // (used for the filters on the /just-added page). Not sliced.
+// ---------------------------------------------------------------------------------------------------------------------------
+// CLEAN SITE (files switched off): the same four tabs, but made from TMDB instead of from our file library.
+//   movie  : films released in the last 75 days, most popular first
+//   tv     : shows with an episode airing in the last 7 days, most popular first
+//   indian / asian : films and shows released in the last 150 days in those languages, newest first
+const dayStr = (back: number) => { const d = new Date(); d.setUTCDate(d.getUTCDate() - back); return d.toISOString().slice(0, 10); };
+const yearOf = (d: any) => { const y = parseInt(String(d || '').slice(0, 4), 10); return y > 1800 ? y : null; };
+let genreNamesById: Map<string, string> | null = null;
+
+async function tmdbGenres(): Promise<Map<string, string>> {
+  if (genreNamesById) return genreNamesById;
+  const m = new Map<string, string>();
+  for (const kind of ['movie', 'tv']) {
+    try {
+      const d: any = await fetchFromTMDB<any>(`/genre/${kind}/list`, {});
+      for (const g of (d && d.genres) || []) m.set(`${kind}:${g.id}`, g.name);
+    } catch (e) { /* genres are only for the filters */ }
+  }
+  if (m.size) genreNamesById = m;
+  return m;
+}
+
+async function tmdbPages(endpoint: string, params: Record<string, string>, pages: number): Promise<any[]> {
+  const rs = await Promise.all(Array.from({ length: pages }, (_, i) => fetchFromTMDB<any>(endpoint, { ...params, page: String(i + 1) }).catch(() => null)));
+  const out: any[] = [];
+  const seenIds = new Set<number>();
+  for (const r of rs) for (const x of ((r && r.results) || [])) if (x && x.id && !seenIds.has(x.id)) { seenIds.add(x.id); out.push(x); }
+  return out;
+}
+
+const tmdbMovieItem = (m: any, gn: Map<string, string>) => ({
+  id: m.id, tmdb_id: m.id, title: m.title, poster_path: m.poster_path, backdrop_path: m.backdrop_path,
+  vote_average: m.vote_average || 0, vote_count: m.vote_count || 0, popularity: m.popularity || 0, year: yearOf(m.release_date),
+  overview: m.overview, type: 'movie' as const, has_downloads: false,
+  _at: m.release_date || '', _lang: m.original_language || '', _genres: (m.genre_ids || []).map((i: number) => gn.get(`movie:${i}`)).filter(Boolean),
+});
+const tmdbShowItem = (s: any, gn: Map<string, string>) => ({
+  id: s.id, tmdb_id: s.id, title: s.name, poster_path: s.poster_path, backdrop_path: s.backdrop_path,
+  vote_average: s.vote_average || 0, vote_count: s.vote_count || 0, popularity: s.popularity || 0, year: yearOf(s.first_air_date),
+  overview: s.overview, type: 'series' as const, has_downloads: false,
+  _at: s.first_air_date || '', _lang: s.original_language || '', _genres: (s.genre_ids || []).map((i: number) => gn.get(`tv:${i}`)).filter(Boolean),
+});
+
+async function buildFromTmdb(tab: JustAddedTab): Promise<any[]> {
+  const gn = await tmdbGenres();
+  const today = dayStr(0);
+  if (tab === 'movie') {
+    const ms = await tmdbPages('/discover/movie', { sort_by: 'popularity.desc', 'primary_release_date.gte': dayStr(75), 'primary_release_date.lte': today, 'vote_count.gte': '5', include_adult: 'false' }, 3);
+    return ms.filter((m) => m.poster_path).map((m) => tmdbMovieItem(m, gn));
+  }
+  if (tab === 'tv') {
+    const ss = await tmdbPages('/discover/tv', { sort_by: 'popularity.desc', 'air_date.gte': dayStr(7), 'air_date.lte': today, include_adult: 'false' }, 3);
+    return ss.filter((s) => s.poster_path).map((s) => tmdbShowItem(s, gn));
+  }
+  const langs = tab === 'indian' ? 'hi|ta|ml|te|kn|bn|mr|pa|gu' : 'ko|ja|zh|th|id|vi|tl|ms';
+  const [ms, ss] = await Promise.all([
+    tmdbPages('/discover/movie', { sort_by: 'primary_release_date.desc', 'primary_release_date.gte': dayStr(150), 'primary_release_date.lte': today, with_original_language: langs, 'vote_count.gte': '2', include_adult: 'false' }, 2),
+    tmdbPages('/discover/tv', { sort_by: 'first_air_date.desc', 'first_air_date.gte': dayStr(150), 'first_air_date.lte': today, with_original_language: langs, 'vote_count.gte': '2', include_adult: 'false' }, 2),
+  ]);
+  const out = [
+    ...ms.filter((m) => m.poster_path).map((m) => tmdbMovieItem(m, gn)),
+    ...ss.filter((x) => x.poster_path).map((x) => tmdbShowItem(x, gn)),
+  ];
+  out.sort((a, b) => String(b._at).localeCompare(String(a._at)));
+  return out;
+}
+
 async function build(tab: JustAddedTab): Promise<any[]> {
+  if (!filesEnabled()) return buildFromTmdb(tab);
   if (tab === 'movie') {
     const minYear = new Date().getFullYear() - 1;
     return (await recentMovies(30, minYear)).map(m => movieItem(m));

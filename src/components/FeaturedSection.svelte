@@ -421,7 +421,7 @@
                     <span class="text-[11px] font-semibold text-amber-300">{currentReel.year}</span>
                   {/if}
                   <span class="inline-flex items-center gap-1 text-[11px] font-medium text-white/90 group-hover:text-amber-300 transition-colors">
-                    <Play size={11} fill="currentColor" /> Watch now
+                    <Play size={11} fill="currentColor" /> View
                   </span>
                 {/if}
               </div>

@@ -10,6 +10,7 @@
  */
 
 import { fetchFromTMDB } from './tmdb';
+import { filesEnabled } from './site-mode';
 
 const PG = import.meta.env.PUBLIC_SUPABASE_URL || 'http://localhost:3001';
 const SELF = `http://127.0.0.1:${process.env.PORT || '3000'}`;
@@ -21,7 +22,7 @@ export const MORE_LIMIT = 30;
 
 /** Row order on the app home. `heading` = the h2 text on the website home page ('' = built from another source). */
 export const ROWS: Array<{ key: string; title: string; heading: string; seeAll: string }> = [
-  { key: 'newmovies', title: 'Newly Added Movies', heading: '', seeAll: '/movies/latest' },
+  { key: 'newmovies', title: 'New Releases', heading: '', seeAll: '/movies/latest' },
   { key: 'popular', title: 'Popular Movies', heading: '', seeAll: '/movies/popular' },
   { key: 'newep', title: 'New Episodes This Week', heading: 'New Episodes This Week', seeAll: '/series/new-episodes' },
   { key: 'trending', title: 'Trending This Week', heading: '', seeAll: '/trending' },
@@ -229,6 +230,7 @@ async function tmdbMovieRow(endpoint: string): Promise<Card[]> {
 
 /** Newly Added Movies: the newest films that have files (our own database), 30 titles. Same list as the Movies tab, "Newest added". */
 async function newMoviesRow(): Promise<Card[]> {
+  if (!filesEnabled()) return tmdbMovieRow('/movie/now_playing');     // clean site: what is in cinemas now, from TMDB
   const d: any = await browse('movies', { sort: 'newest', page: 1 } as any);
   return ((d && d.items) || []).slice(0, MORE_LIMIT).map((c: Card) => ({ ...c, img: sized(c.img, 342) }));
 }
@@ -396,14 +398,17 @@ export async function browse(kind: BrowseKind, f: BrowseFilters) {
   let total = 0;
 
   if (movies) {
-    const url = `${PG}/movies?${['has_downloads=eq.true', ...q].join('&')}&order=${MOVIE_SORTS[sort].order}&limit=${PAGE_SIZE}&offset=${offset}&select=tmdb_id,title,year,poster_path`;
+    const on = filesEnabled();
+    const mq = on ? ['has_downloads=eq.true', ...q] : [`release_date=lte.${localISO()}`, 'poster_path=not.is.null', 'vote_count=gte.5', ...q];   // clean site: our whole catalogue, released titles only
+    const mord = (!on && sort === 'newest') ? 'release_date.desc' : MOVIE_SORTS[sort].order;
+    const url = `${PG}/movies?${mq.join('&')}&order=${mord}&limit=${PAGE_SIZE}&offset=${offset}&select=tmdb_id,title,year,poster_path`;
     const r = await fetch(url, { headers: { Prefer: 'count=exact' }, signal: AbortSignal.timeout(10000) });
     if (!r.ok) throw new Error(`movies ${r.status}`);
     total = totalOf(r.headers.get('content-range'));
     items = ((await r.json()) || []).filter((x: any) => x.title).map((x: any) => ({
       t: x.title, img: posterUrl(x.poster_path), href: `/movie/${x.tmdb_id}`, type: 'movie' as const, id: Number(x.tmdb_id), y: x.year || undefined,
     }));
-  } else if (sort === 'episodes') {
+  } else if (sort === 'episodes' && filesEnabled()) {
     // the series with the newest files (same list as the New Episodes row), narrowed by the filters
     const rr = await fetch(`${PG}/recent_episode_series?order=latest_added.desc&limit=500&select=tmdb_id,title,poster_path,season_number,episode_number,year`, { signal: AbortSignal.timeout(10000) });
     if (!rr.ok) throw new Error(`recent_episode_series ${rr.status}`);
@@ -421,7 +426,10 @@ export async function browse(kind: BrowseKind, f: BrowseFilters) {
       ep: `S${String(x.season_number).padStart(2, '0')}E${String(x.episode_number).padStart(2, '0')}`,
     }));
   } else {
-    const url = `${PG}/series_with_downloads?${[...q, `order=${SERIES_SORTS[sort].order}`, `limit=${PAGE_SIZE}`, `offset=${offset}`, 'select=tmdb_id,title,year,poster_path'].join('&')}`;
+    const on2 = filesEnabled();
+    const sq = on2 ? q : [...q, `first_air_date=lte.${localISO()}`, 'poster_path=not.is.null', 'vote_count=gte.5'];   // clean site: our whole series catalogue
+    const sord = (!on2 && sort === 'episodes') ? SERIES_SORTS.newest.order : SERIES_SORTS[sort].order;
+    const url = `${PG}/${on2 ? 'series_with_downloads' : 'series'}?${[...sq, `order=${sord}`, `limit=${PAGE_SIZE}`, `offset=${offset}`, 'select=tmdb_id,title,year,poster_path'].join('&')}`;
     const r = await fetch(url, { headers: { Prefer: 'count=exact' }, signal: AbortSignal.timeout(10000) });
     if (!r.ok) throw new Error(`series_with_downloads ${r.status}`);
     total = totalOf(r.headers.get('content-range'));

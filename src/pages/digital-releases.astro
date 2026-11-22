@@ -1,4 +1,6 @@
 ---
+import { filesEnabled } from '../lib/site-mode';
+const FILES_ON = filesEnabled();
 import BaseLayout from '../layouts/BaseLayout.astro';
 import { getCache, getCacheStale, setCache } from '../lib/cache';
 import { fetchFromTMDB } from '../lib/tmdb';
@@ -1149,11 +1151,11 @@ const months = MONTHS.map(([n], idx) => {
       const on_site = !!slug;
       // The /movie route is keyed by TMDB id (the slug form redirects to /404).
       // Need the real TMDB id to build a working Watch link; without it, don't link.
-      const watch_url = on_site && tid ? `/movie/${tid}` : null;
+      const watch_url = (on_site || !FILES_ON) && tid ? `/movie/${tid}` : null;
       // TMDB poster (CSP-allowed). Fall back to local placeholder if none.
       // TMDB poster first; else our catalogue's poster for the same tmdb id; else placeholder.
       const poster = posterByTitle.get(mv.title) || (tid ? sitePosterByTmdb.get(String(tid)) : undefined) || '/images/no-poster.svg';
-      return { ...mv, tmdb_id: tid, poster, on_site: !!watch_url, watch_url };
+      return { ...mv, tmdb_id: tid, poster, on_site: FILES_ON ? !!watch_url : false, watch_url };
     }),
   }));
   return { key: n, label: MONTH_LABELS[idx], num: idx, count: groups.reduce((a: number, g: any) => a + g.items.length, 0), groups };
@@ -1252,10 +1254,10 @@ const ogImage = _ogPosters.length
                 </div>
                 <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
                   {g.items.map((mv) => (
-                    <a href={mv.on_site ? mv.watch_url : `/request?title=${encodeURIComponent(mv.title)}`} class="group block">
+                    <a href={mv.watch_url ? mv.watch_url : `/request?title=${encodeURIComponent(mv.title)}`} class="group block">
                       <div class="relative rounded-xl overflow-hidden aspect-[2/3] ring-1 ring-white/10 group-hover:ring-amber-400/50 transition-all bg-black/40">
                         <img src={mv.poster} alt={mv.title} loading="lazy" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" onerror="this.src='/images/no-poster.svg'" />
-                        <div class="absolute top-2 left-2 px-2 py-0.5 rounded-md text-[10px] font-bold"
+                        <div class="absolute top-2 left-2 px-2 py-0.5 rounded-md text-[10px] font-bold" hidden={!FILES_ON}
                              style={mv.on_site ? 'background:#16a34a;color:#fff;' : 'background:rgba(0,0,0,0.72);color:#f7d000;border:1px solid rgba(247,208,0,0.4);'}>
                           {mv.on_site ? '▶ WATCH' : (g.past ? 'REQUEST' : '🔔 NOTIFY')}
                         </div>

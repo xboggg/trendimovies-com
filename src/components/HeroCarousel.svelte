@@ -270,8 +270,8 @@
             <div class="flex flex-wrap gap-2 md:gap-4">
               <a href={getHref(currentItem)} class="btn-primary">
                 <Play size={18} fill="white" class="md:w-[22px] md:h-[22px]" />
-                <span class="hidden sm:inline">Watch Now</span>
-                <span class="sm:hidden">Watch</span>
+                <span class="hidden sm:inline">Where to Watch</span>
+                <span class="sm:hidden">Details</span>
               </a>
               <a href={getHref(currentItem)} class="btn-secondary">
                 <Info size={18} class="md:w-[22px] md:h-[22px]" />

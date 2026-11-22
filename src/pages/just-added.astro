@@ -1,4 +1,6 @@
 ---
+import { filesEnabled } from '../lib/site-mode';
+const FILES_ON = filesEnabled();
 import BaseLayout from '../layouts/BaseLayout.astro';
 import ListingView from '../components/ListingView.svelte';
 import { JUST_ADDED_TABS, getJustAddedAll, isJustAddedTab } from '../lib/just-added';
@@ -77,7 +79,7 @@ const hasFilters = !!(fGenre || fLang || fYearFrom !== null || fYearTo !== null 
 let items: any[] = [];
 let totalPages = 1;
 
-if (tab === 'movie') {
+if (tab === 'movie' && FILES_ON) {
   // Same query as /movies/latest.
   const q: string[] = ['has_downloads=eq.true'];
   if (fGenre) q.push(`genres=cs.${encodeURIComponent(JSON.stringify([fGenre]))}`);
@@ -137,15 +139,15 @@ const tabLong = JUST_ADDED_TABS.find(t => t.key === tab)?.long || 'Movies';
 ---
 
 <BaseLayout
-  title="Just Added — New Movies, Series, Indian & Asian | TrendiMovies"
-  description="Fresh on TrendiMovies: the newest movies, TV shows, Indian and Asian titles just added and ready to stream or download in HD."
+  title={FILES_ON ? "Just Added — New Movies, Series, Indian & Asian | TrendiMovies" : "New Releases — New Movies, Series, Indian & Asian | TrendiMovies"}
+  description={FILES_ON ? "Fresh on TrendiMovies: the newest movies, TV shows, Indian and Asian titles just added and ready to stream or download in HD." : "The newest movies, TV shows, Indian and Asian titles: ratings, trailers and where to watch."}
   noIndex={hasFilters || tab !== 'movie' || page > 1}
 >
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500;700&display=swap" />
   <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-    <h1 class="text-3xl font-bold mb-4" style="color: var(--text-primary);">Just Added</h1>
+    <h1 class="text-3xl font-bold mb-4" style="color: var(--text-primary);">{FILES_ON ? 'Just Added' : 'New Releases'}</h1>
 
-    <nav class="ja-tabs" aria-label="Just Added sections">
+    <nav class="ja-tabs" aria-label="New releases sections">
       {JUST_ADDED_TABS.map(t => (
         <a href={tabLink(t.key)} class={`ja-tab ${t.key === tab ? 'on' : ''}`} aria-current={t.key === tab ? 'page' : undefined}>{t.label}</a>
       ))}

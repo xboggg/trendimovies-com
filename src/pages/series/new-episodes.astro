@@ -1,4 +1,6 @@
 ---
+import { filesEnabled } from '../../lib/site-mode';
+const FILES_ON = filesEnabled();
 import BaseLayout from '../../layouts/BaseLayout.astro';
 import MovieCard from '../../components/MovieCard.svelte';
 import ListingView from '../../components/ListingView.svelte';
@@ -25,7 +27,7 @@ const filtering = !!(genre || lang);
 // On page 1: prepend DB-assigned recent episodes (last 7 days).
 // With a filter on, the whole list is filtered first and then split into pages, so read it on every page.
 let dbItems: any[] = [];
-if (page === 1 || filtering) {
+if (FILES_ON && (page === 1 || filtering)) {
   try {
     const dbRes = await fetch(`${POSTGREST_URL}/recent_episode_series?order=latest_added.desc&limit=50`);
     if (dbRes.ok) {
