@@ -197,3 +197,30 @@ export async function restore(tmdbId: number) {
   const ng = await applyNginx(list);
   return { ok: ng.ok, error: ng.err };
 }
+
+// ---- New-release hold settings (read by the link engine, see release_hold_blocks in trendimovies_cron.py)
+export const HOLD_FILE = '/var/lib/trendimovies/release_hold.json';
+export type HoldSettings = { enabled: boolean; days: number; allow_tmdb_ids: number[] };
+
+export function readHold(): HoldSettings {
+  try {
+    const d = JSON.parse(readFileSync(HOLD_FILE, 'utf-8'));
+    return {
+      enabled: !!d.enabled,
+      days: Math.max(0, Math.min(Number(d.days) || 0, 3650)),
+      allow_tmdb_ids: Array.isArray(d.allow_tmdb_ids) ? d.allow_tmdb_ids.map(Number).filter((n: number) => n > 0) : [],
+    };
+  } catch {
+    return { enabled: false, days: 0, allow_tmdb_ids: [] };
+  }
+}
+
+export function writeHold(enabled: boolean, days: number): HoldSettings {
+  const cur = readHold();
+  const next: HoldSettings = { enabled: !!enabled, days: Math.max(0, Math.min(Math.floor(Number(days) || 0), 3650)), allow_tmdb_ids: cur.allow_tmdb_ids };
+  if (existsSync(HOLD_FILE)) copyFileSync(HOLD_FILE, HOLD_FILE + '.prev');
+  const tmp = HOLD_FILE + '.tmp';
+  writeFileSync(tmp, JSON.stringify(next, null, 2) + '\n', 'utf-8');
+  renameSync(tmp, HOLD_FILE);
+  return next;
+}

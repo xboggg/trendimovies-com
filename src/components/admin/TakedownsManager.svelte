@@ -24,7 +24,29 @@
     } catch { list = []; }
     loading = false;
   }
-  onMount(load);
+  // ---- new-release hold
+  let hold = { enabled: true, days: 180 };
+  let holdMsg = '';
+  async function loadHold() {
+    try {
+      const r = await fetch('/api/admin/release-hold');
+      const d = await r.json();
+      if (d.ok) hold = { enabled: d.hold.enabled, days: d.hold.days };
+    } catch {}
+  }
+  async function saveHold() {
+    holdMsg = 'Saving...';
+    try {
+      const r = await fetch('/api/admin/release-hold', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ enabled: hold.enabled, days: Number(hold.days) }),
+      });
+      const d = await r.json();
+      if (d.ok) { hold = { enabled: d.hold.enabled, days: d.hold.days }; holdMsg = 'Saved. The link engine uses it from its next run.'; }
+      else holdMsg = 'Problem: ' + (d.error || 'unknown');
+    } catch (e) { holdMsg = 'Problem: ' + e; }
+  }
+  onMount(() => { load(); loadHold(); });
 
   async function search() {
     if (!q.trim()) return;
@@ -106,6 +128,17 @@
         {/if}
       </div>
     {/each}
+  </div>
+
+  <div class="card">
+    <h2>New-release hold</h2>
+    <p class="muted" style="margin:0 0 10px;">New films draw most copyright notices. While this is ON, a film released less than the number of days below is <b>not linked for the first time</b>. Films already on the site stay as they are.</p>
+    <div class="row">
+      <label style="display:flex;align-items:center;gap:8px;"><input type="checkbox" bind:checked={hold.enabled} /> Hold new releases</label>
+      <input type="number" min="0" max="3650" bind:value={hold.days} style="width:90px;background:#0f1117;border:1px solid rgba(255,255,255,.15);border-radius:8px;padding:8px;color:#fff;" /> <span class="muted" style="align-self:center;">days</span>
+      <button class="btn" on:click={saveHold}>Save</button>
+    </div>
+    {#if holdMsg}<p class="muted">{holdMsg}</p>{/if}
   </div>
 
   <div class="card">
