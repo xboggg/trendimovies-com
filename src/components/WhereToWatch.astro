@@ -1,12 +1,16 @@
 ---
 // "Where to watch": official streaming / rent / buy options from TMDB (data by JustWatch).
 // results = tmdbData['watch/providers'].results  (a map: country code -> {link, flatrate, rent, buy, free, ads})
-const { results } = Astro.props;
-const ORDER = ['GH', 'NG', 'ZA', 'KE', 'GB', 'US', 'CA', 'AU'];
-const NAMES: Record<string, string> = { GH: 'Ghana', NG: 'Nigeria', ZA: 'South Africa', KE: 'Kenya', GB: 'the United Kingdom', US: 'the United States', CA: 'Canada', AU: 'Australia' };
+const { results, country = '' } = Astro.props;
+const mine = /^[A-Z]{2}$/.test(String(country).toUpperCase()) ? String(country).toUpperCase() : '';
+const ORDER = Array.from(new Set([mine, 'US', 'GB', 'CA', 'AU', 'IN', 'NG', 'GH', 'ZA', 'KE', 'DE', 'FR', 'ES', 'IT', 'BR', 'MX'].filter(Boolean)));
+let regionNames: any = null;
+try { regionNames = new Intl.DisplayNames(['en'], { type: 'region' }); } catch (e) { /* fall back to the code */ }
+const nameOf = (c: string) => { try { return (regionNames && regionNames.of(c)) || c; } catch (e) { return c; } };
 const has = (r: any) => r && ['flatrate', 'free', 'ads', 'rent', 'buy'].some((k) => Array.isArray(r[k]) && r[k].length);
 let region = '';
 for (const c of ORDER) { if (has(results?.[c])) { region = c; break; } }
+if (!region) { for (const c of Object.keys(results || {})) { if (has(results[c])) { region = c; break; } } }
 const r = region ? results[region] : null;
 const uniq = (a: any[]) => { const seen = new Set<number>(); return (a || []).filter((p) => (seen.has(p.provider_id) ? false : (seen.add(p.provider_id), true))); };
 const stream = r ? uniq([...(r.flatrate || []), ...(r.free || []), ...(r.ads || [])]) : [];
@@ -30,7 +34,7 @@ const groups = [['Stream', stream], ['Rent', rent], ['Buy', buy]].filter((g: any
         </div>
       ))}
       <p style="font-size:12px;opacity:.65;margin:0;">
-        {region !== 'GH' ? `Shown for ${NAMES[region] || region}; what is available in Ghana may differ. ` : ''}
+        {region !== mine ? `Shown for ${nameOf(region)}; what is available where you are may differ. ` : ''}
         {r.link && <a href={r.link} target="_blank" rel="noopener noreferrer nofollow" style="text-decoration:underline;">See all options</a>}
         {' '}· Data from JustWatch
       </p>

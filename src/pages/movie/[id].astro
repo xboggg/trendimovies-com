@@ -417,7 +417,7 @@ const ogTitle = `${movie.title} ${ogYear}`.trim();
 
               <section class="blk reveal" style="--d:1">
                 <h2 class="sec">Where to watch</h2>
-                <WhereToWatch results={tmdbData?.['watch/providers']?.results} />
+                <WhereToWatch results={tmdbData?.['watch/providers']?.results} country={Astro.request.headers.get('cf-ipcountry') || ''} />
               </section>
 
               <section class="blk reveal" style="--d:1">
