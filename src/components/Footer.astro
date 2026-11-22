@@ -121,10 +121,7 @@
     <!-- Bottom bar -->
     <div class="mt-8 pt-6 border-t border-white/10 flex flex-col sm:flex-row justify-between items-center gap-3">
       <p class="text-gray-500 text-sm">
-        &copy; Copyright {new Date().getFullYear()} TrendiMovies. All rights reserved.
-      </p>
-      <p class="text-gray-500 text-sm">
-        Designed by <span id="admin-trigger" class="novastream-link" style="cursor:pointer;-webkit-tap-highlight-color:transparent;user-select:none;">NovaStream</span>
+        <span id="admin-trigger" style="-webkit-tap-highlight-color:transparent;user-select:none;">&copy; Copyright {new Date().getFullYear()} TrendiMovies. All rights reserved.</span>
       </p>
       <p class="text-gray-600 text-xs text-center max-w-md">
         TrendiMovies does not host any content. All media is embedded from third-party sources.
@@ -390,7 +387,7 @@
 </style>
 
 <script>
-  // Secret admin access - tap "NovaStream" 5 times
+  // Secret admin access - tap the copyright line 5 times
   let tapCount = 0;
   let tapTimer = null;
   

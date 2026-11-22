@@ -1,0 +1,8 @@
+---
+import AdminLayout from '../../layouts/AdminLayout.astro';
+import TakedownsManager from '../../components/admin/TakedownsManager.svelte';
+---
+
+<AdminLayout title="Takedowns" activeTab="takedowns">
+  <TakedownsManager client:load />
+</AdminLayout>

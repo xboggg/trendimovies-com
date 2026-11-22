@@ -16,6 +16,7 @@
     Clapperboard,
     Zap,
     Trash2,
+    Ban,
     X
   } from 'lucide-svelte';
 
@@ -26,6 +27,7 @@
     { id: 'movies', label: 'Movies', href: '/admin/movies', icon: Film },
     { id: 'series', label: 'Series', href: '/admin/series', icon: Tv },
     { id: 'guides', label: 'Movie Guides', href: '/admin/guides', icon: Disc3 },
+    { id: 'takedowns', label: 'Takedowns', href: '/admin/takedowns', icon: Ban },
     { id: 'reviews', label: 'Movie Reviews', href: '/admin/reviews', icon: Star },
     { id: 'blog', label: 'Blog', href: '/admin/blog', icon: Newspaper },
     { id: 'studio', label: 'TikTok Studio', href: '/admin/studio', icon: Clapperboard },
