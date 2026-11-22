@@ -75,21 +75,21 @@ const ogPosters = movies
   .slice(0, 5)
   .map((m: any) => m.poster_path)
   .join('|');
-const ogDesc = 'Stream and download thousands of movies in HD — from the latest blockbusters to all-time classics. Browse by genre, year or popularity and watch free on TrendiMovies.';
+const ogDesc = 'Thousands of movies — from the latest blockbusters to all-time classics. Browse by genre, year or popularity, with ratings, trailers and where to watch.';
 const ogImage = ogPosters
   ? `/api/og.png?type=digital`
     + `&posters=${encodeURIComponent(ogPosters)}`
     + `&accent=${encodeURIComponent('#e50914')}`
-    + `&eyebrow=${encodeURIComponent('STREAM & DOWNLOAD')}`
+    + `&eyebrow=${encodeURIComponent('MOVIE GUIDE')}`
     + `&eyebrowEmoji=${encodeURIComponent('🎬')}`
-    + `&headline=${encodeURIComponent('Movies in HD')}`
-    + `&subtitle=${encodeURIComponent('Thousands of films — stream or download free, in 720p & 1080p')}`
+    + `&headline=${encodeURIComponent('Movies')}`
+    + `&subtitle=${encodeURIComponent('Thousands of films — ratings, trailers and where to watch')}`
     + `&ogurl=${encodeURIComponent('trendimovies.com/movies')}`
   : '/images/og-default.jpg';
 ---
 
 <BaseLayout
-  title="Movies — Stream & Download in HD | TrendiMovies"
+  title="Movies — Ratings, Trailers & Where to Watch | TrendiMovies"
   description={ogDesc}
   image={ogImage}
 >

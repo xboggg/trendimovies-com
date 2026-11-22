@@ -457,13 +457,13 @@
         {:else}
           <div class="flex items-center gap-2 mb-4 px-3 py-3 rounded-lg" style="background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.08);">
             <span class="text-sm">🎬</span>
-            <span class="text-sm text-gray-300">New movies & series added daily — with download links.</span>
+            <span class="text-sm text-gray-300">New movies and series, fresh in our catalogue.</span>
           </div>
         {/if}
 
         <!-- CTA -->
         <a href={reelIsDigital ? '/digital-releases' : '/movies/latest'} class="cta-row flex items-center justify-between mt-4 group">
-          <p class="text-xs text-gray-500">{reelIsDigital ? 'Real HD/digital dates · with countdowns' : 'Latest releases with download links'}</p>
+          <p class="text-xs text-gray-500">{reelIsDigital ? 'Real HD/digital dates · with countdowns' : 'Latest releases'}</p>
           <span class="px-4 py-2 rounded-lg text-sm font-bold text-black transition-all group-hover:scale-105 group-hover:shadow-lg" style="background: linear-gradient(135deg, #F7D000, #f59e0b);">
             {reelIsDigital ? 'See all →' : 'Browse New →'}
           </span>

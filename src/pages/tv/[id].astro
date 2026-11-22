@@ -1,7 +1,10 @@
 ---
+import { filesEnabled } from '../../lib/site-mode';
+const FILES_ON = filesEnabled();
 import BaseLayout from '../../layouts/BaseLayout.astro';
 import TVJsonLd from '../../components/TVJsonLd.astro';
 import EpisodeBrowser from '../../components/EpisodeBrowser.svelte';
+import WhereToWatch from '../../components/WhereToWatch.astro';
 import Ratings from '../../components/Ratings.svelte';
 import TrailerSheet from '../../components/TrailerSheet.svelte';
 import Comments from '../../components/Comments.svelte';
@@ -429,6 +432,9 @@ if (!imdbForRatings && series.tmdb_id) {
 }
 
 
+// Master switch off (clean site): no file information reaches the page at all.
+if (!FILES_ON) { downloadsByEpisode = {}; subtitlesByEpisode = {}; }
+
 // File details (WEBRip / BluRay, x265, audio ...) for the Download pop-up, read
 // from the real file names. Fails quietly to "no details".
 const _tgId = (l: any): number => {
@@ -526,7 +532,7 @@ const latestLabel = latestEp ? `Play S${String(latestEp.season).padStart(2, '0')
           <img class="pst-big" src={getPosterUrl(series.poster_path)} alt="" width="500" height="750" loading="lazy" />
           <div class="cta">
             <button type="button" class="btn amber" data-go="episodes">Episodes</button>
-            {latestEp && (
+            {latestEp && FILES_ON && (
               <button type="button" class="btn mint" data-go="latest">&#9654; {latestLabel}</button>
             )}
             {series.trailer_key && (
@@ -568,6 +574,7 @@ const latestLabel = latestEp ? `Play S${String(latestEp.season).padStart(2, '0')
                 downloadsByEpisode={downloadsByEpisode}
                 subtitlesByEpisode={subtitlesByEpisode}
                 latest={latestEp}
+                infoOnly={!FILES_ON}
               />
             </div>
 
@@ -577,6 +584,11 @@ const latestLabel = latestEp ? `Play S${String(latestEp.season).padStart(2, '0')
                 <h2 class="sec">The story</h2>
                 <p class="story" id="story">{series.overview || 'No synopsis available.'}</p>
                 <button type="button" class="more" id="storymore" aria-expanded="false" hidden>Read more</button>
+              </section>
+
+              <section class="blk reveal" style="--d:1">
+                <h2 class="sec">Where to watch</h2>
+                <WhereToWatch results={tmdbData?.['watch/providers']?.results} />
               </section>
 
               <section class="blk reveal" style="--d:1">

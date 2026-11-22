@@ -243,7 +243,7 @@
         </a>
 
         <a href="/request" class="nav-link-gold">
-          Request
+          Suggest
         </a>
       </nav>
 
@@ -470,13 +470,9 @@
         </div>
 
         <!-- Action Buttons -->
-        <div class="grid grid-cols-2 gap-2 pt-3 border-t mobile-border">
+        <div class="grid grid-cols-1 gap-2 pt-3 border-t mobile-border">
           <a href="/request" class="mobile-btn-gold">
-            Request
-          </a>
-          <a href="https://t.me/+n6x4_P8DROA5ZDY0" target="_blank" rel="noopener" class="mobile-btn-telegram">
-            <Send size={14} />
-            <span>Telegram</span>
+            Suggest a film
           </a>
         </div>
       </div>

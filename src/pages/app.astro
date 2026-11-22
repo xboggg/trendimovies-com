@@ -492,12 +492,12 @@
       function openItem(c) {
         if (c.type !== 'movie' && c.type !== 'series') { location.href = c.href; return; }          // request pages are the normal pages
         openKey = keyOf(c);
-        setHtml(sheet, sheetShell(c, '<p class="sub">' + (c.type === 'series' ? 'Loading…' : 'Loading the download buttons…') + '</p>'));
+        setHtml(sheet, sheetShell(c, '<p class="sub">' + (c.type === 'series' ? 'Loading…' : 'Loading…') + '</p>'));
         scrim.classList.add('on'); sheet.classList.add('on');
         fetch('/api/app/title?type=' + c.type + '&id=' + c.id).then(function (r) { return r.json(); }).then(function (j) {
           if (openKey !== keyOf(c)) return;
           if (c.type === 'series') {
-            setHtml(sheet, sheetShell(c, '<a class="cta" href="' + esc(c.href) + '" style="margin-top:16px">See episodes and downloads</a>', j));
+            setHtml(sheet, sheetShell(c, '<a class="cta" href="' + esc(c.href) + '" style="margin-top:16px">See the episodes</a>', j));
             return;
           }
           var best = j.best || [], more = j.more || [], body;
@@ -513,7 +513,7 @@
               }).join('') + '</details>';
             }
           } else {
-            body = '<p class="sub" style="margin-top:16px">' + (c.date && c.date > D.today ? 'Not out yet.' : 'No Telegram file yet.') + '</p>' +
+            body = '<p class="sub" style="margin-top:16px">' + (c.date && c.date > D.today ? 'Not out yet.' : 'Open the page for the story, cast, trailer and where to watch.') + '</p>' +
               '<a class="cta soft" href="' + esc(c.href) + '" style="margin-top:12px">Open the movie page</a>';
           }
           body += '<a class="pagelink" href="' + esc(c.href) + '">Open the full movie page</a>';

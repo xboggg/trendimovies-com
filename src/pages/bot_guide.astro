@@ -1,4 +1,7 @@
 ---
+import { filesEnabled } from '../lib/site-mode';
+const FILES_ON = filesEnabled();
+if (!FILES_ON) { return new Response(null, { status: 410 }); }
 import BaseLayout from '../layouts/BaseLayout.astro';
 
 // Content is transcribed from TrendiMovies_Manual.docx (29 Sep 2026). Keep the

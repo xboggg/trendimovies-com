@@ -26,6 +26,7 @@
   export let downloadsByEpisode: Record<number, any[]> = {};
   export let subtitlesByEpisode: Record<number, SubtitleLink[]> = {};
   export let latest: { season: number; episode: number } | null = null;
+  export let infoOnly = false;   // clean site: episode information only, no Stream / Download
 
   const ORDER: Record<string, number> = { '720p': 0, '1080p': 1, '2160p': 2, '480p': 3, hdrip: 4 };
   const today = new Date().toISOString().slice(0, 10);
@@ -140,12 +141,14 @@
         <div class="lat-tag">LATEST EPISODE</div>
         <div class="lat-t">{code(latest.season, latest.episode)} · {latestEp.name || 'Episode ' + latestEp.episode_number}</div>
         <div class="lat-m">{fmtDate(latestEp.air_date) + (latestEp.runtime ? ' · ' + latestEp.runtime + ' min' : '')}</div>
+        {#if !infoOnly}
         <div class="lat-go">
           <button type="button" class="b stream" on:click={() => stream(latest.season, latest.episode)}><Play size={15} fill="currentColor" /> Stream</button>
           {#if filesOf(latestEp).length > 0}
             <button type="button" class="b dl" on:click={() => download(latest.season, latestEp)}><Download size={15} /> Download</button>
           {/if}
         </div>
+        {/if}
       </div>
     </div>
   {/if}
@@ -157,7 +160,7 @@
       <button type="button" role="tab" aria-selected={activeSeason === s.season_number} class="sn" class:on={activeSeason === s.season_number} on:click={() => pick(s.season_number)}>
         <span class="sn1">{s.season_number === 0 ? 'Specials' : `Season ${s.season_number}`}</span>
         <span class="sn2">{seasonLabel(s)}</span>
-        <span class="sn3"><i class={`dot ${st}`}></i>{n} eps · {st === 'full' ? 'all files' : st === 'some' ? 'some files' : 'stream only'}</span>
+        <span class="sn3">{#if infoOnly}{n} eps{:else}<i class={`dot ${st}`}></i>{n} eps · {st === 'full' ? 'all files' : st === 'some' ? 'some files' : 'stream only'}{/if}</span>
       </button>
     {/each}
   </div>
@@ -183,16 +186,16 @@
       <li class="ep slim" id={`ep-${activeSeason}-${ep.episode_number}`} class:flash={flash === `${activeSeason}-${ep.episode_number}`}>
         <button type="button" class="slimb" on:click={toLatest} aria-label={`Episode ${ep.episode_number} is the latest episode. Go to its card at the top`}>
           <span class="sen">E{ep.episode_number}</span>
-          <span class="stx"><b>{ep.name || `Episode ${ep.episode_number}`}</b><i>Latest episode. Stream and Download are in the card at the top ↑</i></span>
+          <span class="stx"><b>{ep.name || `Episode ${ep.episode_number}`}</b><i>{infoOnly ? 'Latest episode ↑' : 'Latest episode. Stream and Download are in the card at the top ↑'}</i></span>
         </button>
       </li>
       {:else}
       <li class="ep" class:flash={flash === `${activeSeason}-${ep.episode_number}`} id={`ep-${activeSeason}-${ep.episode_number}`}
           in:fly={{ y: reduce ? 0 : 14, duration: reduce ? 0 : 320, delay: reduce ? 0 : Math.min(i, 8) * 45 }}>
-        <button type="button" class="still" on:click={() => !up && stream(activeSeason, ep.episode_number)} disabled={up} aria-label={`Stream episode ${ep.episode_number}`}>
+        <button type="button" class="still" on:click={() => !up && !infoOnly && stream(activeSeason, ep.episode_number)} disabled={up} aria-label={`Stream episode ${ep.episode_number}`}>
           <img src={still(ep)} alt="" loading="lazy" width="300" height="169" />
           <span class="en">E{ep.episode_number}</span>
-          {#if !up}<span class="pl" aria-hidden="true"><Play size={18} fill="currentColor" /></span>{/if}
+          {#if !up && !infoOnly}<span class="pl" aria-hidden="true"><Play size={18} fill="currentColor" /></span>{/if}
         </button>
         <div class="hd">
           <h3>{ep.name || `Episode ${ep.episode_number}`}</h3>
@@ -204,22 +207,25 @@
         </div>
         {#if ep.overview}<p class="ov">{ep.overview}</p>{/if}
         <div class="chips">
-          {#each quals as q}<span class="ch">{q}</span>{/each}
-          {#if (subtitlesByEpisode[ep.id] || []).length > 0}<span class="ch sub">SUB</span>{/if}
+          {#if !infoOnly}{#each quals as q}<span class="ch">{q}</span>{/each}{/if}
+          {#if !infoOnly && (subtitlesByEpisode[ep.id] || []).length > 0}<span class="ch sub">SUB</span>{/if}
           {#if up}<span class="ch soon">Coming soon</span>
-          {:else if quals.length === 0}<span class="ch none">Stream only</span>{/if}
+          {:else if !infoOnly && quals.length === 0}<span class="ch none">Stream only</span>{/if}
         </div>
+        {#if !infoOnly}
         <div class="go">
           <button type="button" class="b stream" disabled={up} on:click={() => stream(activeSeason, ep.episode_number)}><Play size={15} fill="currentColor" /> Stream</button>
           <button type="button" class="b dl" disabled={files.length === 0} on:click={() => download(activeSeason, ep)}>
             <Download size={15} /> {files.length > 0 ? `Download` : 'No files yet'}
           </button>
         </div>
+        {/if}
       </li>
       {/if}
     {/each}
   </ul>
 
+  {#if !infoOnly}
   <StreamSheet
     {tmdbId}
     {imdbId}
@@ -238,6 +244,7 @@
     subheading={dlFor ? `${code(dlFor.season, dlFor.ep.episode_number)}${dlFor.ep.name ? ' · ' + dlFor.ep.name : ''}` : ''}
     hashOpen={false}
   />
+  {/if}
 </div>
 
 <style>

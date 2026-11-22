@@ -1,4 +1,7 @@
 ---
+import { filesEnabled } from '../lib/site-mode';
+const FILES_ON = filesEnabled();
+return new Response(null, { status: 404 });
 import BaseLayout from '../layouts/BaseLayout.astro';
 import DownloadSection from '../components/DownloadSection.svelte';
 

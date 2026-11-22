@@ -1,4 +1,6 @@
 ---
+import { filesEnabled } from '../../lib/site-mode';
+const FILES_ON = filesEnabled();
 import BaseLayout from '../../layouts/BaseLayout.astro';
 import { fetchFromTMDB } from '../../lib/tmdb';
 
@@ -323,7 +325,7 @@ async function tmdbPoster(item: Item): Promise<string | null> {
 const groups = await Promise.all(universe.groups.map(async (g) => ({
   heading: g.heading,
   items: await Promise.all(g.items.map(async (it) => {
-    const available = it.type === 'movie' ? availMovies.has(it.tmdb_id) : availSeries.has(it.tmdb_id);
+    const available = !FILES_ON || (it.type === 'movie' ? availMovies.has(it.tmdb_id) : availSeries.has(it.tmdb_id));
     const watch_url = it.type === 'movie' ? `/movie/${it.tmdb_id}` : `/tv/${it.tmdb_id}`;
     const request_url = `/request?title=${encodeURIComponent(it.title)}&year=${it.year.slice(0, 4)}`;
     return { ...it, poster: await tmdbPoster(it), available, watch_url, request_url };
@@ -372,7 +374,7 @@ const isLight = universe.accent === '#FFE81F';
       <h1 class="text-4xl sm:text-5xl lg:text-6xl font-black text-white leading-tight">{universe.name}</h1>
       <p class="mt-3 max-w-2xl text-sm sm:text-base" style="color: var(--text-secondary);">{universe.tagline}</p>
       <div class="mt-4 inline-flex items-center gap-2 text-sm" style="color: var(--text-secondary);">
-        <span class="font-bold" style={`color:${universe.accent};`}>{availCount}</span> of {totalItems} available now
+        {FILES_ON ? <><span class="font-bold" style={`color:${universe.accent};`}>{availCount}</span> of {totalItems} available now</> : <>{totalItems} titles, in the order to watch them</>}
       </div>
     </div>
   </section>
@@ -395,7 +397,7 @@ const isLight = universe.accent === '#FFE81F';
                        onerror="this.src='/images/no-poster.svg'"
                        class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
                   <!-- badge -->
-                  <div class="absolute top-2 left-2 px-2 py-0.5 rounded-md text-[10px] font-bold"
+                  <div class="absolute top-2 left-2 px-2 py-0.5 rounded-md text-[10px] font-bold" hidden={!FILES_ON}
                        style={it.available
                          ? 'background:rgba(22,163,74,0.92); color:#fff;'
                          : `background:rgba(0,0,0,0.72); color:${universe.accent}; border:1px solid ${universe.accent}66;`}>
@@ -416,9 +418,9 @@ const isLight = universe.accent === '#FFE81F';
       ))}
     </div>
 
-    <p class="mt-10 text-center text-xs" style="color: var(--text-muted);">
+    {FILES_ON && <p class="mt-10 text-center text-xs" style="color: var(--text-muted);">
       Missing a title? Tap any <span class="uni-accent" style={`color:${universe.accent};`}>REQUEST</span> to ask for it — we add new files daily.
-    </p>
+    </p>}
   </section>
 </BaseLayout>
 

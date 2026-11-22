@@ -1,3 +1,4 @@
+import { filesEnabled } from '../../lib/site-mode';
 import type { APIRoute } from 'astro';
 import { supabase } from '../../lib/supabase';
 import { randomBytes } from 'crypto';
@@ -8,6 +9,7 @@ function generateToken(): string {
 }
 
 export const GET: APIRoute = async ({ url, redirect, request }) => {
+  if (!filesEnabled()) return new Response('Gone', { status: 410 });
   const linkId = url.searchParams.get('link_id');
   const contentType = url.searchParams.get('type');
   const contentId = url.searchParams.get('id');

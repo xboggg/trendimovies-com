@@ -119,11 +119,6 @@
           {daysUntil === 1 ? 'Tomorrow' : `${daysUntil} days`}
         </span>
       </div>
-    {:else if item.has_downloads}
-      <!-- Quality Badge -->
-      <div class="absolute top-2 right-2 z-10">
-        <span class="px-2 py-0.5 rounded text-[10px] font-bold quality-badge">HD</span>
-      </div>
     {/if}
 
     <!-- Rating Circle -->

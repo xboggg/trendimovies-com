@@ -1,3 +1,4 @@
+import { filesEnabled } from '../../../lib/site-mode';
 import type { APIRoute } from 'astro';
 
 /**
@@ -10,6 +11,7 @@ import type { APIRoute } from 'astro';
  * Internal (Contabo): http://127.0.0.1:8765/stream/{sqlite_id}
  */
 export const GET: APIRoute = async ({ params }) => {
+  if (!filesEnabled()) return new Response('Gone', { status: 410 });
   const { id } = params;
 
   if (!id || !/^\d+$/.test(id)) {

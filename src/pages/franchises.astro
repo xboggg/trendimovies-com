@@ -158,7 +158,7 @@ function getBackdropUrl(path: string | null): string {
 
 <BaseLayout
   title="Movie Franchises — Complete Collections | TrendiMovies"
-  description="Binge entire movie sagas in order — Marvel, DC, Star Wars, Harry Potter, Fast & Furious, James Bond and more. Every film in each franchise, ready to stream or download in HD."
+  description="Binge entire movie sagas in order — Marvel, DC, Star Wars, Harry Potter, Fast & Furious, James Bond and more. Every film in each franchise, in order."
   image={`/api/og.png?type=digital&posters=${encodeURIComponent(franchises.filter((f: any) => f.poster_path).slice(0, 5).map((f: any) => f.poster_path).join('|'))}&accent=${encodeURIComponent('#e50914')}&eyebrow=${encodeURIComponent('COMPLETE COLLECTIONS')}&eyebrowEmoji=${encodeURIComponent('🎬')}&headline=${encodeURIComponent('Movie Franchises')}&subtitle=${encodeURIComponent('Marvel, DC, Star Wars, Harry Potter & more — every film in order')}&ogurl=${encodeURIComponent('trendimovies.com/franchises')}`}
 >
   <!-- Header -->

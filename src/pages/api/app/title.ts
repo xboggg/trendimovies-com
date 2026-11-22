@@ -1,3 +1,4 @@
+import { filesEnabled } from '../../../lib/site-mode';
 /**
  * /api/app/title?type=movie&id=<tmdb id>  -  the Telegram delivery buttons for one movie, for the app's pop-up.
  *
@@ -88,7 +89,7 @@ export const GET: APIRoute = async ({ url }) => {
     if (!movie) return new Response(JSON.stringify({ id: tmdb, ...det, best: [], more: [], other: 0, page }), { status: 200, headers });
 
     const lr = await fetch(`${PG}/download_links?content_type=eq.movie&content_id=eq.${movie.id}&is_active=eq.true&select=*`, { signal: AbortSignal.timeout(8000) });
-    const rows: any[] = (await lr.json()) || [];
+    const rows: any[] = filesEnabled() ? ((await lr.json()) || []) : [];   // clean site: no file / Telegram buttons
     const links: Link[] = [];
     let other = 0;
     for (const l of rows) {

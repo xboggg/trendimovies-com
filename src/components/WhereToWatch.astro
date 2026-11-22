@@ -1,0 +1,40 @@
+---
+// "Where to watch": official streaming / rent / buy options from TMDB (data by JustWatch).
+// results = tmdbData['watch/providers'].results  (a map: country code -> {link, flatrate, rent, buy, free, ads})
+const { results } = Astro.props;
+const ORDER = ['GH', 'NG', 'ZA', 'KE', 'GB', 'US', 'CA', 'AU'];
+const NAMES: Record<string, string> = { GH: 'Ghana', NG: 'Nigeria', ZA: 'South Africa', KE: 'Kenya', GB: 'the United Kingdom', US: 'the United States', CA: 'Canada', AU: 'Australia' };
+const has = (r: any) => r && ['flatrate', 'free', 'ads', 'rent', 'buy'].some((k) => Array.isArray(r[k]) && r[k].length);
+let region = '';
+for (const c of ORDER) { if (has(results?.[c])) { region = c; break; } }
+const r = region ? results[region] : null;
+const uniq = (a: any[]) => { const seen = new Set<number>(); return (a || []).filter((p) => (seen.has(p.provider_id) ? false : (seen.add(p.provider_id), true))); };
+const stream = r ? uniq([...(r.flatrate || []), ...(r.free || []), ...(r.ads || [])]) : [];
+const rent = r ? uniq(r.rent || []) : [];
+const buy = r ? uniq(r.buy || []) : [];
+const groups = [['Stream', stream], ['Rent', rent], ['Buy', buy]].filter((g: any) => g[1].length);
+---
+  {r ? (
+    <div style="display:flex;flex-direction:column;gap:14px;">
+      {groups.map((g: any) => (
+        <div>
+          <div style="font-size:12px;letter-spacing:.06em;text-transform:uppercase;opacity:.7;margin-bottom:8px;">{g[0]}</div>
+          <div style="display:flex;flex-wrap:wrap;gap:10px;">
+            {g[1].slice(0, 10).map((p: any) => (
+              <span style="display:inline-flex;align-items:center;gap:8px;padding:6px 10px 6px 6px;border-radius:12px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);font-size:13px;">
+                {p.logo_path && <img src={`https://image.tmdb.org/t/p/w92${p.logo_path}`} alt="" width="28" height="28" loading="lazy" style="border-radius:7px;" />}
+                {p.provider_name}
+              </span>
+            ))}
+          </div>
+        </div>
+      ))}
+      <p style="font-size:12px;opacity:.65;margin:0;">
+        {region !== 'GH' ? `Shown for ${NAMES[region] || region}; what is available in Ghana may differ. ` : ''}
+        {r.link && <a href={r.link} target="_blank" rel="noopener noreferrer nofollow" style="text-decoration:underline;">See all options</a>}
+        {' '}· Data from JustWatch
+      </p>
+    </div>
+  ) : (
+    <p style="opacity:.75;margin:0;">Not listed on the streaming services we track yet. It may still be in cinemas or not released.</p>
+  )}
