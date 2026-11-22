@@ -25,10 +25,10 @@ const groups = [['Stream', stream], ['Rent', rent], ['Buy', buy]].filter((g: any
           <div style="font-size:12px;letter-spacing:.06em;text-transform:uppercase;opacity:.7;margin-bottom:8px;">{g[0]}</div>
           <div style="display:flex;flex-wrap:wrap;gap:10px;">
             {g[1].slice(0, 10).map((p: any) => (
-              <span style="display:inline-flex;align-items:center;gap:8px;padding:6px 10px 6px 6px;border-radius:12px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);font-size:13px;">
+              <a href={r.link || undefined} target="_blank" rel="noopener noreferrer nofollow" style="display:inline-flex;align-items:center;gap:8px;padding:6px 10px 6px 6px;border-radius:12px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);font-size:13px;color:inherit;text-decoration:none;">
                 {p.logo_path && <img src={`https://image.tmdb.org/t/p/w92${p.logo_path}`} alt="" width="28" height="28" loading="lazy" style="border-radius:7px;" />}
                 {p.provider_name}
-              </span>
+              </a>
             ))}
           </div>
         </div>

@@ -361,7 +361,11 @@
           <div class="wtw-l">{g.label}</div>
           <div class="wtw-r">
             {#each g.providers as p}
-              <span class="wtw-c">{#if p.logo}<img src={p.logo} alt="" width="28" height="28" loading="lazy" />{/if}{p.name}</span>
+              {#if wtwData.link}
+                <a class="wtw-c wtw-a" href={wtwData.link} target="_blank" rel="noopener noreferrer nofollow">{#if p.logo}<img src={p.logo} alt="" width="28" height="28" loading="lazy" />{/if}{p.name}</a>
+              {:else}
+                <span class="wtw-c">{#if p.logo}<img src={p.logo} alt="" width="28" height="28" loading="lazy" />{/if}{p.name}</span>
+              {/if}
             {/each}
           </div>
         {/each}
@@ -527,6 +531,8 @@
   .wtw-r { display: flex; flex-wrap: wrap; gap: 8px; }
   .wtw-c { display: inline-flex; align-items: center; gap: 8px; padding: 6px 10px 6px 6px; border-radius: 12px; background: rgba(255,255,255,.07); border: 1px solid rgba(255,255,255,.1); font-size: 13px; }
   .wtw-c img { border-radius: 7px; }
+  .wtw-a { color: #fff; text-decoration: none; cursor: pointer; }
+  .wtw-a:hover { background: rgba(255,255,255,.16); border-color: rgba(251,191,36,.5); }
   .wtw-n { font-size: 12px; opacity: .65; margin: 14px 0 0; }
   .wtw-n a { text-decoration: underline; }
   .wtw-p { opacity: .8; margin: 12px 0; }
