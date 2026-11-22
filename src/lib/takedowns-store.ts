@@ -106,17 +106,45 @@ export async function searchMovies(q: string) {
   );
   if (!r.ok) return [];
   const taken = takenDownIds();
+  if (!r.rows.length && /^\d{1,9}$/.test(s)) {
+    const t = await tmdbLookup(Number(s));
+    if (t) return [{ id: 0, tmdb_id: Number(s), title: t.title, year: t.year, active_links: 0, taken_down: taken.has(Number(s)) }];
+  }
   return r.rows.map((c) => ({
     id: Number(c[0]), tmdb_id: Number(c[1]), title: c[2], year: c[3] ? Number(c[3]) : null,
     active_links: Number(c[4]), taken_down: taken.has(Number(c[1])),
   }));
 }
 
+// Title + year from TMDB for films that are not in our database.
+export async function tmdbLookup(tmdbId: number): Promise<{ title: string; year: number | null } | null> {
+  const key = (import.meta as any).env?.TMDB_API_KEY || process.env.TMDB_API_KEY || '';
+  if (!key) return null;
+  try {
+    const r = await fetch(`https://api.themoviedb.org/3/movie/${tmdbId}?api_key=${key}`);
+    if (!r.ok) return null;
+    const d: any = await r.json();
+    if (!d.title) return null;
+    return { title: d.title, year: d.release_date ? Number(String(d.release_date).slice(0, 4)) : null };
+  } catch {
+    return null;
+  }
+}
+
 // THE TAKEDOWN. One click does everything.
 export async function takeDown(tmdbId: number, note: string) {
   if (!Number.isInteger(tmdbId) || tmdbId <= 0) return { ok: false, error: 'Bad TMDB id' };
   const mv = await sql(`SELECT id, title, year FROM movies WHERE tmdb_id = ${tmdbId} ORDER BY id`);
-  if (!mv.ok || !mv.rows.length) return { ok: false, error: 'No film with that TMDB id' };
+  if (!mv.ok) return { ok: false, error: 'Database problem: ' + mv.err };
+  if (!mv.rows.length) {
+    // Not in our database (a page that comes straight from TMDB: no files of ours, but it still shows Stream/Download buttons).
+    const t = await tmdbLookup(tmdbId);
+    if (!t) return { ok: false, error: 'No film with that TMDB id (not in our database or on TMDB)' };
+    const list2 = readTakedowns().filter((e) => Number(e.tmdb_id) !== tmdbId);
+    list2.push({ tmdb_id: tmdbId, title: t.title, year: t.year, key: titleKey(t.title), files: [], note: (note || '').slice(0, 300), added: new Date().toISOString() });
+    writeTakedowns(list2);
+    return { ok: true, title: t.title, year: t.year, files: 0, cached_copies: 0, links_off: true, nginx_ok: true, error: '' };
+  }
   const ids = mv.rows.map((c) => Number(c[0]));
   const title = mv.rows[0][1];
   const year = mv.rows[0][2] ? Number(mv.rows[0][2]) : null;
