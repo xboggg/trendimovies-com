@@ -125,7 +125,7 @@
   </div>
 
   <div class="card small">
-    <b>What one tap does:</b> 1) switches off every download and subtitle link of the film, 2) makes its file addresses answer "410 Gone" (nginx), 3) removes Download and Stream from its page and says it was removed after a copyright notice, 4) stops the link engine from ever linking it again. It does <b>not</b> delete any file from Telegram or the server disk. After it, reply to the notice (the reply message is the same as before).
+    <b>What one tap does:</b> 1) switches off every download and subtitle link of the film, 2) makes its file addresses answer "410 Gone" (nginx), 3) removes Download and Stream from its page and says "This title is not available", 4) stops the link engine from ever linking it again. It does <b>not</b> delete any file from Telegram or the server disk. After it, reply to the notice (the reply message is the same as before).
   </div>
 </div>
 
