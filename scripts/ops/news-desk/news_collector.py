@@ -102,7 +102,7 @@ def fetch_channel(name):
         txt_el = w.select_one('.tgme_widget_message_text')
         txt = clean(txt_el.get_text(' ') if txt_el else '')
         txt = re.sub(r'@\w+', '', txt).strip()          # drop the channel's own tags
-        tm = w.select_one('time')
+        tm = w.select_one('.tgme_widget_message_date time')
         when = tm.get('datetime') if tm else None
         if len(txt) < 12:
             continue
@@ -209,6 +209,46 @@ ALREADY PUBLISHED OR DRAFTED RECENTLY (set already_covered=true if this lead is 
 
 {SCHEMA_HINT}"""
     return ask(prompt)
+
+
+def web_verify(lead_text):
+    """Web search for a real report of the same story. Returns {'source','link','title','desc'} or None.
+    Only accepts a report published in the last 4 days (so an old story can never come back as news)."""
+    today = datetime.date.today().isoformat()
+    prompt = f"""A film-news channel posted this lead. It may be OLD news, a rumour, or invented.
+
+LEAD: {lead_text}
+
+Today is {today}. Use web search to find a real report of this SAME story from a reputable outlet
+(Variety, Deadline, The Hollywood Reporter, IndieWire, Empire, Collider, Screen Rant, GamesRadar, BBC, Reuters, AP, Entertainment Weekly, etc.).
+Reply with ONLY one JSON object:
+{{"found": true or false, "url": "full link of the report", "outlet": "outlet name", "published": "YYYY-MM-DD, the date that report was published",
+  "is_old_news": true if the event happened more than 4 days before today, "note": "one short sentence"}}
+found must be false if you cannot find a real report. Never guess a link."""
+    try:
+        r = client.messages.create(model=MODEL, max_tokens=1500, temperature=0,
+                                   tools=[{'type': 'web_search_20250305', 'name': 'web_search', 'max_uses': 4}],
+                                   messages=[{'role': 'user', 'content': prompt}])
+        txt = ''.join(b.text for b in r.content if getattr(b, 'type', '') == 'text')
+        obj, _ = json.JSONDecoder().raw_decode(txt[txt.index('{'):])
+    except Exception as e:
+        log(f'web verify failed: {e}')
+        return None
+    try:
+        if not obj.get('found') or obj.get('is_old_news'):
+            log(f"web: not usable ({obj.get('note')})")
+            return None
+        pub = datetime.date.fromisoformat(str(obj.get('published'))[:10])
+        if (datetime.date.today() - pub).days > 4 or pub > datetime.date.today() + datetime.timedelta(days=1):
+            log(f'web: report dated {pub}, too old')
+            return None
+        url = str(obj.get('url') or '')
+        if not re.match(r'^https?://[^\s]+$', url):
+            return None
+        return {'source': clean(obj.get('outlet') or 'the source', 60), 'link': url, 'title': '', 'desc': ''}
+    except Exception as e:
+        log(f'web verify unreadable: {e}')
+        return None
 
 
 # ---------------------------------------------------------------- TMDB
@@ -329,10 +369,10 @@ def main():
             if p['ref'] in seen:
                 continue
             try:
-                if p['when'] and datetime.datetime.fromisoformat(p['when']) < cutoff:
-                    continue
+                if not p['when'] or datetime.datetime.fromisoformat(p['when']) < cutoff:
+                    continue                      # too old, or no date we can trust
             except Exception:
-                pass
+                continue
             leads.append({'kind': 'channel', 'ref': p['ref'], 'text': p['text']})
     log(f'{len(leads)} new channel leads')
 
@@ -363,6 +403,20 @@ def main():
                 if res2 and not res2.get('skip'):
                     res = res2
                     res['source_index'] = si
+        if src is None:
+            web = web_verify(ld['text'])
+            txt = article_text(web['link']) if web else ''
+            if web and len(txt) >= 300:
+                res2 = write_item(ld['text'], 'a short post from a movie-news channel', reports, recent, {'idx': 'web', 'text': txt})
+                if res2 and not res2.get('skip') and not res2.get('already_covered'):
+                    res, src = res2, web
+        if src is None:
+            if not DRY:
+                insert(conn, {'slug': 'skip-' + re.sub(r'\W', '', ld['ref']).lower(), 'title': (ld['text'][:80] or 'skipped'), 'origin': 'channel',
+                              'origin_ref': ld['ref'], 'origin_text': ld['text'], 'status': 'skipped',
+                              'skip_reason': 'no real recent report found'})
+            log(f"no verified source, not drafted: {ld['ref']}")
+            continue
         made.append(finish(conn, res, src, ld, 'channel', mode, recent))
 
     # extra stories straight from the outlets (limited per day), only if room is left
