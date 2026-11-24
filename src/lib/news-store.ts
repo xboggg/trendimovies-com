@@ -75,7 +75,7 @@ export async function update(id: number, p: any) {
   }
   if (p.cover_image !== undefined) {
     const c = clip(p.cover_image, 600);
-    if (c && !/^https:\/\/image\.tmdb\.org\/t\/p\//.test(c)) return { ok: false, error: 'Pictures must come from TMDB (https://image.tmdb.org/...)' };
+    if (c && !/^https:\/\/(image\.tmdb\.org\/t\/p\/|img\.youtube\.com\/vi\/[\w-]{6,20}\/(maxresdefault|hqdefault)\.jpg$)/.test(c)) return { ok: false, error: 'Pictures must come from TMDB or be an official trailer picture' };
     add('cover_image', c || null);
   }
   if (p.related_tmdb_id !== undefined) {

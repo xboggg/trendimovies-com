@@ -40,6 +40,20 @@ export const GET: APIRoute = async ({ request, url }) => {
         const fd: any = await fetchFromTMDB(`/${kind}/${id}`, {});
         title = fd?.title || fd?.name || '';
         poster = fd?.poster_path ? 'https://image.tmdb.org/t/p/w500' + fd.poster_path : '';
+        // official trailer pictures (YouTube), only those that really exist in full size
+        try {
+          const vd: any = await fetchFromTMDB(`/${kind}/${id}/videos`, {});
+          const trailers = (vd?.results || []).filter((v: any) => v.site === 'YouTube' && v.type === 'Trailer' && /^[\w-]{6,20}$/.test(v.key || ''))
+            .sort((a: any, b: any) => Number(!!b.official) - Number(!!a.official)).slice(0, 3);
+          const ok = await Promise.all(trailers.map(async (v: any) => {
+            try {
+              const r = await fetch(`https://img.youtube.com/vi/${v.key}/maxresdefault.jpg`, { method: 'HEAD', signal: AbortSignal.timeout(4000) });
+              return r.ok && Number(r.headers.get('content-length') || 0) > 20000 ? v.key : null;
+            } catch { return null; }
+          }));
+          const extra = ok.filter(Boolean).map((k: any) => ({ url: `https://img.youtube.com/vi/${k}/maxresdefault.jpg`, thumb: `https://img.youtube.com/vi/${k}/mqdefault.jpg`, trailer: true }));
+          images = [...images, ...extra];
+        } catch { /* trailer pictures are optional */ }
       }
       return json({ ok: true, images, poster, title, kind, id: Number(id) });
     }

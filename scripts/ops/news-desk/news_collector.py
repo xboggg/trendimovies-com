@@ -383,6 +383,22 @@ def resolve_subject(stype, title, year):
         return {}
 
 
+def trailer_thumb(tid, typ):
+    """Wide picture from the film's official YouTube trailer, when TMDB has no backdrop yet. Only a full-size picture is accepted."""
+    try:
+        vids = tmdb(f"/{'tv' if typ == 'tv' else 'movie'}/{tid}/videos").get('results', [])
+        vids = [v for v in vids if v.get('site') == 'YouTube' and v.get('type') == 'Trailer' and v.get('key')]
+        vids.sort(key=lambda v: not v.get('official'))        # official trailers first
+        for v in vids[:3]:
+            url = f"https://img.youtube.com/vi/{v['key']}/maxresdefault.jpg"
+            r = requests.head(url, timeout=10)
+            if r.status_code == 200 and int(r.headers.get('content-length', '0') or 0) > 20000:
+                return url
+    except Exception as e:
+        log(f'trailer picture lookup failed for {typ} {tid}: {e}')
+    return None
+
+
 def person_photo(name):
     """TMDB photo of a person (portrait). Used only when the film/series has no picture of its own yet."""
     name = (name or '').strip()
@@ -406,11 +422,21 @@ def refresh_covers(conn):
     cur = conn.cursor()
     cur.execute("""SELECT id, related_tmdb_id, related_type FROM news_items
                    WHERE related_tmdb_id IS NOT NULL AND status IN ('draft','published')
-                     AND (cover_image IS NULL OR cover_image LIKE '%/h632/%') ORDER BY id DESC LIMIT 40""")
+                     AND (cover_image IS NULL OR cover_image LIKE '%/h632/%' OR cover_image LIKE '%img.youtube.com%') ORDER BY id DESC LIMIT 40""")
     for nid, tid, typ in cur.fetchall():
         try:
             d = tmdb(f"/{'tv' if typ == 'tv' else 'movie'}/{tid}")
         except Exception:
+            continue
+        if not d.get('backdrop_path'):
+            cur.execute("SELECT cover_image FROM news_items WHERE id=%s", (nid,))
+            cur_cover = cur.fetchone()[0] or ''
+            if 'img.youtube.com' not in cur_cover:               # a person photo or an empty tile can still become the trailer picture
+                yt = trailer_thumb(tid, typ)
+                if yt and not DRY:
+                    cur.execute("UPDATE news_items SET cover_image=%s, updated_at=now() WHERE id=%s", (yt, nid))
+                    conn.commit()
+                    log(f'news #{nid}: trailer picture added')
             continue
         if d.get('backdrop_path'):
             cover = 'https://image.tmdb.org/t/p/w1280' + d['backdrop_path']
@@ -751,6 +777,10 @@ def finish(conn, res, src, ld, origin, mode, recent, when=None):
             insert(conn, {'slug': 'skip-' + re.sub(r'\W', '', ld['ref']).lower()[:40], 'title': title, 'origin': origin, 'origin_ref': ld['ref'],
                           'status': 'skipped', 'skip_reason': 'film on takedown list'})
         return None
+    if not subj.get('cover_image') and subj.get('related_tmdb_id'):
+        yt = trailer_thumb(subj['related_tmdb_id'], subj.get('related_type'))
+        if yt:
+            subj['cover_image'] = yt
     if not subj.get('cover_image'):
         ph = person_photo(clean(res.get('subject_person') or ''))
         if ph:

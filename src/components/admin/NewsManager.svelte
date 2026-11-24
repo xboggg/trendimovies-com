@@ -314,7 +314,7 @@
                 <div class="muted">{pic[it.id].picked.title}: tap a picture to use it{pic[it.id].picked.kind !== 'person' ? ' (the story also links to this film)' : ''}. Then tap Save.</div>
                 <div class="pgrid">
                   {#each pic[it.id].images as img}
-                    <button type="button" class="pg" class:sel={edit[it.id].cover_image === img.url} on:click={() => picUse(it.id, img)}><img src={img.thumb} alt="" loading="lazy" /></button>
+                    <button type="button" class="pg" class:sel={edit[it.id].cover_image === img.url} on:click={() => picUse(it.id, img)}><img src={img.thumb} alt="" loading="lazy" />{#if img.trailer}<span class="ptag">Trailer</span>{/if}</button>
                   {/each}
                 </div>
                 <button type="button" class="btn ghost" on:click={() => { pic[it.id].picked = null; pic[it.id].images = []; pic = pic; }}>Back to results</button>
@@ -401,6 +401,8 @@
   .pr small { color: #8a8a8a; }
   .pgrid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
   .pg { padding: 0; border: 3px solid transparent; border-radius: 10px; background: #000; overflow: hidden; cursor: pointer; }
+  .pg { position: relative; }
+  .ptag { position: absolute; left: 6px; top: 6px; background: #e50914; color: #fff; font-size: 10px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; padding: 2px 6px; border-radius: 5px; }
   .pg.sel { border-color: #22c55e; }
   .pg img { display: block; width: 100%; aspect-ratio: 16 / 9; object-fit: cover; object-position: 50% 20%; }
   .paste { display: flex; flex-direction: column; gap: 10px; }

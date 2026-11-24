@@ -115,6 +115,8 @@ export function clock(iso: string): string {
 /** Small picture for lists (TMDB sizes are in the URL; swap the size segment). */
 export function thumb(url: string | null, size = 'w500'): string {
   if (!url) return '';
+  // official trailer pictures (YouTube): small size for lists, full size for big covers
+  if (url.includes('img.youtube.com/vi/')) return url.replace(/\/(maxresdefault|mqdefault)\.jpg$/, size === 'w342' || size === 'w500' ? '/mqdefault.jpg' : '/maxresdefault.jpg');
   return url.replace(/\/t\/p\/w\d+\//, `/t/p/${size}/`);
 }
 
