@@ -24,6 +24,25 @@
   let newLabel = '';
   let replaceLink = {};     // handle -> pasted new link
   let bulkConfirm = false;
+  let leads = [];
+  let leadText = '';
+  let leadLink = '';
+  let leadDate = '';
+  async function sendLead() {
+    busy = true; flash('Sending...');
+    try {
+      const r = await fetch('/api/admin/news', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'lead_add', text: leadText, link: leadLink, posted_on: leadDate }) });
+      const d = await r.json();
+      if (d.ok) {
+        flash('Got it. The desk is checking it now. A draft appears in Waiting in about a minute (tap Refresh below).', 'success');
+        leadText = ''; leadLink = ''; leadDate = '';
+        setTimeout(load, 20000); setTimeout(load, 50000); setTimeout(load, 90000);
+        await load();
+      } else flash('Problem: ' + (d.error || 'unknown'), 'error');
+    } catch (e) { flash('Problem: ' + e, 'error'); }
+    busy = false;
+  }
+  const leadIcon = (l) => (l.status === 'done' ? (l.item_id ? '✅' : 'ℹ️') : l.status === 'failed' ? '⚠️' : '⏳');
 
   async function srcCall(payload, okText) {
     busy = true; flash('Working...');
@@ -60,7 +79,7 @@
     try {
       const r = await fetch('/api/admin/news?status=' + tab);
       const d = await r.json();
-      if (d.ok) { items = d.items; counts = d.counts; mode = d.mode; sources = d.sources || sources; } else flash(d.error || 'Could not load', 'error');
+      if (d.ok) { items = d.items; counts = d.counts; mode = d.mode; sources = d.sources || sources; leads = d.leads || []; } else flash(d.error || 'Could not load', 'error');
     } catch (e) { flash('Could not load: ' + e, 'error'); }
     loading = false;
   }
@@ -140,6 +159,26 @@
     <button class="btn {modeConfirm ? 'warn' : 'ghost'}" disabled={busy} on:click={toggleMode}>
       {modeConfirm ? 'Tap again to confirm' : mode.auto_publish ? 'Turn off' : 'Turn on'}
     </button>
+  </div>
+
+  <div class="card paste">
+    <div class="t">Add a story from a post</div>
+    <p class="muted">Copy a post from any channel (for example Hislordship News) and paste it here. The desk checks it on the web, writes it in its own words and leaves a draft for your yes.</p>
+    <textarea rows="5" placeholder="Paste the post text here" bind:value={leadText}></textarea>
+    <div class="srow-in">
+      <input placeholder="Article link (optional, helps a lot)" bind:value={leadLink} />
+      <label class="dl">Posted on <input type="date" bind:value={leadDate} /></label>
+    </div>
+    <div class="muted">Leave the date empty if the post is from today. An older date keeps the story dated that day.</div>
+    <button class="btn good" disabled={busy || leadText.trim().length < 20} on:click={sendLead}>Make a story</button>
+    {#if leads.length}
+      <div class="leads">
+        {#each leads as l (l.id)}
+          <div class="lrow">{leadIcon(l)} <span class="muted">{l.text}…</span><br /><span>{l.status === 'new' || l.status === 'working' ? 'Working on it...' : l.note}</span></div>
+        {/each}
+        <button class="btn ghost" disabled={busy} on:click={load}>Refresh</button>
+      </div>
+    {/if}
   </div>
 
   <details class="card src">
@@ -288,6 +327,12 @@
   .btn { display: inline-flex; align-items: center; justify-content: center; flex: 1 1 auto; min-height: 46px; padding: 0 16px; border-radius: 11px; border: 1px solid transparent; font: inherit; font-size: 15px; font-weight: 800; cursor: pointer; text-decoration: none; color: #fff; }
   .btn:disabled { opacity: .5; }
   .btn.good { background: #16a34a; } .btn.danger { background: transparent; border-color: #7f1d1d; color: #fca5a5; }
+  .paste { display: flex; flex-direction: column; gap: 10px; }
+  .paste textarea { background: #0d0d0d; border: 1px solid #333; color: #fff; padding: 11px; border-radius: 9px; font: inherit; font-size: 15px; }
+  .dl { display: flex; align-items: center; gap: 8px; font-size: 13px; color: #9a9a9a; }
+  .dl input { flex: none; }
+  .leads { border-top: 1px solid #262626; padding-top: 8px; display: flex; flex-direction: column; gap: 8px; font-size: 14px; line-height: 1.4; }
+  .lrow { color: #ddd; }
   .src summary { font-size: 15px; font-weight: 800; color: #fff; }
   .src .bad { margin-left: 8px; }
   .srow { padding: 10px 0; border-top: 1px solid #262626; display: flex; flex-direction: column; gap: 6px; }

@@ -1,6 +1,7 @@
 // Admin-side access to the news desk. Uses a direct database connection (the public API role can NOT read news_items).
 import pg from 'pg';
-import { readFileSync, writeFileSync, existsSync } from 'fs';
+import { readFileSync, writeFileSync, existsSync, openSync } from 'fs';
+import { spawn } from 'child_process';
 
 const MODE_FILE = '/var/lib/trendimovies/news_mode.json';
 export const CATEGORY_KEYS = ['casting', 'trailers', 'release-dates', 'box-office', 'streaming', 'awards', 'behind-the-scenes', 'new-projects'];
@@ -81,6 +82,35 @@ export async function update(id: number, p: any) {
 export async function publishDatedDrafts() {
   const r = await getPool().query("UPDATE news_items SET status='published', updated_at = now() WHERE status='draft' AND published_at IS NOT NULL AND source_url IS NOT NULL");
   return { ok: true, n: r.rowCount };
+}
+
+// ---------------------------------------------------------------- posts pasted by the editor
+export async function addLead(text: string, link: string, postedOn: string) {
+  const t = String(text || '').trim();
+  if (t.length < 20) return { ok: false, error: 'Paste the whole post first (at least a sentence).' };
+  if (t.length > 4000) return { ok: false, error: 'That is too long. Paste one post at a time.' };
+  const l = String(link || '').trim();
+  if (l && !/^https?:\/\/[^\s]+$/i.test(l)) return { ok: false, error: 'The link must start with http:// or https://' };
+  let d: string | null = String(postedOn || '').trim() || null;
+  if (d) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(d) || isNaN(Date.parse(d))) return { ok: false, error: 'That date is not valid' };
+    if (Date.parse(d) > Date.now() + 86400000) return { ok: false, error: 'The date cannot be in the future' };
+  }
+  const pend = await getPool().query("SELECT count(*)::int AS n FROM news_leads WHERE status IN ('new','working')");
+  if (pend.rows[0].n >= 10) return { ok: false, error: 'There are already 10 waiting. Give it a few minutes.' };
+  await getPool().query('INSERT INTO news_leads (text, link, posted_on) VALUES ($1, $2, $3)', [t, l || null, d]);
+  // start the desk now (it keeps its own lock, so it can never run twice at once); the 2-hourly run also picks leads up
+  try {
+    const out = openSync('/var/log/trendimovies/news_collector.log', 'a');
+    const child = spawn('/usr/bin/python3', ['-u', 'news_collector.py', '--leads'], { cwd: '/opt/trendimovies-news', detached: true, stdio: ['ignore', out, out] });
+    child.unref();
+  } catch { /* the scheduled run will still handle it */ }
+  return { ok: true };
+}
+
+export async function recentLeads() {
+  const r = await getPool().query("SELECT id, left(text, 90) AS text, status, note, item_id, created_at FROM news_leads ORDER BY id DESC LIMIT 6");
+  return r.rows;
 }
 
 // ---------------------------------------------------------------- sources (channels the desk watches)

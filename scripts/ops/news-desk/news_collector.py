@@ -293,7 +293,7 @@ ALREADY PUBLISHED OR DRAFTED RECENTLY (set already_covered=true if this lead is 
     return ask(prompt)
 
 
-def web_verify(lead_text, ref_date=None):
+def web_verify(lead_text, ref_date=None, max_age=4, ignore_old_flag=False):
     """Web search for a real report of the same story. Returns {'source','link','title','desc'} or None.
     Only accepts a report published in the last 4 days (so an old story can never come back as news)."""
     ref = ref_date or datetime.date.today()
@@ -307,8 +307,9 @@ The lead was posted on {today}. Use web search to find a real report of this SAM
 Fan blogs, rumour sites, social posts and forums are NOT acceptable sources; if only those exist, found must be false.
 Reply with ONLY one JSON object:
 {{"found": true or false, "url": "full link of the report", "outlet": "outlet name", "published": "YYYY-MM-DD, the date that report was published",
-  "is_old_news": true if the event happened more than 4 days before the date the lead was posted, "facts": "3 to 6 plain sentences with the key facts of that report (names, numbers, dates)", "note": "one short sentence"}}
-found must be false if you cannot find a real report. Never guess a link."""
+  "is_old_news": true if the event happened more than {max_age} days before the date the lead was posted, "facts": "3 to 6 plain sentences with the key facts of that report (names, numbers, dates)", "note": "one short sentence"}}
+found must be false if you cannot find a real report. Never guess a link.
+Set found=true when a real report covers the SAME story even if the lead words some details differently: the desk writes from the report's facts, never from the lead."""
     try:
         r = client.messages.create(model=MODEL, max_tokens=1500, temperature=0,
                                    tools=[{'type': 'web_search_20250305', 'name': 'web_search', 'max_uses': 4}],
@@ -319,11 +320,11 @@ found must be false if you cannot find a real report. Never guess a link."""
         log(f'web verify failed: {e}')
         return None
     try:
-        if not obj.get('found') or obj.get('is_old_news'):
+        if not obj.get('found') or (obj.get('is_old_news') and not ignore_old_flag):
             log(f"web: not usable ({obj.get('note')})")
             return None
         pub = datetime.date.fromisoformat(str(obj.get('published'))[:10])
-        if (ref - pub).days > 4 or (pub - ref).days > 5 or pub > datetime.date.today() + datetime.timedelta(days=1):
+        if (ref - pub).days > max_age or (pub - ref).days > 5 or pub > datetime.date.today() + datetime.timedelta(days=1):
             log(f'web: report dated {pub} does not fit the lead date {ref}')
             return None
         url = str(obj.get('url') or '')
@@ -481,6 +482,12 @@ def main():
         log('another run is active, leaving')
         return
     mode = load_mode()
+    if '--leads' in sys.argv:
+        c0 = db()
+        cu = c0.cursor()
+        cu.execute("SELECT title FROM news_items WHERE status IN ('draft','published') ORDER BY created_at DESC LIMIT 40")
+        process_leads(c0, [r[0] for r in cu.fetchall()], fetch_feeds())
+        return
     if '--backfill-from' in sys.argv:
         since = datetime.date.fromisoformat(sys.argv[sys.argv.index('--backfill-from') + 1])
         run_backfill(db(), since, LIMIT_ARG)
@@ -498,6 +505,7 @@ def main():
     refresh_covers(conn)
     reports = fetch_feeds()
     log(f'{len(reports)} recent outlet reports')
+    process_leads(conn, recent, reports)
     leads = []
     cutoff = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=3)
     for ch in active_channels():
@@ -592,6 +600,68 @@ Return JSON: {{"picks": [numbers]}}""", 300)
     autop = [m for m in made if m[1] == 'published']
     if autop:
         tg('📰 <b>Published automatically:</b>\n' + '\n'.join('• ' + html.escape(t) for t, st in autop[:8]))
+
+
+def process_leads(conn, recent, reports):
+    """Posts pasted by the editor in /admin/news. Same checks as every other story; the result is always a draft."""
+    import urllib.parse as up
+    cur = conn.cursor()
+    cur.execute("SELECT id, text, link, posted_on FROM news_leads WHERE status='new' ORDER BY id LIMIT 10")
+    for lid, text, link, posted_on in cur.fetchall():
+        cur.execute("UPDATE news_leads SET status='working' WHERE id=%s", (lid,))
+        conn.commit()
+
+        def done(status, note, item_id=None):
+            cur.execute("UPDATE news_leads SET status=%s, note=%s, item_id=%s WHERE id=%s", (status, note, item_id, lid))
+            conn.commit()
+            log(f'lead #{lid}: {status} - {note}')
+
+        text = clean(text)
+        when = None
+        if posted_on and posted_on < datetime.date.today() - datetime.timedelta(days=1) and (datetime.date.today() - posted_on).days <= 120:
+            when = datetime.datetime.combine(posted_on, datetime.time(12, 0), tzinfo=datetime.timezone.utc)
+        kind = 'a post pasted by the editor' + (f', posted on {posted_on}' if when else '')
+        res = write_item(text, kind, [] if when else reports, recent)
+        if not res:
+            done('failed', 'The writer could not read it. Try again.')
+            continue
+        if res.get('skip'):
+            done('done', 'Not film or TV news: ' + clean(res.get('skip_reason') or '', 120))
+            continue
+        if res.get('already_covered'):
+            done('done', 'Already covered on the site.')
+            continue
+        src = None
+        if link and re.match(r'^https?://\S+$', link):
+            body = article_text(link)
+            if len(body) >= 300:
+                host = up.urlparse(link).netloc.lower().replace('www.', '')
+                src = {'source': host.split('.')[0].capitalize() if host else 'the source', 'link': link, 'title': '', 'desc': ''}
+                res2 = write_item(text, kind, [], recent, {'idx': 'link', 'text': body})
+                if res2 and not res2.get('skip') and not res2.get('already_covered'):
+                    res = res2
+        if src is None and not when:
+            si = res.get('source_index')
+            if isinstance(si, int) and 0 <= si < len(reports):
+                src = reports[si]
+        if src is None:
+            web = web_verify(text, when.date() if when else None, max_age=14, ignore_old_flag=True)   # pasted by the editor: the editor decides what is newsworthy; the report must still be real, from an established outlet and dated close to the post
+            wt = web_text(web)
+            if web and wt:
+                res2 = write_item(text, kind, [], recent, {'idx': 'web', 'text': wt})
+                if res2 and not res2.get('skip') and not res2.get('already_covered'):
+                    res, src = res2, web
+        if src is None:
+            done('done', 'No real report found for this. If you have the article link, paste it in the link box and try again.')
+            continue
+        ref = f'manual:{lid}'
+        out = finish(conn, res, src, {'kind': 'manual', 'ref': ref, 'text': text}, 'manual', {}, recent, when=when)
+        if not out:
+            done('failed', 'Could not save the story. Try again.')
+            continue
+        cur.execute("SELECT id FROM news_items WHERE origin_ref=%s", (ref,))
+        row = cur.fetchone()
+        done('done', 'Draft ready in Waiting.', row[0] if row else None)
 
 
 def run_backfill(conn, since, limit=None):
