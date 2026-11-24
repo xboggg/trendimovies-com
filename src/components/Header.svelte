@@ -238,6 +238,10 @@
           {/if}
         </div>
 
+        <a href="/news" class="nav-link" class:nav-link-active={isActive('/news')}>
+          News
+        </a>
+
         <a href="/blog" class="nav-link" class:nav-link-active={isActive('/blog')}>
           Blog
         </a>
@@ -416,6 +420,9 @@
           <a href="/series" class="mobile-nav-item" class:mobile-nav-active={isActive('/series')}>
             <Tv size={16} />
             <span>Series</span>
+          </a>
+          <a href="/news" class="mobile-nav-item" class:mobile-nav-active={isActive('/news')}>
+            <span>News</span>
           </a>
           <a href="/blog" class="mobile-nav-item" class:mobile-nav-active={isActive('/blog')}>
             <span>Blog</span>

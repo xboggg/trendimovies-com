@@ -1,0 +1,221 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import { getNews, NEWS_CATEGORIES, catMeta, ago, dayLabel, clock, thumb } from '../../lib/news';
+
+const PAGE = 15;
+const catParam = Astro.url.searchParams.get('c') || '';
+const cat = NEWS_CATEGORIES.some((c) => c.key === catParam) ? catParam : '';
+const page = Math.max(1, parseInt(Astro.url.searchParams.get('page') || '1') || 1);
+
+const { items, total } = await getNews({ limit: PAGE, offset: (page - 1) * PAGE, category: cat });
+const totalPages = Math.max(1, Math.ceil(total / PAGE));
+
+// The ticker always shows the newest stories overall, whatever filter is on.
+const ticker = cat || page > 1 ? (await getNews({ limit: 6 })).items : items.slice(0, 6);
+
+const lead = page === 1 && items.length ? items[0] : null;
+const rest = lead ? items.slice(1) : items;
+
+// Group the rest by day for the timeline
+const groups: { label: string; list: typeof items }[] = [];
+for (const it of rest) {
+  const label = dayLabel(it.published_at);
+  const last = groups[groups.length - 1];
+  if (last && last.label === label) last.list.push(it);
+  else groups.push({ label, list: [it] });
+}
+
+const href = (p: number, c = cat) => `/news${c || p > 1 ? '?' : ''}${[c ? `c=${c}` : '', p > 1 ? `page=${p}` : ''].filter(Boolean).join('&')}`;
+const activeCat = cat ? catMeta(cat) : null;
+const pageTitle = activeCat ? `${activeCat.label} News` : 'Film & TV News';
+const pageDesc = activeCat
+  ? `${activeCat.label} news from the world of movies and series, in plain words.`
+  : 'The latest film and TV news in plain words: casting, trailers, release dates, box office and streaming. Updated through the day.';
+const ogImage = lead?.cover_image || '/images/og-default.jpg';
+---
+
+<BaseLayout title={pageTitle} description={pageDesc} image={ogImage} noIndex={page > 1}>
+  <main class="wire">
+    <!-- Live ticker of the newest headlines -->
+    {ticker.length > 0 && (
+      <div class="ticker" aria-label="Latest headlines">
+        <span class="ticker-tag"><i class="dot"></i>LIVE</span>
+        <div class="ticker-run" aria-hidden="false">
+          <div class="ticker-track">
+            {[0, 1].map((n) => (
+              <div class="ticker-set" aria-hidden={n === 1 ? 'true' : undefined}>
+                {ticker.map((t) => (
+                  <a href={`/news/${t.slug}`} tabindex={n === 1 ? -1 : undefined}><b style={`color:${catMeta(t.category).color}`}>●</b> {t.title}</a>
+                ))}
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    )}
+
+    <header class="head">
+      <p class="eyebrow"><i class="dot"></i> The Wire</p>
+      <h1>{activeCat ? `${activeCat.label} news` : 'Film & TV news'}</h1>
+      <p class="sub">What is happening in movies and series, in plain words. Every story names its source.</p>
+    </header>
+
+    <nav class="rail" aria-label="News topics">
+      <a href="/news" class:list={['chip', { on: !cat }]}>All</a>
+      {NEWS_CATEGORIES.map((c) => (
+        <a href={`/news?c=${c.key}`} class:list={['chip', { on: cat === c.key }]} style={`--c:${c.color}`}><span>{c.glyph}</span>{c.label}</a>
+      ))}
+    </nav>
+
+    {items.length === 0 && (
+      <div class="empty">
+        <p class="empty-big">🗞️</p>
+        <p>No stories here yet. Check back soon.</p>
+        {cat && <a href="/news" class="btn">See all news</a>}
+      </div>
+    )}
+
+    {lead && (
+      <a href={`/news/${lead.slug}`} class="lead" style={`--c:${catMeta(lead.category).color}`}>
+        {lead.cover_image
+          ? <img src={thumb(lead.cover_image, 'w780')} alt={lead.title} width="780" height="439" fetchpriority="high" decoding="async" />
+          : <div class="lead-fallback" aria-hidden="true"><span>{catMeta(lead.category).glyph}</span></div>}
+        <div class="lead-shade"></div>
+        <div class="lead-body">
+          <span class="tag"><span>{catMeta(lead.category).glyph}</span>{catMeta(lead.category).label}</span>
+          <h2>{lead.title}</h2>
+          {lead.summary && <p>{lead.summary}</p>}
+          <span class="meta">{lead.source_name ? `${lead.source_name} · ` : ''}{ago(lead.published_at)}</span>
+        </div>
+      </a>
+    )}
+
+    {groups.map((g) => (
+      <section class="day">
+        <h2 class="day-h"><span>{g.label}</span></h2>
+        <ol class="tl">
+          {g.list.map((it) => {
+            const m = catMeta(it.category);
+            return (
+              <li style={`--c:${m.color}`}>
+                <i class="node" aria-hidden="true"></i>
+                <time class="clock" datetime={it.published_at}>{clock(it.published_at)}</time>
+                <a href={`/news/${it.slug}`} class="card">
+                  <div class="pic">
+                    {it.cover_image
+                      ? <img src={thumb(it.cover_image, 'w500')} alt="" width="500" height="281" loading="lazy" decoding="async" />
+                      : <div class="pic-fallback"><span>{m.glyph}</span></div>}
+                  </div>
+                  <div class="txt">
+                    <span class="tag small"><span>{m.glyph}</span>{m.label}</span>
+                    <h3>{it.title}</h3>
+                    {it.summary && <p>{it.summary}</p>}
+                    <span class="meta">{it.source_name ? `${it.source_name} · ` : ''}{ago(it.published_at)}</span>
+                  </div>
+                </a>
+              </li>
+            );
+          })}
+        </ol>
+      </section>
+    ))}
+
+    {totalPages > 1 && (
+      <nav class="pager" aria-label="More news">
+        {page > 1 ? <a href={href(page - 1)} rel="prev" class="btn">← Newer</a> : <span></span>}
+        <span class="pg">Page {page} of {totalPages}</span>
+        {page < totalPages ? <a href={href(page + 1)} rel="next" class="btn">Older →</a> : <span></span>}
+      </nav>
+    )}
+
+    <p class="note">TrendiMovies summarises reports in its own words and links to the original. All rights to the original reports belong to their publishers. Pictures are from TMDB.</p>
+  </main>
+</BaseLayout>
+
+<style>
+  .wire { max-width: 760px; margin: 0 auto; padding: 0 16px 56px; color: var(--text-primary); }
+
+  /* ticker */
+  .ticker { display: flex; align-items: stretch; margin: 0 -16px; background: var(--bg-secondary); border-bottom: 1px solid var(--border); overflow: hidden; }
+  .ticker-tag { flex: none; display: flex; align-items: center; gap: 6px; padding: 0 12px; background: var(--accent); color: #fff; font-size: 11px; font-weight: 800; letter-spacing: .12em; }
+  .ticker-tag .dot { background: #fff; }
+  .ticker-run { overflow: hidden; flex: 1; mask-image: linear-gradient(90deg, transparent, #000 4%, #000 96%, transparent); -webkit-mask-image: linear-gradient(90deg, transparent, #000 4%, #000 96%, transparent); }
+  .ticker-track { display: flex; width: max-content; animation: scroll 60s linear infinite; }
+  .ticker-run:hover .ticker-track { animation-play-state: paused; }
+  .ticker-set { display: flex; gap: 28px; padding: 10px 14px; white-space: nowrap; }
+  .ticker-set a { font-size: 13px; font-weight: 600; color: var(--text-primary); text-decoration: none; }
+  .ticker-set a b { font-size: 9px; margin-right: 4px; vertical-align: 1px; }
+  @keyframes scroll { to { transform: translateX(-50%); } }
+
+  .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--accent); animation: pulse 1.6s ease-in-out infinite; }
+  @keyframes pulse { 0%,100% { box-shadow: 0 0 0 0 rgba(229,9,20,.55); } 50% { box-shadow: 0 0 0 7px rgba(229,9,20,0); } }
+
+  .head { padding: 26px 0 14px; }
+  .eyebrow { display: flex; align-items: center; gap: 8px; margin: 0 0 8px; font-size: 12px; font-weight: 800; letter-spacing: .18em; text-transform: uppercase; color: var(--accent); }
+  h1 { margin: 0; font-size: clamp(30px, 9vw, 46px); line-height: 1.04; font-weight: 900; letter-spacing: -.03em; text-wrap: balance; }
+  .sub { margin: 10px 0 0; font-size: 15px; line-height: 1.5; color: var(--text-secondary); max-width: 46ch; }
+
+  /* topic chips */
+  .rail { display: flex; gap: 8px; overflow-x: auto; margin: 0 -16px; padding: 6px 16px 14px; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+  .rail::-webkit-scrollbar { display: none; }
+  .chip { flex: none; display: inline-flex; align-items: center; gap: 6px; padding: 9px 14px; border-radius: 999px; font-size: 13.5px; font-weight: 700; text-decoration: none; color: var(--text-primary); background: var(--bg-card); border: 1px solid var(--border); white-space: nowrap; min-height: 40px; }
+  .chip span { font-size: 14px; }
+  .chip.on { background: var(--c, var(--text-primary)); border-color: var(--c, var(--text-primary)); color: #fff; }
+  :global(:root:not(.dark)) .chip.on:not([style]) { color: #fff; background: #111; border-color: #111; }
+  :global(.dark) .chip.on:not([style]) { color: #0a0a0a; background: #fff; border-color: #fff; }
+
+  /* lead story */
+  .lead { position: relative; display: block; margin-top: 4px; border-radius: 20px; overflow: hidden; aspect-ratio: 4 / 5; background: #111; color: #fff; text-decoration: none; isolation: isolate; box-shadow: 0 18px 40px -18px rgba(0,0,0,.55); }
+  .lead img, .lead-fallback { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; z-index: -2; transition: transform .6s ease; }
+  .lead:hover img { transform: scale(1.04); }
+  .lead-fallback { display: grid; place-items: center; background: linear-gradient(145deg, var(--c), #0a0a0a 85%); font-size: 88px; }
+  .lead-shade { position: absolute; inset: 0; z-index: -1; background: linear-gradient(180deg, rgba(0,0,0,.05) 25%, rgba(0,0,0,.55) 58%, rgba(0,0,0,.92) 100%); }
+  .lead-body { position: absolute; left: 0; right: 0; bottom: 0; padding: 18px 18px 20px; display: flex; flex-direction: column; gap: 9px; }
+  .lead h2 { margin: 0; font-size: clamp(24px, 7vw, 34px); line-height: 1.08; font-weight: 900; letter-spacing: -.02em; text-wrap: balance; }
+  .lead p { margin: 0; font-size: 14.5px; line-height: 1.45; color: rgba(255,255,255,.82); display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+  .lead .meta { color: rgba(255,255,255,.7); }
+
+  .tag { align-self: flex-start; display: inline-flex; align-items: center; gap: 6px; padding: 5px 10px 5px 8px; border-radius: 999px; font-size: 11.5px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: #fff; background: var(--c); }
+  .tag.small { padding: 3px 8px 3px 6px; font-size: 10.5px; }
+  .meta { font-size: 12.5px; font-weight: 600; color: var(--text-muted); }
+
+  /* day groups + timeline */
+  .day { margin-top: 28px; }
+  .day-h { margin: 0 0 14px; font-size: 12px; font-weight: 800; letter-spacing: .16em; text-transform: uppercase; color: var(--text-secondary); display: flex; align-items: center; gap: 12px; }
+  .day-h::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+  .tl { list-style: none; margin: 0; padding: 0 0 0 26px; position: relative; display: flex; flex-direction: column; gap: 18px; }
+  .tl::before { content: ''; position: absolute; left: 6px; top: 6px; bottom: 6px; width: 2px; background: linear-gradient(var(--border), var(--border)); border-radius: 2px; }
+  .tl li { position: relative; }
+  .node { position: absolute; left: -26px; top: 4px; width: 14px; height: 14px; border-radius: 50%; background: var(--bg-primary); border: 3px solid var(--c); box-shadow: 0 0 0 4px var(--bg-primary); }
+  .clock { display: block; margin: 0 0 6px; font-size: 12px; font-weight: 700; letter-spacing: .08em; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+  .card { display: flex; flex-direction: column; border-radius: 16px; overflow: hidden; background: var(--bg-card); border: 1px solid var(--border); text-decoration: none; color: inherit; transition: transform .2s ease, border-color .2s ease; }
+  .card:hover { transform: translateY(-2px); border-color: var(--c); }
+  .pic { aspect-ratio: 16 / 9; background: #111; overflow: hidden; }
+  .pic img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .pic-fallback { width: 100%; height: 100%; display: grid; place-items: center; font-size: 44px; background: linear-gradient(145deg, var(--c), #0a0a0a 90%); }
+  .txt { padding: 12px 14px 14px; display: flex; flex-direction: column; gap: 7px; min-width: 0; }
+  .txt h3 { margin: 0; font-size: 18px; line-height: 1.22; font-weight: 800; letter-spacing: -.01em; text-wrap: balance; }
+  .txt p { margin: 0; font-size: 14px; line-height: 1.45; color: var(--text-secondary); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+
+  .pager { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 32px; }
+  .pg { font-size: 13px; color: var(--text-muted); font-weight: 600; }
+  .btn { display: inline-flex; align-items: center; justify-content: center; padding: 11px 18px; border-radius: 12px; font-weight: 700; font-size: 14px; text-decoration: none; color: var(--text-primary); background: var(--bg-card); border: 1px solid var(--border); min-height: 44px; }
+  .empty { text-align: center; padding: 56px 16px; color: var(--text-secondary); }
+  .empty-big { font-size: 48px; margin: 0 0 8px; }
+  .note { margin: 40px 0 0; font-size: 12px; line-height: 1.5; color: var(--text-muted); text-align: center; }
+
+  @media (min-width: 640px) {
+    .wire { padding-bottom: 72px; }
+    .ticker { margin: 0; border-radius: 0 0 14px 14px; border: 1px solid var(--border); border-top: 0; }
+    .rail { margin: 0; padding-left: 0; padding-right: 0; flex-wrap: wrap; overflow: visible; }
+    .lead { aspect-ratio: 16 / 9; }
+    .lead-body { padding: 26px 28px 28px; max-width: 640px; }
+    .card { flex-direction: row; }
+    .pic { flex: none; width: 240px; aspect-ratio: auto; }
+    .txt { padding: 14px 16px; justify-content: center; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .ticker-track, .dot { animation: none; }
+    .lead img, .card { transition: none; }
+  }
+</style>

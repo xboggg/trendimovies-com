@@ -12,6 +12,7 @@ import TrendingNowRow from '../components/TrendingNowRow.svelte';
 import JustAddedRow from '../components/JustAddedRow.svelte';
 import GenreTabsRow from '../components/GenreTabsRow.svelte';
 import TrendingTabsRow from '../components/TrendingTabsRow.svelte';
+import NewsHomeSection from '../components/NewsHomeSection.astro';
 import { JUST_ADDED_TABS, getJustAdded } from '../lib/just-added';
 import { getTrendingMovies, getNowPlayingMovies, getPopularMovies, getTopRatedMovies, getTrendingTV, getPopularTV, getOnTheAirTV, discoverMovies, getMovieDetails, getMovieGenres, getTVDetails, searchMovies, fetchFromTMDB } from '../lib/tmdb';
 import { getCache as _getCache, setCache as _setCache } from '../lib/cache';
@@ -814,6 +815,9 @@ try {
   {justAddedTabs.some(t => t.items.length > 0) && (
     <JustAddedRow client:load tabs={justAddedTabs} title={FILES_ON ? 'Just Added' : 'New Releases'} />
   )}
+
+  <!-- Film & TV news (The Wire) -->
+  <NewsHomeSection />
 
   <!-- Trending Now — ranked by REAL views on TrendiMovies (page_views data).
        Distinct from "Trending This Week" (TMDB global) via rank #s + view counts. -->

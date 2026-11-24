@@ -1,0 +1,199 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import { getNewsBySlug, getNews, catMeta, fullDate, clock, ago, thumb, readMinutes } from '../../lib/news';
+import { isTakenDown } from '../../data/takedowns';
+
+const { slug } = Astro.params;
+const item = await getNewsBySlug(slug || '');
+if (!item) return Astro.redirect('/404');
+
+const m = catMeta(item.category);
+const hasFilm = !!item.related_tmdb_id && !!item.related_type && !isTakenDown(item.related_tmdb_id);
+const filmHref = hasFilm ? `/${item.related_type === 'tv' ? 'tv' : 'movie'}/${item.related_tmdb_id}` : '';
+const paras = (item.body || '').split(/\n\s*\n/).map((p) => p.trim()).filter(Boolean);
+const points = (item.points || []).filter(Boolean);
+
+const more = (await getNews({ limit: 5 })).items.filter((x) => x.slug !== item.slug).slice(0, 3);
+
+const url = `https://trendimovies.com/news/${item.slug}`;
+const shareText = encodeURIComponent(`${item.title} ${url}`);
+const ogImage = item.cover_image || item.poster_image || '/images/og-default.jpg';
+
+const jsonLd = {
+  '@context': 'https://schema.org',
+  '@type': 'NewsArticle',
+  headline: item.title,
+  description: item.summary || undefined,
+  image: item.cover_image ? [item.cover_image] : undefined,
+  datePublished: item.published_at,
+  dateModified: item.published_at,
+  mainEntityOfPage: url,
+  author: { '@type': 'Organization', name: 'TrendiMovies News Desk' },
+  publisher: { '@type': 'Organization', name: 'TrendiMovies', logo: { '@type': 'ImageObject', url: 'https://trendimovies.com/favicon-512.png' } },
+  isBasedOn: item.source_url || undefined,
+};
+---
+
+<BaseLayout title={item.title} description={item.summary || item.title} image={ogImage} type="website">
+  <script type="application/ld+json" set:html={JSON.stringify(jsonLd)} />
+  <article class="story" style={`--c:${m.color}`}>
+    <!-- Cover -->
+    <div class="cover force-dark">
+      {item.cover_image
+        ? <img src={thumb(item.cover_image, 'w1280')} alt="" width="1280" height="720" fetchpriority="high" decoding="async" />
+        : <div class="cover-fallback" aria-hidden="true"><span>{m.glyph}</span></div>}
+      <div class="cover-shade"></div>
+      <a href="/news" class="back">← The Wire</a>
+      <div class="cover-in">
+        <a href={`/news?c=${m.key}`} class="tag"><span>{m.glyph}</span>{m.label}</a>
+        <h1>{item.title}</h1>
+        <p class="byline">
+          <time datetime={item.published_at}>{fullDate(item.published_at)} · {clock(item.published_at)} UTC</time>
+          <span>·</span><span>{readMinutes(item.body)} min read</span>
+        </p>
+      </div>
+    </div>
+
+    <div class="wrap">
+      {item.summary && <p class="deck">{item.summary}</p>}
+
+      {points.length > 0 && (
+        <section class="short" aria-label="In short">
+          <h2>In short</h2>
+          <ol>
+            {points.map((p) => <li>{p}</li>)}
+          </ol>
+        </section>
+      )}
+
+      <div class="body">
+        {paras.map((p) => <p>{p}</p>)}
+      </div>
+
+      {item.source_url && (
+        <a class="source" href={item.source_url} target="_blank" rel="noopener noreferrer nofollow">
+          <span class="source-k">Original report</span>
+          <span class="source-v">Read it at {item.source_name || 'the source'} <i>↗</i></span>
+        </a>
+      )}
+      <p class="fine">{item.source_name ? `Based on reporting by ${item.source_name}. ` : ''}We summarise in our own words. Rights to the original belong to its publisher.</p>
+
+      {hasFilm && (
+        <a class="film" href={filmHref}>
+          {item.poster_image
+            ? <img src={thumb(item.poster_image, 'w342')} alt="" width="342" height="513" loading="lazy" decoding="async" />
+            : <span class="film-ph">{m.glyph}</span>}
+          <span class="film-t">
+            <span class="film-k">About this {item.related_type === 'tv' ? 'series' : 'film'}</span>
+            <strong>{item.film_title}</strong>
+            <span class="film-s">Cast, trailer, ratings and where to watch →</span>
+          </span>
+        </a>
+      )}
+
+      <div class="share">
+        <span class="share-k">Share this story</span>
+        <div class="share-b">
+          <a href={`https://wa.me/?text=${shareText}`} target="_blank" rel="noopener noreferrer" class="sbtn wa">WhatsApp</a>
+          <a href={`https://twitter.com/intent/tweet?text=${shareText}`} target="_blank" rel="noopener noreferrer" class="sbtn">Post on X</a>
+          <button type="button" class="sbtn" id="copy-link" data-url={url}>Copy link</button>
+        </div>
+      </div>
+
+      {more.length > 0 && (
+        <section class="more">
+          <h2>More from The Wire</h2>
+          <ul>
+            {more.map((x) => {
+              const mm = catMeta(x.category);
+              return (
+                <li style={`--c:${mm.color}`}>
+                  <a href={`/news/${x.slug}`}>
+                    <span class="mt">{x.cover_image ? <img src={thumb(x.cover_image, 'w342')} alt="" width="342" height="192" loading="lazy" /> : <span class="mph">{mm.glyph}</span>}</span>
+                    <span class="mx"><span class="mc">{mm.label}</span><strong>{x.title}</strong><span class="mm">{ago(x.published_at)}</span></span>
+                  </a>
+                </li>
+              );
+            })}
+          </ul>
+          <a href="/news" class="all">See all news →</a>
+        </section>
+      )}
+    </div>
+  </article>
+</BaseLayout>
+
+<script>
+  const b = document.getElementById('copy-link');
+  b?.addEventListener('click', async () => {
+    const url = b.getAttribute('data-url') || location.href;
+    try { await navigator.clipboard.writeText(url); b.textContent = 'Copied ✓'; }
+    catch { window.prompt('Copy this link', url); }
+    setTimeout(() => { b.textContent = 'Copy link'; }, 2200);
+  });
+</script>
+
+<style>
+  .story { color: var(--text-primary); padding-bottom: 64px; }
+
+  .cover { position: relative; min-height: 340px; aspect-ratio: 4 / 5; max-height: 78vh; overflow: hidden; background: #0a0a0a; color: #fff; isolation: isolate; }
+  .cover img, .cover-fallback { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; z-index: -2; }
+  .cover-fallback { display: grid; place-items: center; background: linear-gradient(150deg, var(--c), #0a0a0a 85%); font-size: 110px; }
+  .cover-shade { position: absolute; inset: 0; z-index: -1; background: linear-gradient(180deg, rgba(0,0,0,.45) 0%, rgba(0,0,0,.0) 28%, rgba(10,10,10,.7) 62%, rgba(10,10,10,.96) 100%); }
+  .cover-in { position: absolute; left: 0; right: 0; bottom: 0; max-width: 760px; margin: 0 auto; padding: 0 16px 18px; display: flex; flex-direction: column; gap: 12px; align-items: flex-start; }
+  .cover { display: flex; flex-direction: column; justify-content: flex-end; }
+  .back { position: absolute; top: 14px; left: 16px; z-index: 2; font-size: 13px; font-weight: 700; color: rgba(255,255,255,.9); text-decoration: none; padding: 8px 13px; border-radius: 999px; background: rgba(0,0,0,.5); backdrop-filter: blur(6px); }
+  .tag { display: inline-flex; align-items: center; gap: 6px; padding: 5px 11px 5px 8px; border-radius: 999px; font-size: 11.5px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: #fff; background: var(--c); text-decoration: none; }
+  h1 { margin: 0; font-size: clamp(27px, 7.4vw, 44px); line-height: 1.08; font-weight: 900; letter-spacing: -.025em; text-wrap: balance; color: var(--text-primary); }
+  .byline { margin: 0; display: flex; flex-wrap: wrap; gap: 6px; font-size: 13px; font-weight: 600; color: var(--text-secondary); }
+
+  .wrap { max-width: 760px; margin: 0 auto; padding: 6px 16px 0; }
+  .deck { margin: 14px 0 20px; font-size: 19px; line-height: 1.45; font-weight: 600; color: var(--text-primary); }
+
+  .short { margin: 0 0 24px; padding: 16px 16px 14px; border-radius: 16px; background: var(--bg-card); border: 1px solid var(--border); border-left: 5px solid var(--c); }
+  .short h2 { margin: 0 0 10px; font-size: 12px; font-weight: 800; letter-spacing: .16em; text-transform: uppercase; color: var(--c); }
+  .short ol { list-style: none; margin: 0; padding: 0; counter-reset: p; display: flex; flex-direction: column; gap: 11px; }
+  .short li { counter-increment: p; position: relative; padding-left: 34px; font-size: 15.5px; line-height: 1.45; }
+  .short li::before { content: counter(p); position: absolute; left: 0; top: 1px; width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; font-size: 12px; font-weight: 800; color: #fff; background: var(--c); }
+
+  .body p { margin: 0 0 18px; font-size: 17.5px; line-height: 1.7; color: var(--text-primary); }
+
+  .source { display: flex; flex-direction: column; gap: 2px; margin: 26px 0 8px; padding: 14px 16px; border-radius: 14px; text-decoration: none; color: var(--text-primary); background: var(--bg-card); border: 1px dashed var(--c); }
+  .source-k { font-size: 11px; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; color: var(--text-muted); }
+  .source-v { font-size: 16px; font-weight: 800; }
+  .source-v i { font-style: normal; color: var(--c); }
+  .fine { margin: 0 0 24px; font-size: 12px; line-height: 1.5; color: var(--text-muted); }
+
+  .film { display: flex; gap: 14px; align-items: center; padding: 12px; border-radius: 16px; text-decoration: none; color: var(--text-primary); background: var(--bg-card); border: 1px solid var(--border); transition: border-color .2s; }
+  .film:hover { border-color: var(--c); }
+  .film img, .film-ph { flex: none; width: 72px; height: 108px; border-radius: 10px; object-fit: cover; background: #111; display: grid; place-items: center; font-size: 30px; }
+  .film-t { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+  .film-k { font-size: 11px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; color: var(--text-muted); }
+  .film-t strong { font-size: 18px; line-height: 1.2; }
+  .film-s { font-size: 13.5px; font-weight: 700; color: var(--c); }
+
+  .share { margin: 28px 0 0; }
+  .share-k { display: block; margin-bottom: 10px; font-size: 12px; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; color: var(--text-muted); }
+  .share-b { display: flex; flex-wrap: wrap; gap: 8px; }
+  .sbtn { display: inline-flex; align-items: center; justify-content: center; min-height: 44px; padding: 0 16px; border-radius: 12px; font: inherit; font-size: 14px; font-weight: 700; color: var(--text-primary); background: var(--bg-card); border: 1px solid var(--border); text-decoration: none; cursor: pointer; }
+  .sbtn.wa { background: #25d366; border-color: #25d366; color: #052e16; }
+
+  .more { margin-top: 40px; }
+  .more h2 { margin: 0 0 14px; font-size: 20px; font-weight: 900; letter-spacing: -.01em; }
+  .more ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 12px; }
+  .more a { display: flex; gap: 12px; text-decoration: none; color: var(--text-primary); }
+  .mt { flex: none; width: 112px; aspect-ratio: 16 / 9; border-radius: 10px; overflow: hidden; background: #111; display: block; border-bottom: 3px solid var(--c); }
+  .mt img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .mph { display: grid; place-items: center; width: 100%; height: 100%; font-size: 24px; }
+  .mx { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+  .mc { font-size: 10.5px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; color: var(--c); }
+  .mx strong { font-size: 15px; line-height: 1.25; font-weight: 800; }
+  .mm { font-size: 12px; color: var(--text-muted); font-weight: 600; }
+  .all { display: inline-block; margin-top: 16px; font-weight: 800; font-size: 14px; color: var(--c); }
+
+  @media (min-width: 760px) {
+    .cover { aspect-ratio: 21 / 9; min-height: 420px; max-height: none; }
+    .cover-in { padding-bottom: 30px; }
+    .deck { font-size: 21px; }
+  }
+</style>

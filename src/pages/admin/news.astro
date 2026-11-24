@@ -1,0 +1,8 @@
+---
+import AdminLayout from '../../layouts/AdminLayout.astro';
+import NewsManager from '../../components/admin/NewsManager.svelte';
+---
+
+<AdminLayout title="News" activeTab="news">
+  <NewsManager client:load />
+</AdminLayout>
