@@ -90,14 +90,48 @@
     edit[it.id] = {
       title: it.title, summary: it.summary || '', body: it.body || '', points: (it.points || []).join('\n'),
       category: it.category, source_name: it.source_name || '', source_url: it.source_url || '',
+      cover_image: it.cover_image || '', related_tmdb_id: it.related_tmdb_id || null, related_type: it.related_type || null,
+      film_title: it.film_title || '', poster_image: it.poster_image || '',
     };
-    edit = edit; open[it.id] = !open[it.id]; open = open;
+    pic[it.id] = { q: it.film_title || '', results: [], images: [], picked: null, busy: false, err: '' };
+    edit = edit; pic = pic; open[it.id] = !open[it.id]; open = open;
   }
+
+  // ---- picture picker (TMDB only)
+  let pic = {};
+  async function picSearch(id) {
+    const s = pic[id]; if (!s.q.trim()) return;
+    s.busy = true; s.err = ''; s.images = []; s.picked = null; pic = pic;
+    try {
+      const r = await fetch('/api/admin/news?pictures=' + encodeURIComponent(s.q.trim()));
+      const d = await r.json();
+      s.results = d.ok ? d.results : []; if (!s.results.length) s.err = 'Nothing found on TMDB.';
+    } catch { s.err = 'Could not search right now.'; }
+    s.busy = false; pic = pic;
+  }
+  async function picOpen(id, res) {
+    const s = pic[id]; s.busy = true; s.err = ''; pic = pic;
+    try {
+      const r = await fetch('/api/admin/news?images=' + res.kind + ':' + res.id);
+      const d = await r.json();
+      if (d.ok) { s.images = d.images; s.picked = { kind: res.kind, id: res.id, title: d.title || res.name, poster: d.poster || '' }; if (!d.images.length) s.err = 'TMDB has no pictures for this yet.'; }
+      else s.err = d.error || 'Could not load pictures.';
+    } catch { s.err = 'Could not load pictures.'; }
+    s.busy = false; pic = pic;
+  }
+  function picUse(id, img) {
+    const e = edit[id], p = pic[id].picked;
+    e.cover_image = img.url;
+    if (p && (p.kind === 'movie' || p.kind === 'tv')) { e.related_tmdb_id = p.id; e.related_type = p.kind; e.film_title = p.title; e.poster_image = p.poster; }
+    edit = edit;
+  }
+  function picClear(id) { edit[id].cover_image = ''; edit = edit; }
   function patchOf(id) {
     const e = edit[id];
     if (!e) return undefined;
     return { title: e.title, summary: e.summary, body: e.body, points: e.points.split('\n').map((s) => s.trim()).filter(Boolean),
-             category: e.category, source_name: e.source_name, source_url: e.source_url };
+             category: e.category, source_name: e.source_name, source_url: e.source_url,
+             cover_image: e.cover_image, related_tmdb_id: e.related_tmdb_id, related_type: e.related_type, film_title: e.film_title, poster_image: e.poster_image };
   }
 
   async function call(payload, okText) {
@@ -255,6 +289,37 @@
             <label>Topic
               <select bind:value={edit[it.id].category}>{#each CATS as c}<option value={c[0]}>{c[1]}</option>{/each}</select>
             </label>
+            <div class="picker">
+              <div class="plabel">Picture</div>
+              {#if edit[it.id].cover_image}
+                <img class="pcur" src={thumb(edit[it.id].cover_image)} alt="" />
+                <button type="button" class="btn ghost" on:click={() => picClear(it.id)}>Remove picture</button>
+              {:else}<div class="muted">No picture. Search TMDB below.</div>{/if}
+              <div class="srow-in">
+                <input placeholder="Film, series or person" bind:value={pic[it.id].q} on:keydown={(e) => e.key === 'Enter' && picSearch(it.id)} />
+                <button type="button" class="btn ghost" disabled={pic[it.id].busy} on:click={() => picSearch(it.id)}>{pic[it.id].busy ? '...' : 'Find pictures'}</button>
+              </div>
+              {#if pic[it.id].err}<div class="muted">{pic[it.id].err}</div>{/if}
+              {#if pic[it.id].results.length && !pic[it.id].picked}
+                <div class="pres">
+                  {#each pic[it.id].results as r}
+                    <button type="button" class="pr" on:click={() => picOpen(it.id, r)}>
+                      {#if r.thumb}<img src={r.thumb} alt="" />{:else}<span class="pnone">?</span>{/if}
+                      <span>{r.name}{r.year ? ' (' + r.year + ')' : ''}<br /><small>{r.kind === 'person' ? 'Person' : r.kind === 'tv' ? 'Series' : 'Film'}</small></span>
+                    </button>
+                  {/each}
+                </div>
+              {/if}
+              {#if pic[it.id].picked && pic[it.id].images.length}
+                <div class="muted">{pic[it.id].picked.title}: tap a picture to use it{pic[it.id].picked.kind !== 'person' ? ' (the story also links to this film)' : ''}. Then tap Save.</div>
+                <div class="pgrid">
+                  {#each pic[it.id].images as img}
+                    <button type="button" class="pg" class:sel={edit[it.id].cover_image === img.url} on:click={() => picUse(it.id, img)}><img src={img.thumb} alt="" loading="lazy" /></button>
+                  {/each}
+                </div>
+                <button type="button" class="btn ghost" on:click={() => { pic[it.id].picked = null; pic[it.id].images = []; pic = pic; }}>Back to results</button>
+              {/if}
+            </div>
             <label>Source name<input bind:value={edit[it.id].source_name} placeholder="e.g. Variety" /></label>
             <label>Source link<input bind:value={edit[it.id].source_url} placeholder="https://..." /></label>
           </div>
@@ -327,6 +392,17 @@
   .btn { display: inline-flex; align-items: center; justify-content: center; flex: 1 1 auto; min-height: 46px; padding: 0 16px; border-radius: 11px; border: 1px solid transparent; font: inherit; font-size: 15px; font-weight: 800; cursor: pointer; text-decoration: none; color: #fff; }
   .btn:disabled { opacity: .5; }
   .btn.good { background: #16a34a; } .btn.danger { background: transparent; border-color: #7f1d1d; color: #fca5a5; }
+  .picker { display: flex; flex-direction: column; gap: 10px; padding: 12px; border: 1px solid #2f2f2f; border-radius: 12px; background: #101010; }
+  .plabel { font-size: 12px; font-weight: 700; color: #9a9a9a; text-transform: uppercase; letter-spacing: .05em; }
+  .pcur { width: 100%; max-height: 220px; object-fit: cover; object-position: 50% 20%; border-radius: 10px; background: #000; }
+  .pres { display: flex; flex-direction: column; gap: 8px; }
+  .pr { display: flex; align-items: center; gap: 10px; text-align: left; background: #1a1a1a; border: 1px solid #333; border-radius: 10px; padding: 8px; color: #fff; font: inherit; font-size: 14px; cursor: pointer; min-height: 56px; }
+  .pr img, .pnone { width: 40px; height: 56px; object-fit: cover; border-radius: 6px; flex: none; background: #000; display: grid; place-items: center; }
+  .pr small { color: #8a8a8a; }
+  .pgrid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
+  .pg { padding: 0; border: 3px solid transparent; border-radius: 10px; background: #000; overflow: hidden; cursor: pointer; }
+  .pg.sel { border-color: #22c55e; }
+  .pg img { display: block; width: 100%; aspect-ratio: 16 / 9; object-fit: cover; object-position: 50% 20%; }
   .paste { display: flex; flex-direction: column; gap: 10px; }
   .paste textarea { background: #0d0d0d; border: 1px solid #333; color: #fff; padding: 11px; border-radius: 9px; font: inherit; font-size: 15px; }
   .dl { display: flex; align-items: center; gap: 8px; font-size: 13px; color: #9a9a9a; }

@@ -48,6 +48,13 @@ export async function list(status: string, limit = 60) {
   return r.rows;
 }
 
+function isTakenDownId(id: number): boolean {
+  try {
+    const list = JSON.parse(readFileSync('/var/lib/trendimovies/takedowns.json', 'utf-8'));
+    return Array.isArray(list) && list.some((x: any) => Number(x?.tmdb_id) === id);
+  } catch { return false; }
+}
+
 const clip = (v: any, n: number) => String(v ?? '').trim().slice(0, n);
 const okUrl = (u: string) => !u || /^https?:\/\/[^\s]+$/i.test(u);
 
@@ -70,6 +77,17 @@ export async function update(id: number, p: any) {
     const c = clip(p.cover_image, 600);
     if (c && !/^https:\/\/image\.tmdb\.org\/t\/p\//.test(c)) return { ok: false, error: 'Pictures must come from TMDB (https://image.tmdb.org/...)' };
     add('cover_image', c || null);
+  }
+  if (p.related_tmdb_id !== undefined) {
+    let fid: number | null = p.related_tmdb_id === null || p.related_tmdb_id === '' ? null : Number(p.related_tmdb_id);
+    if (fid !== null && (!Number.isInteger(fid) || fid <= 0)) return { ok: false, error: 'Bad film number' };
+    let ftype: string | null = fid ? (p.related_type === 'tv' ? 'tv' : 'movie') : null;
+    if (fid && isTakenDownId(fid)) { fid = null; ftype = null; }     // never link a story to a film on the takedown list
+    add('related_tmdb_id', fid); add('related_type', ftype);
+    add('film_title', fid ? clip(p.film_title, 160) || null : null);
+    const ps = clip(p.poster_image, 600);
+    if (ps && !/^https:\/\/image\.tmdb\.org\/t\/p\//.test(ps)) return { ok: false, error: 'Pictures must come from TMDB' };
+    add('poster_image', fid ? ps || null : null);
   }
   if (!sets.length) return { ok: true };
   add('updated_at', new Date());
