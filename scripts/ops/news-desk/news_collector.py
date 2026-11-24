@@ -190,7 +190,8 @@ SCHEMA_HINT = """JSON fields:
  "category": "one of the allowed categories",
  "subject_type": "movie | tv | person | none",
  "subject_title": "exact title of the main film or series (or the person's name) as TMDB would list it, or empty",
- "subject_year": "release year of that film/series if known from the texts, else empty"}"""
+ "subject_year": "release year of that film/series if known from the texts, else empty",
+ "subject_person": "full name of the main person the story is about (the star, director or person just cast), or empty"}"""
 
 
 def write_item(lead_text, lead_kind, reports, recent_titles, picked_report=None):
@@ -289,6 +290,44 @@ def resolve_subject(stype, title, year):
         return {}
 
 
+def person_photo(name):
+    """TMDB photo of a person (portrait). Used only when the film/series has no picture of its own yet."""
+    name = (name or '').strip()
+    if not name:
+        return None
+    try:
+        res = tmdb('/search/person', query=name).get('results', [])
+        res = [x for x in res if x.get('profile_path')]
+        exact = [x for x in res if (x.get('name') or '').strip().lower() == name.lower()]
+        pick = (exact or [])[0] if exact else None
+        if not pick:
+            return None
+        return 'https://image.tmdb.org/t/p/h632' + pick['profile_path']
+    except Exception as e:
+        log(f'person photo lookup failed for {name!r}: {e}')
+        return None
+
+
+def refresh_covers(conn):
+    """When TMDB later gets a real picture for the film/series, swap the temporary person photo (or empty tile) for it."""
+    cur = conn.cursor()
+    cur.execute("""SELECT id, related_tmdb_id, related_type FROM news_items
+                   WHERE related_tmdb_id IS NOT NULL AND status IN ('draft','published')
+                     AND (cover_image IS NULL OR cover_image LIKE '%/h632/%') ORDER BY id DESC LIMIT 40""")
+    for nid, tid, typ in cur.fetchall():
+        try:
+            d = tmdb(f"/{'tv' if typ == 'tv' else 'movie'}/{tid}")
+        except Exception:
+            continue
+        if d.get('backdrop_path'):
+            cover = 'https://image.tmdb.org/t/p/w1280' + d['backdrop_path']
+            poster = ('https://image.tmdb.org/t/p/w500' + d['poster_path']) if d.get('poster_path') else None
+            if not DRY:
+                cur.execute("UPDATE news_items SET cover_image=%s, poster_image=COALESCE(%s, poster_image), updated_at=now() WHERE id=%s", (cover, poster, nid))
+                conn.commit()
+            log(f'TMDB now has a picture for news #{nid}, cover upgraded')
+
+
 # ---------------------------------------------------------------- DB
 def smart_cut(t, n):
     if len(t) <= n:
@@ -360,6 +399,7 @@ def main():
     cur.execute("SELECT count(*) FROM news_items WHERE origin='feed' AND created_at > now() - interval '24 hours' AND status<>'skipped'")
     feed_today = cur.fetchone()[0]
 
+    refresh_covers(conn)
     reports = fetch_feeds()
     log(f'{len(reports)} recent outlet reports')
     leads = []
@@ -471,6 +511,10 @@ def finish(conn, res, src, ld, origin, mode, recent):
             insert(conn, {'slug': 'skip-' + re.sub(r'\W', '', ld['ref']).lower()[:40], 'title': title, 'origin': origin, 'origin_ref': ld['ref'],
                           'status': 'skipped', 'skip_reason': 'film on takedown list'})
         return None
+    if not subj.get('cover_image'):
+        ph = person_photo(clean(res.get('subject_person') or ''))
+        if ph:
+            subj['cover_image'] = ph
     points = [smart_cut(clean(p), 130) for p in (res.get('points') or []) if clean(p)][:4]
     conf = 'high' if src else 'low'
     status = 'published' if (mode.get('auto_publish') and src) else 'draft'

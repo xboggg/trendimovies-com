@@ -83,4 +83,6 @@ const rest = items.slice(1, 4);
     .nw-list a { flex: 1; }
   }
   @media (prefers-reduced-motion: reduce) { .dot { animation: none; } }
+  /* person photos (portrait): keep faces in the frame */
+  .nw-lead img[src*="/h632/"], .nw-th img[src*="/h632/"] { object-position: 50% 18%; }
 </style>

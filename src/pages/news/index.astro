@@ -218,4 +218,6 @@ const ogImage = lead?.cover_image || '/images/og-default.jpg';
     .ticker-track, .dot { animation: none; }
     .lead img, .card { transition: none; }
   }
+  /* person photos (portrait): keep faces in the frame */
+  .lead img[src*="/h632/"], .pic img[src*="/h632/"] { object-position: 50% 18%; }
 </style>
