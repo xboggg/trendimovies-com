@@ -19,6 +19,39 @@
   let edit = {};        // id -> edited copy
   let confirm = '';     // 'pub:12' etc: first tap asks, second tap does it
   let modeConfirm = false;
+  let sources = { channels: [], feeds: [] };
+  let newLink = '';
+  let newLabel = '';
+  let replaceLink = {};     // handle -> pasted new link
+  let bulkConfirm = false;
+
+  async function srcCall(payload, okText) {
+    busy = true; flash('Working...');
+    try {
+      const r = await fetch('/api/admin/news', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+      const d = await r.json();
+      if (d.ok) { flash(okText, 'success'); newLink = ''; newLabel = ''; replaceLink = {}; await load(); }
+      else flash('Problem: ' + (d.error || 'unknown'), 'error');
+    } catch (e) { flash('Problem: ' + e, 'error'); }
+    busy = false;
+  }
+  const addSource = () => srcCall({ action: 'source_add', link: newLink, label: newLabel }, 'Channel added. The desk reads it on its next run.');
+  const replaceSource = (c) => srcCall({ action: 'source_replace', handle: c.handle, link: replaceLink[c.handle] || '' }, 'Link replaced. The desk uses the new one from its next run.');
+  const toggleSource = (c) => srcCall({ action: 'source_toggle', handle: c.handle, active: !c.active }, c.active ? 'Channel paused.' : 'Channel turned on.');
+  async function publishDated() {
+    if (!bulkConfirm) { bulkConfirm = true; return; }
+    bulkConfirm = false;
+    busy = true; flash('Working...');
+    try {
+      const r = await fetch('/api/admin/news', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'publish_dated' }) });
+      const d = await r.json();
+      if (d.ok) { flash(d.n + ' older stories published, each with its original date.', 'success'); await load(); } else flash('Problem: ' + (d.error || 'unknown'), 'error');
+    } catch (e) { flash('Problem: ' + e, 'error'); }
+    busy = false;
+  }
+  $: datedCount = items.filter((i) => i.status === 'draft' && i.published_at && i.source_url).length;
+  const dot = (st) => (!st ? '⚪' : st.fails >= 3 ? '🔴' : st.fails > 0 ? '🟠' : '🟢');
+  const when = (s) => (s ? new Date(s).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : 'no posts yet');
 
   function flash(t, type = 'info') { msg = t; msgType = type; }
 
@@ -27,7 +60,7 @@
     try {
       const r = await fetch('/api/admin/news?status=' + tab);
       const d = await r.json();
-      if (d.ok) { items = d.items; counts = d.counts; mode = d.mode; } else flash(d.error || 'Could not load', 'error');
+      if (d.ok) { items = d.items; counts = d.counts; mode = d.mode; sources = d.sources || sources; } else flash(d.error || 'Could not load', 'error');
     } catch (e) { flash('Could not load: ' + e, 'error'); }
     loading = false;
   }
@@ -108,6 +141,44 @@
       {modeConfirm ? 'Tap again to confirm' : mode.auto_publish ? 'Turn off' : 'Turn on'}
     </button>
   </div>
+
+  <details class="card src">
+    <summary>Sources the desk watches {#if sources.channels.some((c) => c.status && c.status.fails >= 3)}<b class="bad">⚠️ a link looks dead</b>{/if}</summary>
+    <p class="muted">If a channel changes its link, paste the new one next to it and tap Replace. The desk tells you on Telegram when a source stops working.</p>
+    {#each sources.channels as c (c.handle)}
+      <div class="srow">
+        <div class="t">{dot(c.status)} {c.label} <span class="muted">t.me/{c.handle}</span></div>
+        <div class="muted">{c.active ? 'On' : 'Paused'} · latest post: {when(c.status?.newest_post)}{#if c.status?.why} · <span class="bad">{c.status.why}</span>{/if}</div>
+        <div class="srow-in">
+          <input placeholder="New link, e.g. https://t.me/NewName" bind:value={replaceLink[c.handle]} />
+          <button class="btn ghost" disabled={busy || !replaceLink[c.handle]} on:click={() => replaceSource(c)}>Replace</button>
+          <button class="btn ghost" disabled={busy} on:click={() => toggleSource(c)}>{c.active ? 'Pause' : 'Turn on'}</button>
+        </div>
+      </div>
+    {/each}
+    <div class="srow">
+      <div class="t">Add a channel</div>
+      <div class="srow-in">
+        <input placeholder="Channel link, e.g. https://t.me/Name" bind:value={newLink} />
+        <input placeholder="Label (optional)" bind:value={newLabel} />
+        <button class="btn good" disabled={busy || !newLink} on:click={addSource}>Add</button>
+      </div>
+      <div class="muted">Only public channels can be read (t.me/Name). Private invite links (t.me/+...) cannot.</div>
+    </div>
+    {#if sources.feeds.length}
+      <div class="muted feeds">News sites: {#each sources.feeds as f}<span>{dot(f.status)} {f.name}</span>{' '}{/each}</div>
+    {/if}
+  </details>
+
+  {#if tab === 'draft' && datedCount > 0}
+    <div class="card switch">
+      <div class="grow">
+        <div class="t">Older stories caught up from the channel: {datedCount}</div>
+        <div class="muted">Each has a real source and keeps its original date. Publish them all at once, or go through them one by one below.</div>
+      </div>
+      <button class="btn {bulkConfirm ? 'warn' : 'good'}" disabled={busy} on:click={publishDated}>{bulkConfirm ? 'Tap again: publish all ' + datedCount : 'Publish all ' + datedCount}</button>
+    </div>
+  {/if}
 
   <div class="tabs">
     <button class:active={tab === 'draft'} on:click={() => pick('draft')}>Waiting <span>{counts.draft}</span></button>
@@ -217,5 +288,12 @@
   .btn { display: inline-flex; align-items: center; justify-content: center; flex: 1 1 auto; min-height: 46px; padding: 0 16px; border-radius: 11px; border: 1px solid transparent; font: inherit; font-size: 15px; font-weight: 800; cursor: pointer; text-decoration: none; color: #fff; }
   .btn:disabled { opacity: .5; }
   .btn.good { background: #16a34a; } .btn.danger { background: transparent; border-color: #7f1d1d; color: #fca5a5; }
+  .src summary { font-size: 15px; font-weight: 800; color: #fff; }
+  .src .bad { margin-left: 8px; }
+  .srow { padding: 10px 0; border-top: 1px solid #262626; display: flex; flex-direction: column; gap: 6px; }
+  .srow-in { display: flex; flex-wrap: wrap; gap: 8px; }
+  .srow-in input { flex: 1 1 180px; min-width: 0; background: #0d0d0d; border: 1px solid #333; color: #fff; padding: 11px; border-radius: 9px; font: inherit; font-size: 14px; }
+  .srow-in .btn { flex: 0 0 auto; }
+  .feeds { padding-top: 8px; border-top: 1px solid #262626; line-height: 1.9; }
   .btn.ghost { background: #1f1f1f; border-color: #333; } .btn.warn { background: #b45309; }
 </style>

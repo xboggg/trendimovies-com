@@ -77,6 +77,79 @@ export async function update(id: number, p: any) {
   return { ok: true };
 }
 
+/** Old stories caught up from a channel are saved as drafts WITH their original date. This publishes the ones that have a real source, keeping that date. */
+export async function publishDatedDrafts() {
+  const r = await getPool().query("UPDATE news_items SET status='published', updated_at = now() WHERE status='draft' AND published_at IS NOT NULL AND source_url IS NOT NULL");
+  return { ok: true, n: r.rowCount };
+}
+
+// ---------------------------------------------------------------- sources (channels the desk watches)
+const SOURCES_FILE = '/var/lib/trendimovies/news_sources.json';
+const STATUS_FILE = '/var/lib/trendimovies/news_sources_status.json';
+type Channel = { handle: string; label: string; active: boolean };
+
+function loadSources(): { channels: Channel[] } {
+  try { if (existsSync(SOURCES_FILE)) { const d = JSON.parse(readFileSync(SOURCES_FILE, 'utf-8')); if (Array.isArray(d.channels)) return d; } } catch { /* default */ }
+  return { channels: [{ handle: 'MOVIES_ETY_G', label: 'Movies ETY', active: true }] };
+}
+function saveSources(d: { channels: Channel[] }) { writeFileSync(SOURCES_FILE, JSON.stringify(d, null, 2) + '\n'); }
+
+export function readSources() {
+  let status: any = {};
+  try { if (existsSync(STATUS_FILE)) status = JSON.parse(readFileSync(STATUS_FILE, 'utf-8')); } catch { /* none yet */ }
+  const channels = loadSources().channels.map((c) => ({ ...c, status: status['ch:' + c.handle] || null }));
+  const feeds = Object.keys(status).filter((k) => k.startsWith('feed:')).map((k) => ({ name: k.slice(5), status: status[k] }));
+  return { channels, feeds };
+}
+
+/** Accepts https://t.me/Name, t.me/s/Name, @Name or Name. Private invite links (t.me/+xxxx) cannot be read. */
+function parseHandle(input: string): { handle?: string; error?: string } {
+  let v = String(input || '').trim();
+  if (!v) return { error: 'Paste the channel link first' };
+  if (/t\.me\/\+|joinchat/i.test(v) || v.startsWith('+')) return { error: 'That is a private invite link. The desk can only read public channels (t.me/Name). Ask the channel owner for the public name.' };
+  v = v.replace(/^https?:\/\//i, '').replace(/^t\.me\/(s\/)?/i, '').replace(/^@/, '').split(/[/?#]/)[0];
+  if (!/^[A-Za-z][A-Za-z0-9_]{3,31}$/.test(v)) return { error: 'That does not look like a channel name' };
+  return { handle: v };
+}
+
+async function previewWorks(handle: string): Promise<boolean> {
+  try {
+    const r = await fetch(`https://t.me/s/${handle}`, { headers: { 'User-Agent': 'Mozilla/5.0 (compatible; TrendiMoviesNewsBot/1.0)' }, signal: AbortSignal.timeout(10000) });
+    if (!r.ok) return false;
+    return (await r.text()).includes('tgme_widget_message_wrap');
+  } catch { return false; }
+}
+
+export async function addChannel(link: string, label: string) {
+  const p = parseHandle(link); if (!p.handle) return { ok: false, error: p.error };
+  if (!(await previewWorks(p.handle))) return { ok: false, error: 'Could not read posts from that channel. It may be private, or the name is wrong.' };
+  const d = loadSources();
+  if (d.channels.some((c) => c.handle.toLowerCase() === p.handle!.toLowerCase())) return { ok: false, error: 'That channel is already in the list' };
+  d.channels.push({ handle: p.handle, label: clip(label, 60) || p.handle, active: true });
+  saveSources(d);
+  return { ok: true };
+}
+
+export async function replaceChannel(oldHandle: string, link: string) {
+  const p = parseHandle(link); if (!p.handle) return { ok: false, error: p.error };
+  if (!(await previewWorks(p.handle))) return { ok: false, error: 'Could not read posts from that new link. It may be private, or the name is wrong. Nothing was changed.' };
+  const d = loadSources();
+  const c = d.channels.find((x) => x.handle === oldHandle);
+  if (!c) return { ok: false, error: 'Channel not found' };
+  c.handle = p.handle; c.active = true;
+  saveSources(d);
+  return { ok: true };
+}
+
+export function toggleChannel(handle: string, active: boolean) {
+  const d = loadSources();
+  const c = d.channels.find((x) => x.handle === handle);
+  if (!c) return { ok: false, error: 'Channel not found' };
+  c.active = !!active;
+  saveSources(d);
+  return { ok: true };
+}
+
 export async function setStatus(id: number, status: 'draft' | 'published' | 'rejected') {
   if (status === 'published') {
     const r = await getPool().query("UPDATE news_items SET status='published', published_at = COALESCE(published_at, now()), updated_at = now() WHERE id=$1 RETURNING slug", [id]);

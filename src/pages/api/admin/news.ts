@@ -1,6 +1,6 @@
 import type { APIRoute } from 'astro';
 import { requireAuth } from '../../../lib/admin-auth';
-import { list, counts, update, setStatus, readMode, writeMode } from '../../../lib/news-store';
+import { list, counts, update, setStatus, readMode, writeMode, readSources, publishDatedDrafts, addChannel, replaceChannel, toggleChannel } from '../../../lib/news-store';
 
 const json = (data: any, status = 200) =>
   new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' } });
@@ -11,7 +11,7 @@ export const GET: APIRoute = async ({ request, url }) => {
   if (authError) return authError;
   try {
     const status = url.searchParams.get('status') || 'draft';
-    return json({ ok: true, items: await list(status), counts: await counts(), mode: readMode() });
+    return json({ ok: true, items: await list(status), counts: await counts(), mode: readMode(), sources: readSources() });
   } catch (e: any) {
     return json({ ok: false, error: 'Could not read the news list' }, 500);
   }
@@ -24,6 +24,10 @@ export const POST: APIRoute = async ({ request }) => {
   let b: any = {};
   try { b = await request.json(); } catch { return json({ ok: false, error: 'Bad request' }, 400); }
   try {
+    if (b.action === 'publish_dated') return json(await publishDatedDrafts());
+    if (b.action === 'source_add') return json(await addChannel(String(b.link || ''), String(b.label || '')));
+    if (b.action === 'source_replace') return json(await replaceChannel(String(b.handle || ''), String(b.link || '')));
+    if (b.action === 'source_toggle') return json(toggleChannel(String(b.handle || ''), !!b.active));
     if (b.action === 'mode') return json({ ok: true, mode: writeMode({ auto_publish: !!b.auto_publish }) });
     const id = Number(b.id);
     if (!Number.isInteger(id) || id <= 0) return json({ ok: false, error: 'id required' }, 400);

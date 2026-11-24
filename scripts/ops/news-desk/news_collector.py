@@ -26,7 +26,78 @@ MODE_FILE = '/var/lib/trendimovies/news_mode.json'
 DRY = '--dry-run' in sys.argv
 LIMIT_ARG = int(sys.argv[sys.argv.index('--limit') + 1]) if '--limit' in sys.argv else None
 
-CHANNELS = ['MOVIES_ETY_G']          # public channels read through their public web preview
+SOURCES_FILE = '/var/lib/trendimovies/news_sources.json'          # edited from /admin/news (Sources)
+STATUS_FILE = '/var/lib/trendimovies/news_sources_status.json'    # health of each source, written here
+DEFAULT_SOURCES = {'channels': [{'handle': 'MOVIES_ETY_G', 'label': 'Movies ETY', 'active': True}]}
+
+
+def active_channels():
+    try:
+        d = json.load(open(SOURCES_FILE))
+    except Exception:
+        d = DEFAULT_SOURCES
+    return [c['handle'] for c in d.get('channels', []) if c.get('active', True) and c.get('handle')]
+
+
+def _load_status():
+    try:
+        return json.load(open(STATUS_FILE))
+    except Exception:
+        return {}
+
+
+def note_source(key, ok, why='', newest=None):
+    """Remember how each source is doing; the alert check reads this."""
+    if DRY:
+        return
+    st = _load_status()
+    e = st.get(key, {})
+    e['last_check'] = datetime.datetime.now(datetime.timezone.utc).isoformat()
+    if ok:
+        e['last_ok'] = e['last_check']
+        e['fails'] = 0
+        e['why'] = ''
+        if newest:
+            e['newest_post'] = newest
+    else:
+        e['fails'] = int(e.get('fails', 0)) + 1
+        e['why'] = why
+    st[key] = e
+    try:
+        json.dump(st, open(STATUS_FILE, 'w'), indent=1)
+    except Exception as ex:
+        log(f'could not write source status: {ex}')
+
+
+def check_source_alerts():
+    """Tell the owner (once a day per source) when a source looks dead, so a new link can be supplied."""
+    st = _load_status()
+    now = datetime.datetime.now(datetime.timezone.utc)
+    changed = False
+    for key, e in st.items():
+        dead_why = ''
+        if int(e.get('fails', 0)) >= 3:
+            dead_why = e.get('why') or 'cannot be reached'
+        elif key.startswith('ch:') and e.get('newest_post'):
+            try:
+                age = (now - datetime.datetime.fromisoformat(e['newest_post'])).days
+                if age >= 10:
+                    dead_why = f'no new post for {age} days'
+            except Exception:
+                pass
+        if not dead_why:
+            continue
+        last = e.get('last_alert')
+        if last and (now - datetime.datetime.fromisoformat(last)).total_seconds() < 86400:
+            continue
+        name = key.split(':', 1)[1]
+        tg(f"⚠️ <b>News source looks dead:</b> {html.escape(name)}\n{html.escape(dead_why)}.\nIf the link changed, open https://trendimovies.com/admin/news (Sources) and paste the new link.")
+        e['last_alert'] = now.isoformat()
+        changed = True
+    if changed:
+        json.dump(st, open(STATUS_FILE, 'w'), indent=1)
+
+
 FEEDS = [
     ('Variety', 'https://variety.com/feed/'),
     ('Deadline', 'https://deadline.com/feed/'),
@@ -85,14 +156,16 @@ def clean(t, n=None):
     return t[:n] if n else t
 
 
-def fetch_channel(name):
+def fetch_channel(name, before=None):
     """Public web preview of a channel: id, time, text. Pictures and links are ignored on purpose."""
     out = []
     try:
-        r = requests.get(f'https://t.me/s/{name}', headers=UA, timeout=25)
+        r = requests.get(f'https://t.me/s/{name}' + (f'?before={before}' if before else ''), headers=UA, timeout=25)
         r.raise_for_status()
     except Exception as e:
         log(f'channel {name} unreachable: {e}')
+        if not before:
+            note_source('ch:' + name, False, 'cannot be reached')
         return out
     soup = BeautifulSoup(r.text, 'html.parser')
     for w in soup.select('.tgme_widget_message_wrap'):
@@ -107,6 +180,12 @@ def fetch_channel(name):
         if len(txt) < 12:
             continue
         out.append({'ref': 'ch:' + msg['data-post'], 'text': txt, 'when': when})
+    if not before:
+        dates = sorted([x['when'] for x in out if x['when']])
+        if soup.select('.tgme_widget_message_wrap'):
+            note_source('ch:' + name, True, newest=(dates[-1] if dates else None))
+        else:
+            note_source('ch:' + name, False, 'the public page shows no posts (link changed, channel private or removed)')
     return out
 
 
@@ -118,6 +197,7 @@ def fetch_feeds():
             r = requests.get(url, headers=UA, timeout=25)
             r.raise_for_status()
             soup = BeautifulSoup(r.content, 'xml')
+            note_source('feed:' + name, len(soup.find_all('item')) > 0, 'feed returned no stories')
             for it in soup.find_all('item')[:15]:
                 link = (it.find('link').get_text() if it.find('link') else '').strip()
                 title = clean(it.find('title').get_text() if it.find('title') else '')
@@ -132,6 +212,7 @@ def fetch_feeds():
                 items.append({'source': name, 'title': title, 'desc': desc, 'link': link, 'ts': ts})
         except Exception as e:
             log(f'feed {name} failed: {e}')
+            note_source('feed:' + name, False, 'feed cannot be reached')
     items.sort(key=lambda x: -x['ts'])
     return items
 
@@ -212,19 +293,21 @@ ALREADY PUBLISHED OR DRAFTED RECENTLY (set already_covered=true if this lead is 
     return ask(prompt)
 
 
-def web_verify(lead_text):
+def web_verify(lead_text, ref_date=None):
     """Web search for a real report of the same story. Returns {'source','link','title','desc'} or None.
     Only accepts a report published in the last 4 days (so an old story can never come back as news)."""
-    today = datetime.date.today().isoformat()
+    ref = ref_date or datetime.date.today()
+    today = ref.isoformat()
     prompt = f"""A film-news channel posted this lead. It may be OLD news, a rumour, or invented.
 
 LEAD: {lead_text}
 
-Today is {today}. Use web search to find a real report of this SAME story from a reputable outlet
+The lead was posted on {today}. Use web search to find a real report of this SAME story from a reputable outlet
 (Variety, Deadline, The Hollywood Reporter, IndieWire, Empire, Collider, Screen Rant, GamesRadar, BBC, Reuters, AP, Entertainment Weekly, etc.).
+Fan blogs, rumour sites, social posts and forums are NOT acceptable sources; if only those exist, found must be false.
 Reply with ONLY one JSON object:
 {{"found": true or false, "url": "full link of the report", "outlet": "outlet name", "published": "YYYY-MM-DD, the date that report was published",
-  "is_old_news": true if the event happened more than 4 days before today, "note": "one short sentence"}}
+  "is_old_news": true if the event happened more than 4 days before the date the lead was posted, "facts": "3 to 6 plain sentences with the key facts of that report (names, numbers, dates)", "note": "one short sentence"}}
 found must be false if you cannot find a real report. Never guess a link."""
     try:
         r = client.messages.create(model=MODEL, max_tokens=1500, temperature=0,
@@ -240,16 +323,25 @@ found must be false if you cannot find a real report. Never guess a link."""
             log(f"web: not usable ({obj.get('note')})")
             return None
         pub = datetime.date.fromisoformat(str(obj.get('published'))[:10])
-        if (datetime.date.today() - pub).days > 4 or pub > datetime.date.today() + datetime.timedelta(days=1):
-            log(f'web: report dated {pub}, too old')
+        if (ref - pub).days > 4 or (pub - ref).days > 5 or pub > datetime.date.today() + datetime.timedelta(days=1):
+            log(f'web: report dated {pub} does not fit the lead date {ref}')
             return None
         url = str(obj.get('url') or '')
         if not re.match(r'^https?://[^\s]+$', url):
             return None
-        return {'source': clean(obj.get('outlet') or 'the source', 60), 'link': url, 'title': '', 'desc': ''}
+        return {'source': clean(obj.get('outlet') or 'the source', 60), 'link': url, 'title': '', 'desc': '', 'facts': clean(obj.get('facts') or '', 1500)}
     except Exception as e:
         log(f'web verify unreadable: {e}')
         return None
+
+
+def web_text(web):
+    if not web:
+        return ''
+    txt = article_text(web['link'])
+    if len(txt) >= 300:
+        return txt
+    return web.get('facts', '') if len(web.get('facts', '')) >= 150 else ''
 
 
 # ---------------------------------------------------------------- TMDB
@@ -389,6 +481,10 @@ def main():
         log('another run is active, leaving')
         return
     mode = load_mode()
+    if '--backfill-from' in sys.argv:
+        since = datetime.date.fromisoformat(sys.argv[sys.argv.index('--backfill-from') + 1])
+        run_backfill(db(), since, LIMIT_ARG)
+        return
     max_run = LIMIT_ARG or int(mode.get('max_per_run', 6))
     conn = db()
     cur = conn.cursor()
@@ -404,7 +500,7 @@ def main():
     log(f'{len(reports)} recent outlet reports')
     leads = []
     cutoff = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=3)
-    for ch in CHANNELS:
+    for ch in active_channels():
         for p in fetch_channel(ch):
             if p['ref'] in seen:
                 continue
@@ -445,8 +541,8 @@ def main():
                     res['source_index'] = si
         if src is None:
             web = web_verify(ld['text'])
-            txt = article_text(web['link']) if web else ''
-            if web and len(txt) >= 300:
+            txt = web_text(web)
+            if web and txt:
                 res2 = write_item(ld['text'], 'a short post from a movie-news channel', reports, recent, {'idx': 'web', 'text': txt})
                 if res2 and not res2.get('skip') and not res2.get('already_covered'):
                     res, src = res2, web
@@ -486,6 +582,7 @@ Return JSON: {{"picks": [numbers]}}""", 300)
             res['source_index'] = i
             made.append(finish(conn, res, r, {'kind': 'feed', 'ref': ref, 'text': f"{r['title']} — {r['desc']}"}, 'feed', mode, recent))
 
+    check_source_alerts()
     made = [m for m in made if m]
     log(f'done: {len(made)} new items')
     waiting = [m for m in made if m[1] == 'draft']
@@ -497,7 +594,80 @@ Return JSON: {{"picks": [numbers]}}""", 300)
         tg('📰 <b>Published automatically:</b>\n' + '\n'.join('• ' + html.escape(t) for t, st in autop[:8]))
 
 
-def finish(conn, res, src, ld, origin, mode, recent):
+def run_backfill(conn, since, limit=None):
+    """Catch up on channel posts from `since` (a date). Each item keeps the channel post's REAL date, so it reads as older news."""
+    cur = conn.cursor()
+    cur.execute("SELECT origin_ref FROM news_items WHERE origin_ref IS NOT NULL")
+    seen = {r[0] for r in cur.fetchall()}
+    cur.execute("SELECT title FROM news_items WHERE status IN ('draft','published') ORDER BY created_at DESC LIMIT 60")
+    recent = [r[0] for r in cur.fetchall()]
+    since_dt = datetime.datetime.combine(since, datetime.time.min, tzinfo=datetime.timezone.utc)
+    posts, before, pages = {}, None, 0
+    for ch in active_channels():
+        pages = 0
+        before = None
+        while pages < 60:
+            batch = fetch_channel(ch, before)
+            pages += 1
+            if not batch:
+                break
+            for p in batch:
+                posts[p['ref']] = p
+            ids = [int(re.search(r'/(\d+)$', p['ref']).group(1)) for p in batch]
+            dates = [datetime.datetime.fromisoformat(p['when']) for p in batch if p['when']]
+            before = min(ids)
+            if dates and min(dates) < since_dt:
+                break
+            time.sleep(1)
+    todo = []
+    for p in posts.values():
+        try:
+            w = datetime.datetime.fromisoformat(p['when'])
+        except Exception:
+            continue
+        if w >= since_dt and p['ref'] not in seen:
+            todo.append((w, p))
+    todo.sort(key=lambda x: x[0])
+    if limit:
+        todo = todo[:limit]
+    log(f'backfill: {len(posts)} posts read, {len(todo)} to process since {since}')
+    saved = skipped = 0
+    for w, p in todo:
+        ld = {'kind': 'channel', 'ref': p['ref'], 'text': p['text']}
+        kind = f"a short post from a movie-news channel, posted on {w.date()}"
+        res = write_item(p['text'], kind, [], recent)
+        if not res:
+            continue
+        if res.get('skip') or res.get('already_covered'):
+            if not DRY:
+                insert(conn, {'slug': 'skip-' + re.sub(r'\W', '', p['ref']).lower(), 'title': (p['text'][:80] or 'skipped'), 'origin': 'channel',
+                              'origin_ref': p['ref'], 'origin_text': p['text'], 'status': 'skipped',
+                              'skip_reason': 'duplicate' if res.get('already_covered') else (res.get('skip_reason') or 'not news')})
+            skipped += 1
+            continue
+        web = web_verify(p['text'], w.date())
+        txt = web_text(web)
+        src = None
+        if web and txt:
+            res2 = write_item(p['text'], kind, [], recent, {'idx': 'web', 'text': txt})
+            if res2 and not res2.get('skip') and not res2.get('already_covered'):
+                res, src = res2, web
+        if src is None:
+            if not DRY:
+                insert(conn, {'slug': 'skip-' + re.sub(r'\W', '', p['ref']).lower(), 'title': (p['text'][:80] or 'skipped'), 'origin': 'channel',
+                              'origin_ref': p['ref'], 'origin_text': p['text'], 'status': 'skipped', 'skip_reason': 'no real report found'})
+            skipped += 1
+            log(f"no verified report: {p['ref']}")
+            continue
+        r = finish(conn, res, src, ld, 'channel', {}, recent, when=w)
+        if r:
+            saved += 1
+    log(f'backfill done: {saved} drafts saved (dated by the channel post), {skipped} skipped')
+    if saved:
+        tg(f"📰 <b>News catch-up finished.</b>\n{saved} older stories from the channel are waiting in the admin page, each with its original date.\n\nReview: https://trendimovies.com/admin/news")
+
+
+def finish(conn, res, src, ld, origin, mode, recent, when=None):
     title = clean(res.get('title') or '', 100)
     body = (res.get('body') or '').strip()
     if not title or len(body) < 100:
@@ -517,15 +687,15 @@ def finish(conn, res, src, ld, origin, mode, recent):
             subj['cover_image'] = ph
     points = [smart_cut(clean(p), 130) for p in (res.get('points') or []) if clean(p)][:4]
     conf = 'high' if src else 'low'
-    status = 'published' if (mode.get('auto_publish') and src) else 'draft'
+    status = 'published' if (mode.get('auto_publish') and src and not when) else 'draft'   # back-catalogue items always wait for a yes
     row = {
-        'slug': slugify(title) + '-' + datetime.datetime.now().strftime('%d%b').lower(),
+        'slug': slugify(title) + '-' + (when or datetime.datetime.now()).strftime('%d%b').lower(),
         'title': title, 'summary': clean(res.get('summary') or '', 200), 'body': body, 'points': points,
         'category': cat, 'cover_image': subj.get('cover_image'), 'poster_image': subj.get('poster_image'),
         'related_tmdb_id': subj.get('related_tmdb_id'), 'related_type': subj.get('related_type'), 'film_title': subj.get('film_title'),
         'source_name': src['source'] if src else None, 'source_url': src['link'] if src else None,
         'origin': origin, 'origin_ref': ld['ref'], 'origin_text': ld['text'][:1500], 'confidence': conf, 'status': status,
-        'published_at': datetime.datetime.now(datetime.timezone.utc) if status == 'published' else None,
+        'published_at': when if when else (datetime.datetime.now(datetime.timezone.utc) if status == 'published' else None),
     }
     if DRY:
         print(json.dumps({k: (str(v) if not isinstance(v, (str, list, type(None), int)) else v) for k, v in row.items()}, indent=1, ensure_ascii=False))
