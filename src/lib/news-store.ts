@@ -1,6 +1,6 @@
 // Admin-side access to the news desk. Uses a direct database connection (the public API role can NOT read news_items).
 import pg from 'pg';
-import { readFileSync, writeFileSync, existsSync, openSync } from 'fs';
+import { readFileSync, writeFileSync, existsSync, openSync, chmodSync } from 'fs';
 import { spawn } from 'child_process';
 
 const MODE_FILE = '/var/lib/trendimovies/news_mode.json';
@@ -100,6 +100,70 @@ export async function update(id: number, p: any) {
 export async function publishDatedDrafts() {
   const r = await getPool().query("UPDATE news_items SET status='published', updated_at = now() WHERE status='draft' AND published_at IS NOT NULL AND source_url IS NOT NULL");
   return { ok: true, n: r.rowCount };
+}
+
+// ---------------------------------------------------------------- Telegram news channel (settings only; tg_poster.py does the posting)
+const TG_CONF = '/var/lib/trendimovies/tg_channel.json';
+const TG_ENV = '/etc/trendimovies/news-bot.env';
+
+function tgConf(): any { try { return existsSync(TG_CONF) ? JSON.parse(readFileSync(TG_CONF, 'utf-8')) : {}; } catch { return {}; } }
+
+/** Never returns the token. */
+export function readTg() {
+  const c = tgConf();
+  let hasToken = false;
+  try { hasToken = /TG_NEWS_BOT_TOKEN=\S+/.test(readFileSync(TG_ENV, 'utf-8')); } catch { /* none */ }
+  return { enabled: !!c.enabled, chat: c.chat || '', title: c.title || '', bot: c.bot || '', configured: !!(hasToken && c.chat),
+           daily_cap: c.daily_cap ?? 8, max_age_hours: c.max_age_hours ?? 6, min_gap_minutes: c.min_gap_minutes ?? 20 };
+}
+
+async function tgApi(token: string, method: string, params: any = {}) {
+  const r = await fetch(`https://api.telegram.org/bot${token}/${method}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(params), signal: AbortSignal.timeout(15000) });
+  return r.json() as Promise<any>;
+}
+
+export async function connectTg(tokenIn: string, chatIn: string) {
+  const token = String(tokenIn || '').trim();
+  if (!/^\d{6,12}:[\w-]{30,60}$/.test(token)) return { ok: false, error: 'That does not look like a bot token. It looks like 123456789:AAH... (from BotFather).' };
+  let chat = String(chatIn || '').trim().replace(/^https?:\/\/t\.me\//i, '').replace(/^@/, '');
+  if (chat.startsWith('+') || /joinchat/i.test(chat)) return { ok: false, error: 'Use the channel public name (t.me/Name), not an invite link. In the channel settings choose Public channel and pick a name.' };
+  if (!/^-?\d{5,20}$/.test(chat)) {
+    if (!/^[A-Za-z][A-Za-z0-9_]{4,31}$/.test(chat)) return { ok: false, error: 'That does not look like a channel name.' };
+    chat = '@' + chat;
+  }
+  const me = await tgApi(token, 'getMe');
+  if (!me.ok) return { ok: false, error: 'Telegram does not accept that token. Check you copied all of it.' };
+  const ch = await tgApi(token, 'getChat', { chat_id: chat });
+  if (!ch.ok) return { ok: false, error: 'The bot cannot see that channel. Check the name, and that the bot was added to the channel.' };
+  if (ch.result.type !== 'channel') return { ok: false, error: 'That is not a channel.' };
+  const mem = await tgApi(token, 'getChatMember', { chat_id: chat, user_id: me.result.id });
+  if (!mem.ok || mem.result.status !== 'administrator' || mem.result.can_post_messages === false) {
+    return { ok: false, error: 'The bot is not an administrator that can post messages in this channel. Add it as an administrator with permission to post.' };
+  }
+  writeFileSync(TG_ENV, `TG_NEWS_BOT_TOKEN=${token}\n`, { mode: 0o600 });
+  chmodSync(TG_ENV, 0o600);
+  const c = tgConf();
+  writeFileSync(TG_CONF, JSON.stringify({ ...c, enabled: false, chat: String(chat), title: ch.result.title || '', bot: me.result.username || '',
+    daily_cap: c.daily_cap ?? 8, max_age_hours: c.max_age_hours ?? 6, min_gap_minutes: c.min_gap_minutes ?? 20 }, null, 2) + '\n');
+  return { ok: true, title: ch.result.title, bot: me.result.username };
+}
+
+export function setTgEnabled(on: boolean) {
+  if (!readTg().configured) return { ok: false, error: 'Connect the channel first.' };
+  const c = tgConf();
+  c.enabled = !!on;
+  if (on) c.since = new Date().toISOString();       // only stories published from now on are ever posted
+  writeFileSync(TG_CONF, JSON.stringify(c, null, 2) + '\n');
+  return { ok: true };
+}
+
+export async function tgRecent() {
+  try {
+    const r = await getPool().query(`SELECT t.kind, t.status, t.error, t.posted_at, COALESCE(n.title, b.title) AS title
+      FROM tg_posts t LEFT JOIN news_items n ON t.kind='news' AND n.id=t.item_id LEFT JOIN blog_posts b ON t.kind='blog' AND b.id=t.item_id
+      ORDER BY t.posted_at DESC LIMIT 6`);
+    return r.rows;
+  } catch { return []; }
 }
 
 // ---------------------------------------------------------------- posts pasted by the editor

@@ -24,6 +24,33 @@
   let newLabel = '';
   let replaceLink = {};     // handle -> pasted new link
   let bulkConfirm = false;
+  let tg = { configured: false, enabled: false, chat: '', title: '', bot: '', daily_cap: 8 };
+  let tgPosts = [];
+  let tgToken = '';
+  let tgChat = '';
+  let tgConfirm = false;
+  async function tgConnect() {
+    busy = true; flash('Checking with Telegram...');
+    try {
+      const r = await fetch('/api/admin/news', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'tg_connect', token: tgToken, chat: tgChat }) });
+      const d = await r.json();
+      if (d.ok) { flash('Connected to "' + d.title + '" with bot @' + d.bot + '. Posting is still OFF. Turn it on below when you are ready.', 'success'); tgToken = ''; tgChat = ''; await load(); }
+      else flash('Problem: ' + (d.error || 'unknown'), 'error');
+    } catch (e) { flash('Problem: ' + e, 'error'); }
+    busy = false;
+  }
+  async function tgToggle() {
+    if (!tgConfirm) { tgConfirm = true; return; }
+    tgConfirm = false;
+    busy = true;
+    try {
+      const r = await fetch('/api/admin/news', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'tg_enable', on: !tg.enabled }) });
+      const d = await r.json();
+      if (d.ok) { flash(!tg.enabled ? 'Telegram posting is ON. Stories published from now on go to the channel.' : 'Telegram posting is OFF.', 'success'); await load(); }
+      else flash('Problem: ' + (d.error || 'unknown'), 'error');
+    } catch (e) { flash('Problem: ' + e, 'error'); }
+    busy = false;
+  }
   let leads = [];
   let leadText = '';
   let leadLink = '';
@@ -79,7 +106,7 @@
     try {
       const r = await fetch('/api/admin/news?status=' + tab);
       const d = await r.json();
-      if (d.ok) { items = d.items; counts = d.counts; mode = d.mode; sources = d.sources || sources; leads = d.leads || []; } else flash(d.error || 'Could not load', 'error');
+      if (d.ok) { items = d.items; counts = d.counts; mode = d.mode; sources = d.sources || sources; leads = d.leads || []; tg = d.tg || tg; tgPosts = d.tgPosts || []; } else flash(d.error || 'Could not load', 'error');
     } catch (e) { flash('Could not load: ' + e, 'error'); }
     loading = false;
   }
@@ -214,6 +241,31 @@
       </div>
     {/if}
   </div>
+
+  <details class="card src">
+    <summary>Telegram news channel: <b class:on={tg.enabled}>{tg.enabled ? 'ON' : tg.configured ? 'connected, OFF' : 'not connected'}</b></summary>
+    {#if tg.configured}
+      <div class="srow">
+        <div class="t">{tg.title} <span class="muted">{tg.chat} · bot @{tg.bot}</span></div>
+        <div class="muted">{tg.enabled ? 'Every new story and blog post is posted to the channel automatically.' : 'Switched off. Nothing is posted.'} Limits: up to {tg.daily_cap} posts a day, one at a time, only fresh items with a picture and a source. Older catch-up stories are never posted.</div>
+        <button class="btn {tgConfirm ? 'warn' : tg.enabled ? 'ghost' : 'good'}" disabled={busy} on:click={tgToggle}>{tgConfirm ? 'Tap again to confirm' : tg.enabled ? 'Turn off' : 'Turn on'}</button>
+      </div>
+      {#if tgPosts.length}
+        <div class="leads">
+          {#each tgPosts as p}<div class="lrow">{p.status === 'sent' ? '✅' : '⚠️'} <span class="muted">{p.kind === 'blog' ? 'Blog' : 'News'} · {ago(p.posted_at)}</span> {p.title}{#if p.error}<br /><span class="bad">{p.error}</span>{/if}</div>{/each}
+        </div>
+      {/if}
+    {/if}
+    <div class="srow">
+      <div class="t">{tg.configured ? 'Change the bot or channel' : 'Connect the channel'}</div>
+      <div class="muted">1) Make a public channel with a name (for example TrendiMoviesNews). 2) In Telegram, open @BotFather, send /newbot and follow the steps; copy the token it gives you. 3) Add that bot to your channel as an administrator that can post messages. 4) Paste the token and channel name here. The token is saved on the server only and is never shown again.</div>
+      <div class="srow-in">
+        <input placeholder="Bot token (from BotFather)" bind:value={tgToken} autocomplete="off" />
+        <input placeholder="Channel, e.g. https://t.me/TrendiMoviesNews" bind:value={tgChat} />
+        <button class="btn good" disabled={busy || !tgToken || !tgChat} on:click={tgConnect}>Connect</button>
+      </div>
+    </div>
+  </details>
 
   <details class="card src">
     <summary>Sources the desk watches {#if sources.channels.some((c) => c.status && c.status.fails >= 3)}<b class="bad">⚠️ a link looks dead</b>{/if}</summary>

@@ -1,7 +1,7 @@
 import type { APIRoute } from 'astro';
 import { requireAuth } from '../../../lib/admin-auth';
 import { fetchFromTMDB } from '../../../lib/tmdb';
-import { list, counts, update, setStatus, readMode, writeMode, readSources, publishDatedDrafts, addLead, recentLeads, addChannel, replaceChannel, toggleChannel } from '../../../lib/news-store';
+import { list, counts, update, setStatus, readMode, writeMode, readSources, publishDatedDrafts, addLead, recentLeads, readTg, tgRecent, connectTg, setTgEnabled, addChannel, replaceChannel, toggleChannel } from '../../../lib/news-store';
 
 const json = (data: any, status = 200) =>
   new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' } });
@@ -58,7 +58,7 @@ export const GET: APIRoute = async ({ request, url }) => {
       return json({ ok: true, images, poster, title, kind, id: Number(id) });
     }
     const status = url.searchParams.get('status') || 'draft';
-    return json({ ok: true, items: await list(status), counts: await counts(), mode: readMode(), sources: readSources(), leads: await recentLeads() });
+    return json({ ok: true, items: await list(status), counts: await counts(), mode: readMode(), sources: readSources(), leads: await recentLeads(), tg: readTg(), tgPosts: await tgRecent() });
   } catch (e: any) {
     return json({ ok: false, error: 'Could not read the news list' }, 500);
   }
@@ -71,6 +71,8 @@ export const POST: APIRoute = async ({ request }) => {
   let b: any = {};
   try { b = await request.json(); } catch { return json({ ok: false, error: 'Bad request' }, 400); }
   try {
+    if (b.action === 'tg_connect') return json(await connectTg(String(b.token || ''), String(b.chat || '')));
+    if (b.action === 'tg_enable') return json(setTgEnabled(!!b.on));
     if (b.action === 'lead_add') return json(await addLead(String(b.text || ''), String(b.link || ''), String(b.posted_on || '')));
     if (b.action === 'publish_dated') return json(await publishDatedDrafts());
     if (b.action === 'source_add') return json(await addChannel(String(b.link || ''), String(b.label || '')));
