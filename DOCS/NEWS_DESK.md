@@ -45,6 +45,15 @@ The Telegram section of `/admin/news` shows "Visits from the channel: today / la
 - Collector and channel poster: `scripts/ops/news-desk/` (copies of what runs on the server)
 - Site: `src/lib/news.ts`, `src/lib/news-store.ts`, `src/pages/api/admin/news.ts`, `src/components/admin/NewsManager.svelte`, `src/pages/news/`
 
+## Home page block
+
+`src/components/NewsHomeSection.astro`. The newest story is the big one and stays still. Under it, six stories take turns, three at a time: every 5 seconds one slides in at the top and the bottom one leaves.
+
+- No two stories in the block share a picture. A story with a picture already used is skipped here (it is still on `/news`).
+- It waits while a finger is on the list (and 6 seconds after), while a mouse is over it, during keyboard focus, when scrolled out of view and when the tab is hidden.
+- With "reduce motion" on, all six show in a still list.
+- Every row has the same height, so the page under the block never moves. All links are in the page HTML.
+
 ## Comments
 
 News stories use the site's shared comment box (`src/components/Comments.svelte`, `/api/comments`, table `review_comments` with `content_type='news'`). The story page shows the number of visible comments near the top.

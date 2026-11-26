@@ -1,9 +1,27 @@
 ---
 import { getNews, catMeta, ago, thumb } from '../lib/news';
 
-const { items } = await getNews({ limit: 4 });
+// The newest story is the big one and stays still. Under it, six stories take turns, three at a time.
+const SMALL = 6;
+const SHOWN = 3;
+
+const { items } = await getNews({ limit: 14 });
 const lead = items[0];
-const rest = items.slice(1, 4);
+
+// No two stories in the block share a picture, so matching pictures can never be on screen together.
+const used = new Set<string>(lead?.cover_image ? [lead.cover_image] : []);
+const rest: typeof items = [];
+const samePicture: typeof items = [];
+for (const x of items.slice(1)) {
+  if (rest.length >= SMALL) break;
+  if (x.cover_image && used.has(x.cover_image)) { samePicture.push(x); continue; }
+  if (x.cover_image) used.add(x.cover_image);
+  rest.push(x);
+}
+// only if there are not even three different ones, fill the gap rather than leave empty rows
+while (rest.length < SHOWN && samePicture.length) rest.push(samePicture.shift()!);
+
+const rolls = rest.length > SHOWN;
 ---
 
 {lead && (
@@ -24,26 +42,73 @@ const rest = items.slice(1, 4);
           <span class="nw-meta">{lead.source_name ? `${lead.source_name} · ` : ''}{ago(lead.published_at)}</span>
         </div>
       </a>
-      <ul class="nw-list">
-        {rest.map((x) => {
-          const m = catMeta(x.category);
-          return (
-            <li style={`--c:${m.color}`}>
-              <a href={`/news/${x.slug}`}>
-                <span class="nw-th">{x.cover_image ? <img src={thumb(x.cover_image, 'w342')} alt="" width="342" height="192" loading="lazy" decoding="async" /> : <span class="nw-ph">{m.glyph}</span>}</span>
-                <span class="nw-tx">
-                  <span class="nw-c">{m.label}</span>
-                  <strong>{x.title}</strong>
-                  <span class="nw-m">{ago(x.published_at)}</span>
-                </span>
-              </a>
-            </li>
-          );
-        })}
-      </ul>
+      <div class:list={['nw-window', { 'is-roll': rolls }]}>
+        <ul class="nw-list">
+          {rest.map((x) => {
+            const m = catMeta(x.category);
+            return (
+              <li style={`--c:${m.color}`}>
+                <a href={`/news/${x.slug}`}>
+                  <span class="nw-th">{x.cover_image ? <img src={thumb(x.cover_image, 'w342')} alt="" width="342" height="192" loading="lazy" decoding="async" /> : <span class="nw-ph">{m.glyph}</span>}</span>
+                  <span class="nw-tx">
+                    <span class="nw-c">{m.label}</span>
+                    <strong>{x.title}</strong>
+                    <span class="nw-m">{ago(x.published_at)}</span>
+                  </span>
+                </a>
+              </li>
+            );
+          })}
+        </ul>
+      </div>
     </div>
   </section>
 )}
+
+<script>
+  // Every few seconds a story slides in at the top, the others move down and the bottom one leaves.
+  const SHOWN = 3;
+  const EVERY = 5000;        // time between moves
+  const AFTER_TOUCH = 6000;  // stay still this long after a finger lifts
+
+  const win = document.querySelector<HTMLElement>('#news .nw-window.is-roll');
+  const list = win?.querySelector<HTMLElement>('.nw-list');
+  // visitors who ask for reduced motion get all the stories in a still list (see the CSS)
+  if (win && list && !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    let hovering = false;
+    let touching = false;
+    let stillUntil = 0;
+    let onScreen = false;
+
+    // stories outside the box must not be reachable by keyboard or screen reader
+    const mark = () => Array.from(list.children).forEach((li, i) => li.toggleAttribute('inert', i >= SHOWN));
+    mark();
+
+    list.addEventListener('pointerenter', (e) => { if (e.pointerType === 'mouse') hovering = true; });
+    list.addEventListener('pointerleave', (e) => { if (e.pointerType === 'mouse') hovering = false; });
+    list.addEventListener('touchstart', () => { touching = true; }, { passive: true });
+    const lifted = () => { touching = false; stillUntil = Date.now() + AFTER_TOUCH; };
+    list.addEventListener('touchend', lifted, { passive: true });
+    list.addEventListener('touchcancel', lifted, { passive: true });
+
+    new IntersectionObserver(([entry]) => {
+      onScreen = entry.isIntersecting;
+      // load the waiting pictures before their turn, so none slides in blank
+      if (onScreen) list.querySelectorAll('img').forEach((img) => { img.loading = 'eager'; });
+    }, { threshold: 0.4 }).observe(win);
+
+    window.setInterval(() => {
+      if (!onScreen || document.hidden || hovering || touching || Date.now() < stillUntil) return;
+      if (list.querySelector(':focus-visible')) return;
+      const last = list.lastElementChild as HTMLElement;
+      const step = last.offsetHeight + parseFloat(getComputedStyle(list).rowGap || '0');
+      list.prepend(last);
+      mark();
+      list.animate([{ transform: `translateY(-${step}px)` }, { transform: 'translateY(0)' }],
+        { duration: 700, easing: 'cubic-bezier(.22,.61,.36,1)' });
+    }, EVERY);
+  }
+</script>
 
 <style>
   .nw { max-width: 80rem; margin: 0 auto; padding: 24px 16px; color: var(--text-primary); }
@@ -65,6 +130,7 @@ const rest = items.slice(1, 4);
   .nw-tag { align-self: flex-start; display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px 4px 7px; border-radius: 999px; font-size: 11px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; background: var(--c); color: #fff; }
   .nw-meta { font-size: 12.5px; font-weight: 600; color: rgba(255,255,255,.72); }
 
+  .nw-window { min-width: 0; }
   .nw-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 12px; }
   .nw-list a { display: flex; gap: 12px; align-items: center; padding: 10px; border-radius: 14px; background: var(--bg-card); border: 1px solid var(--border); text-decoration: none; color: var(--text-primary); }
   .nw-th { flex: none; width: 104px; aspect-ratio: 16 / 10; border-radius: 9px; overflow: hidden; background: #111; border-bottom: 3px solid var(--c); display: block; }
@@ -72,17 +138,28 @@ const rest = items.slice(1, 4);
   .nw-ph { display: grid; place-items: center; width: 100%; height: 100%; font-size: 24px; }
   .nw-tx { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
   .nw-c { font-size: 10.5px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; color: var(--c); }
-  .nw-tx strong { font-size: 14.5px; line-height: 1.25; font-weight: 800; }
+  .nw-tx strong { font-size: 14.5px; line-height: 1.25; font-weight: 800; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; overflow: hidden; }
   .nw-m { font-size: 12px; font-weight: 600; color: var(--text-muted); }
+
+  /* the moving box: every row is the same height, so the box (and the page under it) never changes size */
+  .nw-window.is-roll { --row: 7.25rem; height: calc(var(--row) * 3 + 24px); overflow: hidden; }
+  .nw-window.is-roll li { flex: none; display: flex; height: var(--row); }
+  .nw-window.is-roll a { flex: 1; min-width: 0; overflow: hidden; }
+  .nw-window.is-roll a:focus-visible { outline: 2px solid var(--c); outline-offset: -3px; }
+  @media (max-width: 379px) { .nw-th { width: 88px; } }
 
   @media (min-width: 900px) {
     .nw-grid { grid-template-columns: 1.4fr 1fr; align-items: stretch; }
     .nw-lead { aspect-ratio: auto; min-height: 340px; }
-    .nw-list { justify-content: space-between; }
-    .nw-list li { flex: 1; display: flex; }
-    .nw-list a { flex: 1; }
+    .nw-window:not(.is-roll) .nw-list { height: 100%; justify-content: space-between; }
+    .nw-window:not(.is-roll) li { flex: 1; display: flex; }
+    .nw-window:not(.is-roll) a { flex: 1; }
   }
-  @media (prefers-reduced-motion: reduce) { .dot { animation: none; } }
+  @media (prefers-reduced-motion: reduce) {
+    .dot { animation: none; }
+    /* no movement: show every story in a normal list */
+    .nw-window.is-roll { height: auto; overflow: visible; }
+  }
   /* person photos (portrait): keep faces in the frame */
   .nw-lead img[src*="/h632/"], .nw-th img[src*="/h632/"] { object-position: 50% 18%; }
 </style>
