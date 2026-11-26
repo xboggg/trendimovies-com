@@ -319,10 +319,20 @@ const ogUrl = new URL(Astro.url.pathname + Astro.url.search, Astro.site || 'http
       // POST only. fetch(GET, keepalive:true) is the modern equivalent of
       // sendBeacon and survives page unload in Chrome/Firefox/Safari 2019+.
       // Image() beacon is the universal fallback for older browsers.
+      // Telegram apps send no referrer, so links posted to our news channel carry a tag.
+      // A tagged landing is saved with a readable source name; everything else is unchanged.
+      var referrer = document.referrer || '';
+      var tag = window.location.search || '';
+      if (/[?&]utm_source=telegram(&|$)/.test(tag) && /[?&]utm_medium=channel(&|$)/.test(tag)) {
+        referrer = /[?&]utm_campaign=blog(&|$)/.test(tag) ? 'Telegram channel (blog)'
+          : /[?&]utm_campaign=news(&|$)/.test(tag) ? 'Telegram channel (news)'
+          : 'Telegram channel';
+      }
+
       var trackUrl = '/api/analytics/track'
         + '?page_path=' + encodeURIComponent(path)
         + '&session_id=' + encodeURIComponent(sessionId)
-        + '&referrer=' + encodeURIComponent(document.referrer || '');
+        + '&referrer=' + encodeURIComponent(referrer);
 
       try {
         if (typeof fetch === 'function') {
