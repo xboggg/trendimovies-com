@@ -34,6 +34,8 @@ Newly published news stories and blog posts are sent to a Telegram channel as a 
 
 Channel links carry `utm_source=telegram&utm_medium=channel`. On such a landing the tracking script in `src/layouts/BaseLayout.astro` saves the visit's `referrer` as `Telegram channel (news)`, `Telegram channel (blog)` or `Telegram channel`. Other visits keep the browser's referrer. Only the landing page is labelled.
 
+The Telegram section of `/admin/news` shows "Visits from the channel: today / last 7 days". It counts distinct sessions among labelled, non-bot rows (the day is the UTC day, which is Ghana time). It is loaded separately (`?tgvisits=1`) and cached for a minute because the visits table is large.
+
 ## Database
 
 `news_items` (private), `news_public` (published items only, the only one public pages read), `news_leads` (private), `tg_posts` (private). The SQL is in `scripts/ops/news-desk/`.

@@ -1,7 +1,7 @@
 import type { APIRoute } from 'astro';
 import { requireAuth } from '../../../lib/admin-auth';
 import { fetchFromTMDB } from '../../../lib/tmdb';
-import { list, counts, update, setStatus, readMode, writeMode, readSources, publishDatedDrafts, addLead, recentLeads, readTg, tgRecent, connectTg, setTgEnabled, addChannel, replaceChannel, toggleChannel } from '../../../lib/news-store';
+import { list, counts, update, setStatus, readMode, writeMode, readSources, publishDatedDrafts, addLead, recentLeads, readTg, tgRecent, tgVisits, connectTg, setTgEnabled, addChannel, replaceChannel, toggleChannel } from '../../../lib/news-store';
 
 const json = (data: any, status = 200) =>
   new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' } });
@@ -11,7 +11,9 @@ export const GET: APIRoute = async ({ request, url }) => {
   const authError = requireAuth(request);
   if (authError) return authError;
   try {
-    // Picture picker: ?pictures=<words> finds films/series/people on TMDB; ?images=<movie|tv|person>:<id> lists their pictures
+    // Visits from the news channel: asked for separately so the news list never waits for the count
+    if (url.searchParams.has('tgvisits')) return json({ ok: true, visits: await tgVisits() });
+    // Picture picker:?pictures=<words> finds films/series/people on TMDB; ?images=<movie|tv|person>:<id> lists their pictures
     const pq = url.searchParams.get('pictures');
     if (pq !== null) {
       const d: any = await fetchFromTMDB('/search/multi', { query: pq.slice(0, 80) });

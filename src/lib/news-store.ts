@@ -166,6 +166,23 @@ export async function tgRecent() {
   } catch { return []; }
 }
 
+/** Visits that arrived from the news channel (tagged links). Ghana time is UTC, so "today" is the UTC day.
+ *  Counts sessions, so a refresh in the same tab is one visit. Cached for a minute: page_views is large. */
+let visitsCache: { at: number; value: { today: number; week: number } } | null = null;
+
+export async function tgVisits() {
+  if (visitsCache && Date.now() - visitsCache.at < 60000) return visitsCache.value;
+  const r = await getPool().query(`
+    SELECT count(DISTINCT session_id) FILTER (WHERE viewed_at >= date_trunc('day', now() AT TIME ZONE 'utc'))::int AS today,
+           count(DISTINCT session_id)::int AS week
+    FROM page_views
+    WHERE viewed_at >= date_trunc('day', now() AT TIME ZONE 'utc') - interval '6 days'
+      AND referrer LIKE 'Telegram channel%' AND NOT COALESCE(is_bot, false)`);
+  const value = { today: r.rows[0].today as number, week: r.rows[0].week as number };
+  visitsCache = { at: Date.now(), value };
+  return value;
+}
+
 // ---------------------------------------------------------------- posts pasted by the editor
 export async function addLead(text: string, link: string, postedOn: string) {
   const t = String(text || '').trim();

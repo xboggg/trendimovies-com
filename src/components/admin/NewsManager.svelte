@@ -26,6 +26,14 @@
   let bulkConfirm = false;
   let tg = { configured: false, enabled: false, chat: '', title: '', bot: '', daily_cap: 8 };
   let tgPosts = [];
+  let tgVisits = null;      // visits that came from the channel: { today, week }; null until counted
+  let tgVisitsFailed = false;
+  async function loadVisits() {
+    try {
+      const d = await (await fetch('/api/admin/news?tgvisits=1')).json();
+      if (d.ok) { tgVisits = d.visits; tgVisitsFailed = false; } else tgVisitsFailed = true;
+    } catch (e) { tgVisitsFailed = true; }
+  }
   let tgToken = '';
   let tgChat = '';
   let tgConfirm = false;
@@ -103,6 +111,7 @@
 
   async function load() {
     loading = true;
+    loadVisits();            // not awaited: the list must not wait for the count
     try {
       const r = await fetch('/api/admin/news?status=' + tab);
       const d = await r.json();
@@ -249,6 +258,10 @@
         <div class="t">{tg.title} <span class="muted">{tg.chat} · bot @{tg.bot}</span></div>
         <div class="muted">{tg.enabled ? 'Every new story and blog post is posted to the channel automatically.' : 'Switched off. Nothing is posted.'} Limits: up to {tg.daily_cap} posts a day, one at a time, only fresh items with a picture and a source. Older catch-up stories are never posted.</div>
         <button class="btn {tgConfirm ? 'warn' : tg.enabled ? 'ghost' : 'good'}" disabled={busy} on:click={tgToggle}>{tgConfirm ? 'Tap again to confirm' : tg.enabled ? 'Turn off' : 'Turn on'}</button>
+      </div>
+      <div class="srow">
+        <div class="t">Visits from the channel: {#if tgVisits}today {tgVisits.today} · last 7 days {tgVisits.week}{:else if tgVisitsFailed}could not be counted just now{:else}counting…{/if}</div>
+        <div class="muted">People who reached the site by tapping a link in the channel, your own taps included. Counting started 26 Nov 2026.</div>
       </div>
       {#if tgPosts.length}
         <div class="leads">
