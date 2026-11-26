@@ -7,7 +7,7 @@ const MODE_FILE = '/var/lib/trendimovies/news_mode.json';
 export const CATEGORY_KEYS = ['casting', 'trailers', 'release-dates', 'box-office', 'streaming', 'awards', 'behind-the-scenes', 'new-projects'];
 
 let pool: pg.Pool | null = null;
-function getPool(): pg.Pool {
+export function getPool(): pg.Pool {
   if (pool) return pool;
   const conf = readFileSync('/etc/postgrest.conf', 'utf-8');
   const m = conf.match(/^\s*db-uri\s*=\s*"?postgres(?:ql)?:\/\/([^:]+):([^@]+)@([^:/]+):(\d+)\/(\w+)"?/m);

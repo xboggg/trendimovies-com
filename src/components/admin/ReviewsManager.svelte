@@ -143,12 +143,14 @@
     } catch {} finally { cmLoading = false; }
   }
   async function cmAct(id: number, action: string) {
-    if (action === 'comment_remove' && !confirm('Delete this comment?')) return;
+    if (action === 'comment_remove' && !confirm('Delete this comment and any replies to it?')) return;
     cmBusy = id;
     try {
       const res = await fetch('/api/admin/reviews', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action, id }) });
-      if (res.ok) await loadComments();
-    } catch {} finally { cmBusy = null; }
+      const d = await res.json().catch(() => ({}));
+      if (res.ok && d.ok) await loadComments();
+      else alert('That did not work: ' + (d.error || 'please refresh and try again'));
+    } catch { alert('That did not work. Check your connection and try again.'); } finally { cmBusy = null; }
   }
   async function cmReply(id: number) {
     const text = prompt('Reply as TrendiMovies Team (posts an official ✓ reply):');

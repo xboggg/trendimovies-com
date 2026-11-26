@@ -44,3 +44,12 @@ The Telegram section of `/admin/news` shows "Visits from the channel: today / la
 
 - Collector and channel poster: `scripts/ops/news-desk/` (copies of what runs on the server)
 - Site: `src/lib/news.ts`, `src/lib/news-store.ts`, `src/pages/api/admin/news.ts`, `src/components/admin/NewsManager.svelte`, `src/pages/news/`
+
+## Comments
+
+News stories use the site's shared comment box (`src/components/Comments.svelte`, `/api/comments`, table `review_comments` with `content_type='news'`). The story page shows the number of visible comments near the top.
+
+- No login needed. Comments with links, strong language or obvious spam are held as `pending`. The word filter is mainly English.
+- A comment on a news story that is not published is refused.
+- Every new comment, on any page type, sends the owner a private Telegram alert (`src/lib/comment-alert.ts`), at most 20 an hour. Visitor text is sent as plain text in a JSON body. Do not send visitor text through a shell alert script.
+- Approve, reply and delete are in `/admin/reviews`, Comments tab. Approve and delete use the private database login (`src/lib/comments-admin.ts`) because the public role may only read and add comments. Until 2026-11-26 both buttons failed with "permission denied" and showed no error.

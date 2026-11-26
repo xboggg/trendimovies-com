@@ -1,5 +1,6 @@
 import type { APIRoute } from 'astro';
 import { requireAuth } from '../../../lib/admin-auth';
+import { approveComment, removeComment } from '../../../lib/comments-admin';
 
 const POSTGREST_URL = import.meta.env.PUBLIC_SUPABASE_URL || 'http://localhost:3001';
 
@@ -28,6 +29,12 @@ export const GET: APIRoute = async ({ request, url }) => {
         const tr = await pg(`movie_reviews?id=in.(${revIds.join(',')})&select=id,slug,title`);
         if (tr.ok) { const trows = await tr.json(); trows.forEach((t: any) => titles.set(t.id, t)); }
       }
+      const newsIds = [...new Set(rows.filter((c: any) => c.content_type === 'news').map((c: any) => c.content_id))].filter(Boolean);
+      const stories = new Map<number, any>();
+      if (newsIds.length) {
+        const nr = await pg(`news_public?id=in.(${newsIds.join(',')})&select=id,slug,title`);
+        if (nr.ok) (await nr.json()).forEach((t: any) => stories.set(t.id, t));
+      }
       const out = rows.map((c: any) => {
         const ct = c.content_type || 'review';
         let ctx: any = null;
@@ -38,6 +45,9 @@ export const GET: APIRoute = async ({ request, url }) => {
           ctx = { kind: 'Movie', title: `tmdb ${c.content_id}`, url: `/movie/${c.content_id}` };
         } else if (ct === 'series') {
           ctx = { kind: 'Series', title: `tmdb ${c.content_id}`, url: `/tv/${c.content_id}` };
+        } else if (ct === 'news') {
+          const t = stories.get(c.content_id);
+          ctx = t ? { kind: 'News', title: t.title, url: `/news/${t.slug}` } : { kind: 'News', title: 'story no longer published', url: '/news' };
         }
         return { ...c, review: ctx && ctx.kind === 'Review' ? { title: ctx.title, slug: ctx.url.replace('/review/', '') } : null, ctx };
       });
@@ -114,13 +124,9 @@ export const POST: APIRoute = async ({ request }) => {
       const r = await pg('review_comments', { method: 'POST', body: JSON.stringify(row) });
       return new Response(JSON.stringify({ ok: r.ok }), { headers: { 'Content-Type': 'application/json' } });
     }
-    if (action === 'comment_approve') {
-      const r = await pg(`review_comments?id=eq.${id}`, { method: 'PATCH', body: JSON.stringify({ status: 'visible' }) });
-      return new Response(JSON.stringify({ ok: r.ok }), { headers: { 'Content-Type': 'application/json' } });
-    }
-    if (action === 'comment_remove') {
-      const r = await pg(`review_comments?id=eq.${id}`, { method: 'DELETE' });
-      return new Response(JSON.stringify({ ok: r.ok }), { headers: { 'Content-Type': 'application/json' } });
+    if (action === 'comment_approve' || action === 'comment_remove') {
+      const done = action === 'comment_approve' ? await approveComment(Number(id)) : await removeComment(Number(id));
+      return new Response(JSON.stringify(done), { headers: { 'Content-Type': 'application/json' } });
     }
     return new Response(JSON.stringify({ error: 'unknown action' }), { status: 400 });
   } catch (e: any) {

@@ -2,6 +2,7 @@
 import BaseLayout from '../../layouts/BaseLayout.astro';
 import { getNewsBySlug, getNews, catMeta, fullDate, clock, ago, thumb, readMinutes } from '../../lib/news';
 import { isTakenDown } from '../../data/takedowns';
+import Comments from '../../components/Comments.svelte';
 
 const { slug } = Astro.params;
 const item = await getNewsBySlug(slug || '');
@@ -14,6 +15,14 @@ const paras = (item.body || '').split(/\n\s*\n/).map((p) => p.trim()).filter(Boo
 const points = (item.points || []).filter(Boolean);
 
 const more = (await getNews({ limit: 5 })).items.filter((x) => x.slug !== item.slug).slice(0, 3);
+
+// number of visible comments, shown near the top; the story still loads if it cannot be counted
+let commentCount = 0;
+try {
+  const cr = await fetch(`http://localhost:3001/review_comments?content_type=eq.news&content_id=eq.${Number(item.id)}&status=eq.visible&select=id`,
+    { headers: { Prefer: 'count=exact', Range: '0-0' }, signal: AbortSignal.timeout(2000) });
+  commentCount = parseInt((cr.headers.get('content-range') || '').split('/')[1] || '0', 10) || 0;
+} catch { /* show the link without a number */ }
 
 const url = `https://trendimovies.com/news/${item.slug}`;
 const shareText = encodeURIComponent(`${item.title} ${url}`);
@@ -50,6 +59,7 @@ const jsonLd = {
         <p class="byline">
           <time datetime={item.published_at}>{fullDate(item.published_at)} · {clock(item.published_at)} UTC</time>
           <span>·</span><span>{readMinutes(item.body)} min read</span>
+          <span>·</span><a href="#comments" class="to-comments">💬 {commentCount === 0 ? 'Comment' : commentCount === 1 ? '1 comment' : `${commentCount} comments`}</a>
         </p>
       </div>
     </div>
@@ -98,6 +108,10 @@ const jsonLd = {
           <a href={`https://twitter.com/intent/tweet?text=${shareText}`} target="_blank" rel="noopener noreferrer" class="sbtn">Post on X</a>
           <button type="button" class="sbtn" id="copy-link" data-url={url}>Copy link</button>
         </div>
+      </div>
+
+      <div id="comments" class="comments-slot">
+        <Comments client:visible contentType="news" contentId={Number(item.id)} />
       </div>
 
       {more.length > 0 && (
@@ -177,6 +191,9 @@ const jsonLd = {
   .share-b { display: flex; flex-wrap: wrap; gap: 8px; }
   .sbtn { display: inline-flex; align-items: center; justify-content: center; min-height: 44px; padding: 0 16px; border-radius: 12px; font: inherit; font-size: 14px; font-weight: 700; color: var(--text-primary); background: var(--bg-card); border: 1px solid var(--border); text-decoration: none; cursor: pointer; }
   .sbtn.wa { background: #25d366; border-color: #25d366; color: #052e16; }
+
+  .to-comments { color: var(--text-primary); font-weight: 800; text-decoration: underline; text-underline-offset: 3px; }
+  .comments-slot { scroll-margin-top: 84px; min-height: 260px; }
 
   .more { margin-top: 40px; }
   .more h2 { margin: 0 0 14px; font-size: 20px; font-weight: 900; letter-spacing: -.01em; }

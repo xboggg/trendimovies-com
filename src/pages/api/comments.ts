@@ -1,5 +1,6 @@
 import type { APIRoute } from 'astro';
 import { createHash } from 'crypto';
+import { alertNewComment } from '../../lib/comment-alert';
 
 const POSTGREST_URL = import.meta.env.PUBLIC_SUPABASE_URL || 'http://localhost:3001';
 
@@ -8,6 +9,28 @@ function pg(path: string, init?: RequestInit) {
     ...init,
     headers: { 'Accept-Profile': 'public', 'Content-Profile': 'public', 'Content-Type': 'application/json', ...(init?.headers || {}) },
   });
+}
+
+const TYPES = ['review', 'movie', 'series', 'news'];
+
+// What a comment is about, for the owner's alert. For news it also tells whether the story is really published.
+async function target(type: string, id: number): Promise<{ found: boolean; kind: string; title: string; path: string }> {
+  const kind = { review: 'Review', movie: 'Movie', series: 'Series', news: 'News' }[type] || 'Page';
+  const out = { found: false, kind, title: `number ${id}`, path: type === 'series' ? `/tv/${id}` : type === 'movie' ? `/movie/${id}` : '/' };
+  const query = type === 'news' ? `news_public?id=eq.${id}&select=slug,title`
+    : type === 'review' ? `movie_reviews?id=eq.${id}&select=slug,title`
+    : `${type === 'series' ? 'series' : 'movies'}?tmdb_id=eq.${id}&select=title&limit=1`;
+  try {
+    const r = await pg(query);
+    const row = r.ok ? (await r.json())[0] : null;
+    if (row) {
+      out.found = true;
+      out.title = row.title || out.title;
+      if (type === 'news') out.path = `/news/${row.slug}`;
+      if (type === 'review') out.path = `/review/${row.slug}`;
+    }
+  } catch { /* the defaults are enough for an alert */ }
+  return out;
 }
 
 // Collapse whitespace / strip control chars via unicode-property-safe regex.
@@ -42,7 +65,7 @@ export const GET: APIRoute = async ({ url }) => {
     contentId = parseInt(url.searchParams.get('review_id') || '0');
   }
   const sort = url.searchParams.get('sort') === 'top' ? 'likes.desc,created_at.desc' : 'created_at.desc';
-  if (!contentId || !['review', 'movie', 'series'].includes(contentType)) return json({ comments: [], total: 0 });
+  if (!contentId || !TYPES.includes(contentType)) return json({ comments: [], total: 0 });
   try {
     const r = await pg(`review_comments?content_type=eq.${contentType}&content_id=eq.${contentId}&status=eq.visible&select=id,parent_id,author,body,is_spoiler,is_staff,likes,created_at&order=${sort}&limit=500`);
     const rows = r.ok ? await r.json() : [];
@@ -82,7 +105,7 @@ export const POST: APIRoute = async ({ request, clientAddress }) => {
   const parentId = body.parent_id ? parseInt(body.parent_id) : null;
   const isSpoiler = !!body.is_spoiler;
   if (body.website) return json({ ok: true, status: 'visible' });   // honeypot -> silently drop bots
-  if (!contentId || !['review', 'movie', 'series'].includes(contentType) || text.length < 2)
+  if (!contentId || !TYPES.includes(contentType) || text.length < 2)
     return json({ ok: false, error: 'Comment too short' }, 400);
 
   // rate-limit: max 4 comments / 5 min per ip_hash
@@ -94,6 +117,9 @@ export const POST: APIRoute = async ({ request, clientAddress }) => {
     if (recent >= 4) return json({ ok: false, error: 'You are commenting too fast. Please wait a moment.' }, 429);
   } catch { }
 
+  const about = await target(contentType, contentId);
+  if (contentType === 'news' && !about.found) return json({ ok: false, error: 'This story is not available' }, 404);
+
   const status = isSuspicious(author, text) ? 'pending' : 'visible';
   try {
     const row: any = { content_type: contentType, content_id: contentId, parent_id: parentId, author, body: text, is_spoiler: isSpoiler, status, ip_hash: ip };
@@ -104,6 +130,8 @@ export const POST: APIRoute = async ({ request, clientAddress }) => {
     });
     const rows = r.ok ? await r.json() : [];
     const c = Array.isArray(rows) ? rows[0] : null;
+    // not awaited: the visitor never waits for the alert
+    if (r.ok) void alertNewComment({ author, body: text, held: status === 'pending', kind: about.kind, title: about.title, path: about.path });
     return json({ ok: r.ok, status, comment: status === 'visible' ? c : null,
       message: status === 'pending' ? 'Thanks! Your comment is awaiting review.' : '' });
   } catch { return json({ ok: false, error: 'Could not post comment' }, 500); }
