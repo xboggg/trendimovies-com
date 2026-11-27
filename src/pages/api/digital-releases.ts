@@ -1,5 +1,6 @@
 import type { APIRoute } from 'astro';
 import { readFileSync, existsSync } from 'node:fs';
+import { isHiddenName } from '../../lib/hidden-titles';
 
 // ============================================================================
 // Digital & HD release dates as JSON, for the Telegram bot.
@@ -70,7 +71,7 @@ function loadAll(): Release[] {
         for (const g of groups) {
           const iso = toIso(g?.date);
           for (const mv of g?.movies || []) {
-            if (mv?.title) out.push({ title: String(mv.title), date: g.date, iso });
+            if (mv?.title && !isHiddenName(mv.title)) out.push({ title: String(mv.title), date: g.date, iso });
           }
         }
       } catch {

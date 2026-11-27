@@ -3,6 +3,7 @@ import { filesEnabled } from '../lib/site-mode';
 const FILES_ON = filesEnabled();
 import BaseLayout from '../layouts/BaseLayout.astro';
 import { getCache, getCacheStale, setCache } from '../lib/cache';
+import { isHiddenName } from '../lib/hidden-titles';
 import { fetchFromTMDB } from '../lib/tmdb';
 
 // The calendar date of a Date that was parsed from printed text ("Tuesday October 27, 2026" = local midnight).
@@ -1068,6 +1069,8 @@ async function tmdbLookup(title: string, year: number): Promise<{ poster: string
 
 // Enrich every scraped movie with TMDB poster + tmdb id (deduped by title).
 const titleYear = new Map<string, number>();
+// hidden titles never reach the calendar (see lib/hidden-titles.ts)
+for (const month of monthData) for (const g of month) g.movies = g.movies.filter((mv: any) => !isHiddenName(mv.title));
 for (const month of monthData) for (const g of month) {
   const yr = g.iso ? Number(g.iso.slice(0, 4)) : YEAR;
   for (const mv of g.movies) if (!titleYear.has(mv.title)) titleYear.set(mv.title, yr);

@@ -5,6 +5,7 @@
 
 import { existsSync, readFileSync, writeFileSync, mkdirSync, readdirSync, statSync, unlinkSync } from 'fs';
 import { join } from 'path';
+import { withoutHidden } from './hidden-titles';
 
 const CACHE_DIR = '/var/www/trendimovies/.cache/tmdb';
 const DEFAULT_TTL = 3600000; // 1 hour in milliseconds
@@ -101,7 +102,7 @@ export function getCache<T>(endpoint: string, params: Record<string, string> = {
       return null;
     }
 
-    return cached.data as T;
+    return withoutHidden(cached.data as T).data;
   } catch (error) {
     console.error('Cache read error:', error);
     return null;
@@ -118,7 +119,7 @@ export function getCacheStale<T>(endpoint: string, params: Record<string, string
     const filePath = join(CACHE_DIR, `${key}.json`);
     if (!existsSync(filePath)) return null;
     const cached = JSON.parse(readFileSync(filePath, 'utf-8'));
-    return (cached && 'data' in cached) ? (cached.data as T) : null;
+    return (cached && 'data' in cached) ? withoutHidden(cached.data as T).data : null;
   } catch {
     return null;
   }

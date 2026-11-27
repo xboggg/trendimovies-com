@@ -16,6 +16,7 @@ export type TakedownEntry = {
   files: string[];      // Telegram file ids that must answer 410
   note: string;         // who reported it
   added: string;        // ISO date
+  hidden?: boolean;     // true = off the public site completely (see hidden-titles.ts)
 };
 
 // Same cleaning the link engine uses for its keys: lower case, only letters/digits, single spaces.
@@ -140,8 +141,9 @@ export async function takeDown(tmdbId: number, note: string) {
     // Not in our database (a page that comes straight from TMDB: no files of ours, but it still shows Stream/Download buttons).
     const t = await tmdbLookup(tmdbId);
     if (!t) return { ok: false, error: 'No film with that TMDB id (not in our database or on TMDB)' };
+    const hidden = readTakedowns().find((e) => Number(e.tmdb_id) === tmdbId)?.hidden;
     const list2 = readTakedowns().filter((e) => Number(e.tmdb_id) !== tmdbId);
-    list2.push({ tmdb_id: tmdbId, title: t.title, year: t.year, key: titleKey(t.title), files: [], note: (note || '').slice(0, 300), added: new Date().toISOString() });
+    list2.push({ tmdb_id: tmdbId, title: t.title, year: t.year, key: titleKey(t.title), files: [], note: (note || '').slice(0, 300), added: new Date().toISOString(), hidden });
     writeTakedowns(list2);
     return { ok: true, title: t.title, year: t.year, files: 0, cached_copies: 0, links_off: true, nginx_ok: true, error: '' };
   }
@@ -162,7 +164,7 @@ export async function takeDown(tmdbId: number, note: string) {
   const list = readTakedowns().filter((e) => Number(e.tmdb_id) !== tmdbId);
   const prev = readTakedowns().find((e) => Number(e.tmdb_id) === tmdbId);
   const merged = Array.from(new Set([...(prev?.files || []), ...files]));
-  list.push({ tmdb_id: tmdbId, title, year, key: titleKey(title), files: merged, note: (note || '').slice(0, 300), added: prev?.added || new Date().toISOString() });
+  list.push({ tmdb_id: tmdbId, title, year, key: titleKey(title), files: merged, note: (note || '').slice(0, 300), added: prev?.added || new Date().toISOString(), hidden: prev?.hidden });
   writeTakedowns(list);
 
   // 2) switch off every link and subtitle
